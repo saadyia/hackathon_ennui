@@ -29,16 +29,20 @@ flowchart LR
 ## Sorties (`france.json`)
 - Requête OpenAgenda par ville : `within_distance(location_coordinates, POINT(lon lat), 15km)`, `lastdate_end >= now()`, `firstdate_begin <= now(days=35)`.
 - On ne garde un événement que s'il a **au moins une occurrence non terminée** dans l'horizon. Exclus : annulés, emploi, petite enfance, culte, `age_max ≤ 14`.
-- Sélection par ville : quota (120 pour Paris, 30 à 80 ailleurs), réparti à tour de rôle entre les 5 catégories (photo et date proche d'abord).
-- Au total : **1 123 événements, dont 1 116 avec photo**. Il faut relancer `fetch_france.py` régulièrement, car les événements vieillissent.
+- Sélection par ville : quota (120 pour Paris, 30 à 80 ailleurs), réparti à tour de rôle entre les 11 catégories (cinéma, expo, scène, nature, rencontres, jeux vidéo, cuisine, créatif, lecture, café, sport) (photo et date proche d'abord).
+- Au total : **1 120 événements, dont 1 113 avec photo** (27/11/2026). Il faut relancer `fetch_france.py` régulièrement, car les événements vieillissent.
 
 ## Filtres à l'exécution (`Moteur.autorises`)
 - **Plateformes** (films, séries) : présence confirmée par TMDB sur au moins un abonnement de l'utilisateur. Sans aucune donnée TMDB, le filtre est **désactivé** et l'interface l'annonce.
   Ce n'est pas une supposition : sans données, on ne peut ni inclure ni exclure.
 - **Distance** (sorties) : Haversine vectorisée `≤ rayon_km` autour de la ville choisie. La distance arrondie est renvoyée sur chaque carte.
 - **Temps** (sorties) : au moins une occurrence intersecte la fenêtre de l'horizon, avec `fin ≥ maintenant`.
-  - `court` : reste d'aujourd'hui + samedi 0h → lundi 0h (le week-end en cours si l'on est samedi ou dimanche)
+  - `maintenant` : maintenant → +3 h ; `aujourdhui` : maintenant → minuit
+  - `weekend` : samedi 0h → lundi 0h (le week-end en cours si l'on est samedi ou dimanche) ; `court` = aujourdhui + weekend (anciens profils)
   - `semaine` : maintenant → +7 jours ; `mois` : maintenant → +30 jours
+- **Ambiances** (sorties) : étiquettes `festif`, `calme`, `drole`, `insolite`, `competitif`, `artistique` repérées par mots-clés dans `fetch_france.py`.
+  Colonnes de la matrice des genres (affinité) + bonus ×(1 + `BONUS_AMBIANCE`) ; exclues du malus de découverte (humeur, pas bulle).
+- **Genre « Historique »** : MovieLens n'a pas de genre Histoire, il est relié à `War`.
 - `prochaine_occurrence` : la première occurrence non terminée **dans la fenêtre**, avec ses vraies heures de début et de fin, ce qui permet d'afficher « En cours ».
 
 ## Découverte : niche et dépaysement

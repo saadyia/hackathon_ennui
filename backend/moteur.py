@@ -66,24 +66,30 @@ FILMS_PAR_GENRE = 25   # films de référence par genre favori dans v_u
 PART_DEJA_VUS = 0.6    # poids des « Déjà vu » dans v_u quand il y a aussi des genres
 EPS_AFFINITE = 0.15    # plancher de l'affinité : un genre éloigné reste recommandable
 MALUS_MAX = 0.9        # découverte à 10/10 : -90 % sur les œuvres des genres cochés
+BONUS_AMBIANCE = 4.0      # sortie portant une ambiance choisie : score x (1 + BONUS)
 MIN_LIKES_DECOUVERTE = 5  # en dessous, un film est trop confidentiel pour être fiable
 BUDGETS = ("tous", "gratuit", "moins10", "moins25")
 PLAFOND_BUDGET = {"gratuit": 0.0, "moins10": 10.0, "moins25": 25.0}
 ARTE = 234
 PARIS = ZoneInfo("Europe/Paris")
-HORIZONS = ("court", "semaine", "mois")  # aujourd'hui / ce week-end, 7 jours, 30 jours
+HORIZONS = ("maintenant", "aujourdhui", "weekend", "semaine", "mois", "court")  # "court" : anciens profils
+DUREE_MAINTENANT = timedelta(hours=3)  # « Maintenant » : en cours ou qui commence dans les 3 h
 Fenetre = Tuple[float, float]            # (début, fin) en timestamps
 
 
 def fenetres(horizon: str, maintenant: Optional[datetime] = None) -> List[Fenetre]:
     """
     Intervalles de temps couverts par un horizon (fuseau Europe/Paris) :
-      court   : reste d'aujourd'hui + le week-end à venir (samedi 0h -> dimanche 24h ;
-                le week-end en cours si on est samedi ou dimanche)
-      semaine : maintenant -> +7 jours
-      mois    : maintenant -> +30 jours
+      maintenant : maintenant -> +3 h (en cours ou sur le point de commencer)
+      aujourdhui : maintenant -> minuit
+      weekend    : samedi 0h -> lundi 0h à venir (le week-end en cours si on est samedi ou dimanche)
+      court      : aujourdhui + weekend (anciens profils)
+      semaine    : maintenant -> +7 jours
+      mois       : maintenant -> +30 jours
     """
     now = (maintenant or datetime.now(PARIS)).astimezone(PARIS)
+    if horizon == "maintenant":
+        return [(now.timestamp(), (now + DUREE_MAINTENANT).timestamp())]
     if horizon == "semaine":
         return [(now.timestamp(), (now + timedelta(days=7)).timestamp())]
     if horizon == "mois":
@@ -94,6 +100,10 @@ def fenetres(horizon: str, maintenant: Optional[datetime] = None) -> List[Fenetr
     if now.weekday() == 6:                                      # dimanche : week-end en cours
         samedi = minuit - timedelta(days=1)
     fin_weekend = samedi + timedelta(days=2)
+    if horizon == "aujourdhui":
+        return [(now.timestamp(), fin_du_jour.timestamp())]
+    if horizon == "weekend":
+        return [(max(now, samedi).timestamp(), fin_weekend.timestamp())]
     return [(now.timestamp(), fin_du_jour.timestamp()), (max(now, samedi).timestamp(), fin_weekend.timestamp())]
 
 
@@ -154,7 +164,10 @@ class Moteur:
         self.masque_type = {t: self.types == t for t in set(self.types)}
         self.masque_plateforme: Dict[int, np.ndarray] = {}
         self.masque_categorie: Dict[str, np.ndarray] = {}
+        self.masque_ambiance: Dict[str, np.ndarray] = {}
         for nd in self.noeuds:
+            for a in nd.get("ambiances", []):
+                self.masque_ambiance.setdefault(a, np.zeros(self.n, dtype=bool))[nd["index"]] = True
             for p in nd.get("plateformes", []):
                 self.masque_plateforme.setdefault(p, np.zeros(self.n, dtype=bool))[nd["index"]] = True
             if nd.get("categorie"):
@@ -187,10 +200,12 @@ class Moteur:
         self.films_populaires = np.array([nd["index"] for nd in films[:50]])
 
         # matrice genres (n x G), lignes normalisées, pour l'affinité utilisateur
-        self.genres = sorted({g for nd in self.noeuds for g in nd.get("genres", [])})
+        # (les ambiances des sorties, ex. "calme", y sont des colonnes comme les autres)
+        etiquettes = [nd.get("genres", []) + nd.get("ambiances", []) for nd in self.noeuds]
+        self.genres = sorted({g for e in etiquettes for g in e})
         pos = {g: j for j, g in enumerate(self.genres)}
-        lignes = [nd["index"] for nd in self.noeuds for g in nd.get("genres", [])]
-        colonnes = [pos[g] for nd in self.noeuds for g in nd.get("genres", [])]
+        lignes = [nd["index"] for nd, e in zip(self.noeuds, etiquettes) for g in e]
+        colonnes = [pos[g] for e in etiquettes for g in e]
         G = sparse.csr_matrix((np.ones(len(lignes)), (lignes, colonnes)), shape=(self.n, len(self.genres)))
         normes = np.sqrt(np.asarray(G.multiply(G).sum(axis=1)).ravel())
         normes[normes == 0] = 1.0
@@ -242,7 +257,7 @@ class Moteur:
     def part_genres_choisis(self, vus: Sequence[int], genres: Sequence[str]) -> np.ndarray:
         """m_i : part des genres de chaque œuvre qui font partie des genres cochés (à défaut :
         des genres des « Déjà vu »). 0 partout si l'utilisateur n'a exprimé aucun genre."""
-        choisis = {g for g in genres if g in self.genres}
+        choisis = {g for g in genres if g in self.genres and g not in self.masque_ambiance}  # ambiance = humeur, pas bulle
         if not choisis and len(vus):
             colonnes = np.asarray(self.G_binaire[list(vus)].sum(axis=0)).ravel()
             choisis = {self.genres[j] for j in np.where(colonnes > 0)[0]}
@@ -373,12 +388,15 @@ class Moteur:
         masque = np.zeros(self.n, dtype=bool) if autorises is None else ~autorises
         masque[vus] = True  # jamais recommander ce qui est déjà vu
         aff = self.affinite(vus, genres)
+        # ambiances choisies (sorties) : préférence explicite, plus forte que la seule affinité
+        choisies = [self.masque_ambiance[g] for g in genres if g in self.masque_ambiance]
+        bonus = 1.0 + BONUS_AMBIANCE * np.logical_or.reduce(choisies) if choisies else 1.0
 
         listes = {}
         if n_dec < k:
             if "confort" not in cache:
                 cache["confort"] = self.marche(v_u, CONFORT)
-            c = cache["confort"] * aff
+            c = cache["confort"] * aff * bonus
             if lift_confort:
                 c = c / self.pi_star
             c[masque] = -np.inf
@@ -387,7 +405,7 @@ class Moteur:
             if "decouverte" not in cache:
                 cache["decouverte"] = self.marche(v_u, DECOUVERTE)
             dans_mes_genres = self.part_genres_choisis(vus, genres)
-            d = cache["decouverte"] / self.pi_star * self.qualite * (1 - MALUS_MAX * s * dans_mes_genres)
+            d = cache["decouverte"] / self.pi_star * self.qualite * (1 - MALUS_MAX * s * dans_mes_genres) * bonus
             d[masque] = -np.inf
             listes["decouverte"] = (d, meilleurs(d, 3 * k))
 

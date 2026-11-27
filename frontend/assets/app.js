@@ -18,7 +18,21 @@ const TEINTES = {
   Action: 14, Romance: 325, Crime: 222, Fantasy: 258, Adventure: 120, Mystery: 245, Children: 190,
   Musical: 300, War: 80, Western: 35,
 };
-const ICONES_CATEGORIE = { cinema: "clapperboard", expo: "landmark", scene: "music", nature: "trees", rencontres: "messages-square" };
+const ICONES_CATEGORIE = {
+  cinema: "clapperboard", expo: "landmark", scene: "music", nature: "trees", rencontres: "messages-square",
+  series: "tv", jeux: "gamepad-2", cuisine: "chef-hat", creatif: "palette", lecture: "book-open", cafe: "coffee", sport: "bike",
+};
+// Questionnaire : l'énergie choisit l'onglet d'arrivée, la curiosité règle le curseur Découverte.
+const ENERGIES = [
+  { id: "cocon", nom: "Mode cocon", icone: "popcorn", onglet: "ecrans" },
+  { id: "mixte", nom: "Un peu des deux", icone: "sparkles", onglet: "pour-vous" },
+  { id: "dehors", nom: "Envie de sortir", icone: "compass", onglet: "sorties" },
+];
+const CURIOSITES = [
+  { id: 0.1, nom: "Des valeurs sûres" },
+  { id: 0.3, nom: "Un peu des deux" },
+  { id: 0.7, nom: "Surprends-moi" },
+];
 const ONGLETS = [
   { id: "pour-vous", nom: "Pour vous", icone: "sparkles" },
   { id: "ecrans", nom: "Films & Séries", icone: "clapperboard" },
@@ -36,6 +50,7 @@ const ETAT_INITIAL = () => ({
   horizon: "semaine",
   dejaVus: [],          // [{ id, titre, type }]
   decouverte: 0.3,
+  energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
   onglet: "pour-vous",
   ecrans: "tout",
 });
@@ -46,6 +61,7 @@ let controleur = null;
 let cleQuota = null;
 let feuille = null;     // feuille collaborative ouverte : { oeuvre, plans }
 let agenda = null;      // état de la synchronisation de l'agenda
+let etape = "bienvenue"; // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
 
 const stock = {
   lire(cle, defaut) { try { return JSON.parse(localStorage.getItem(`${PREFIXE}.${cle}`)) ?? defaut; } catch (_) { return defaut; } },
@@ -306,8 +322,9 @@ function localisation() {
     </div>`;
 }
 
-const selecteurHorizon = () => `<div class="segment segment-3" role="group" aria-label="Quand ?">
-    ${CONFIG.horizons.map((h) => `<button data-action="horizon" data-valeur="${h.id}" aria-pressed="${etat.horizon === h.id}">${esc(h.nom)}</button>`).join("")}
+const selecteurHorizon = () => `<div class="puces defilement" role="group" aria-label="Quand ?">
+    ${CONFIG.horizons.map((h) => `<button class="puce puce-s" data-action="horizon" data-valeur="${h.id}" aria-pressed="${etat.horizon === h.id}">
+      ${h.id === "maintenant" ? icone("clock", 14) : ""}${esc(h.nom)}</button>`).join("")}
   </div>`;
 
 const selecteurBudget = () => `<div class="puces defilement" role="group" aria-label="Budget">
@@ -330,7 +347,7 @@ function statutAgenda() {
 function entete(surtitre, titre) {
   return `<header class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="marque">ennui<span>.</span></span>
+        <span class="marque">On fait koi<span> ?</span></span>
         <span class="surtitre">${esc(surtitre)}</span>
       </div>
       <h1 class="titre-1">${esc(titre)}</h1>
@@ -360,29 +377,61 @@ function videEcrans() {
 // ------------------------------------------------------------------ //
 // Écrans                                                               //
 // ------------------------------------------------------------------ //
+const puces = (groupe, options) => `<div class="puces">${options.map((o) => `<button class="puce" data-action="pref" data-groupe="${groupe}"
+    data-valeur="${esc(JSON.stringify(o.id))}" aria-pressed="${etat.prefs[groupe].includes(o.id)}">${esc(o.nom)}</button>`).join("")}</div>`;
+
 function groupePuces(titre, groupe, options) {
+  return `<section class="groupe"><span class="surtitre">${esc(titre)}</span>${puces(groupe, options)}</section>`;
+}
+
+const sectionVille = () => `<section class="groupe"><span class="surtitre">Où es-tu ?</span>${localisation()}</section>`;
+
+/** Genres (films, séries, sorties) puis ambiances (sorties seulement), tous deux dans prefs.genres. */
+const sectionGenres = () => groupePuces("Tes genres favoris", "genres", CONFIG.genres)
+  + `<section class="groupe">
+    <span class="surtitre">Quelle ambiance ?</span>
+    ${puces("genres", CONFIG.ambiances)}
+    <p class="tres-muet petit" style="margin:10px 2px 0">Pour tes sorties.</p>
+  </section>`;
+
+function preferences({ ville = true } = {}) {
+  const noteTmdb = CONFIG.plateformes_verifiees ? "" :
+    `<p class="tres-muet petit" style="margin:10px 2px 0">Disponibilités en cours de vérification : le filtre s'appliquera dès que les plateformes seront confirmées.</p>`;
+  return (ville ? sectionVille() : "")
+    + groupePuces("Envie de…", "categories", CONFIG.categories)
+    + sectionGenres()
+    + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb;
+}
+
+/** Question à choix unique du questionnaire (énergie, moment, curiosité). */
+function groupeChoix(titre, cle, options) {
   return `<section class="groupe">
       <span class="surtitre">${esc(titre)}</span>
-      <div class="puces">${options.map((o) => `<button class="puce" data-action="pref" data-groupe="${groupe}"
-          data-valeur="${esc(JSON.stringify(o.id))}" aria-pressed="${etat.prefs[groupe].includes(o.id)}">${esc(o.nom)}</button>`).join("")}</div>
+      <div class="puces">${options.map((o) => `<button class="puce" data-action="choix" data-cle="${cle}"
+          data-valeur="${esc(JSON.stringify(o.id))}" aria-pressed="${etat[cle] === o.id}">${o.icone ? icone(o.icone, 14) : ""}${esc(o.nom)}</button>`).join("")}</div>
     </section>`;
 }
 
-function preferences() {
-  const noteTmdb = CONFIG.plateformes_verifiees ? "" :
-    `<p class="tres-muet petit" style="margin:10px 2px 0">Disponibilités en cours de vérification : le filtre s'appliquera dès que les plateformes seront confirmées.</p>`;
-  return `<section class="groupe"><span class="surtitre">Où es-tu ?</span>${localisation()}</section>`
-    + groupePuces("Envie de…", "categories", CONFIG.categories)
-    + groupePuces("Tes genres favoris", "genres", CONFIG.genres)
-    + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb;
+function ecranBienvenue() {
+  return `<div class="bienvenue apparition">
+      <span class="marque">On fait koi<span> ?</span></span>
+      <div class="bienvenue-centre">
+        <h1 class="titre-1 bienvenue-titre">Salut !<br>On fait koi aujourd'hui ?</h1>
+        <p class="muet bienvenue-texte">Pas besoin de savoir : laisse-toi guider selon ton énergie, tes goûts et ce qu'il se passe près de chez toi.</p>
+      </div>
+      <button class="bouton-principal" data-action="c-est-parti">C'est parti ! ${icone("arrow-right", 18)}</button>
+    </div>`;
 }
 
 function ecranAccueil() {
   const connus = comptes();
   return `<div class="apparition">
-      <span class="marque">ennui<span>.</span></span>
-      <h1 class="titre-1" style="font-size:34px;margin-top:48px">Seul chez soi ne veut pas dire isolé.</h1>
-      <p class="muet" style="margin:14px 0 0">Choisis ton prénom et ta ville pour découvrir quoi faire aujourd'hui — et voir qui est partant autour de toi.</p>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="marque">On fait koi<span> ?</span></span>
+        <button class="lien-discret" data-action="retour-bienvenue">${icone("arrow-left", 16)}Retour</button>
+      </div>
+      <h1 class="titre-1" style="font-size:34px;margin-top:40px">Dis-nous tout.</h1>
+      <p class="muet" style="margin:14px 0 0">Quelques questions sur tes goûts et tes envies du moment. Rien n'est obligatoire, à part ton prénom.</p>
       ${connus.length ? `<div class="reprendre">
           <span class="tres-muet petit">Déjà venu sur cet appareil ?</span>
           <div class="puces" style="margin-top:8px">${connus.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">
@@ -392,7 +441,11 @@ function ecranAccueil() {
         <span class="surtitre">Ton prénom</span>
         <input class="champ" id="champ-prenom" maxlength="30" autocomplete="given-name" placeholder="Ex. Chloé" value="${esc(etat.prenom)}">
       </section>
-      ${preferences()}
+      ${sectionVille()}
+      ${groupeChoix("Ton énergie du moment", "energie", ENERGIES)}
+      ${groupeChoix("Pour quand ?", "horizon", CONFIG.horizons)}
+      ${groupeChoix("Côté curiosité", "decouverte", CURIOSITES)}
+      ${preferences({ ville: false })}
     </div>
     <div class="barre-action">
       <button class="bouton-principal" data-action="commencer" ${etat.prenom.trim() ? "" : "disabled"}>Découvrir ma sélection ${icone("arrow-right", 18)}</button>
@@ -456,7 +509,7 @@ function ecranSorties() {
     <div style="margin-top:16px">${localisation()}</div>
     <div style="margin-top:14px">${selecteurHorizon()}</div>
     <div style="margin-top:12px">${selecteurBudget()}</div>
-    <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.map((c) => `<button class="puce" data-action="pref"
+    <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.filter((c) => c.sorties).map((c) => `<button class="puce" data-action="pref"
         data-groupe="categories" data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.categories.includes(c.id)}">
         ${icone(ICONES_CATEGORIE[c.id], 15)}${esc(c.nom)}</button>`).join("")}</div>
     ${instrument()}
@@ -605,10 +658,11 @@ async function rafraichirApresPlan() {
 function rendre() {
   const ecran = $("#ecran");
   const nav = $("#onglets");
-  if (!etat.uid) {
+  // La bienvenue s'affiche à chaque ouverture, même avec un compte (la sélection se charge pendant ce temps).
+  if (etape === "bienvenue" || !etat.uid) {
     nav.hidden = true;
-    ecran.className = "ecran sans-onglets";
-    ecran.innerHTML = ecranAccueil();
+    ecran.className = `ecran sans-onglets${etape === "bienvenue" ? " ecran-bienvenue" : ""}`;
+    ecran.innerHTML = etape === "bienvenue" ? ecranBienvenue() : ecranAccueil();
     return;
   }
   nav.hidden = false;
@@ -720,6 +774,11 @@ function memoriserCompte(id, prenom) {
   stock.ecrire("comptes", [{ id, prenom }, ...liste].slice(0, 8));
 }
 
+/** Horizon d'un ancien profil (ex. « court ») absent des choix proposés : « Dans la semaine ». */
+function normaliserHorizon() {
+  if (!CONFIG.horizons.some((h) => h.id === etat.horizon)) etat.horizon = "semaine";
+}
+
 async function changerCompte(uid) {
   const local = stock.lire(`etat.${uid}`, null);
   let u = null;
@@ -746,6 +805,7 @@ async function changerCompte(uid) {
   };
   delete etat.prefs.dejaVus;
   delete etat.prefs.horizon;
+  normaliserHorizon();
   memoriserCompte(uid, etat.prenom);
   stock.ecrire("actif", uid);
   sauvegarder();
@@ -803,7 +863,10 @@ const actions = {
       const u = await api("/api/utilisateurs", { prenom, ville, prefs: { ...prefs, horizon: etat.horizon } });
       etat.uid = u.id;
       etat.prenom = u.prenom;
-      etat.onglet = "pour-vous";
+      etat.onglet = ENERGIES.find((e) => e.id === etat.energie)?.onglet || "pour-vous";
+      // envie de séries sans envie de cinéma : Films & Séries s'ouvre sur les séries
+      const cats = etat.prefs.categories;
+      if (cats.includes("series") && !cats.includes("cinema")) etat.ecrans = "serie";
       memoriserCompte(u.id, u.prenom);
       sauvegarder();
       haut();
@@ -814,7 +877,24 @@ const actions = {
     }
   },
   "changer-compte"(b) { changerCompte(b.dataset.uid); },
+  "c-est-parti"() {
+    etape = etat.uid ? "application" : "questionnaire";  // compte connu : directement à la sélection
+    haut();
+    rendre();
+  },
+  "retour-bienvenue"() {
+    etape = "bienvenue";
+    haut();
+    rendre();
+  },
+  /** Choix unique du questionnaire : énergie, horizon ou curiosité (avant création du compte). */
+  choix(b) {
+    const { cle } = b.dataset;
+    etat[cle] = JSON.parse(b.dataset.valeur);
+    b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  },
   "nouveau-compte"() {
+    etape = "questionnaire";
     etat = ETAT_INITIAL();
     stock.retirer("actif");
     donnees = {};
@@ -996,6 +1076,7 @@ document.addEventListener("change", (e) => { if (["curseur", "rayon"].includes(e
     return;
   }
   if (!ONGLETS.some((o) => o.id === etat.onglet)) etat.onglet = "pour-vous";
+  normaliserHorizon();
   if (etat.uid) {
     // le compte existe-t-il encore côté serveur (base réinitialisée) ?
     try { await api("/api/utilisateurs/moi"); } catch (_) { etat = { ...etat, uid: null }; }

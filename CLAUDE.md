@@ -12,10 +12,12 @@
 - **Direction artistique :** sobre, éditoriale, haut de gamme (MUBI / DICE / Apple TV). Mode sombre, **zéro émoji**.
 
 ### Parcours
-1. **Connexion express** « Seul chez soi ne veut pas dire isolé. » : prénom + ville (toute la France, API Adresse) + rayon,
-   envies, genres, plateformes. Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
+1. **Bienvenue** « Salut ! On fait koi aujourd'hui ? » + bouton « C'est parti ! », puis **questionnaire** « Dis-nous tout. » :
+   prénom, énergie (cocon → Films & Séries, sortir → Sorties, les deux → Pour vous), horizon, curiosité (curseur 0.1 / 0.3 / 0.7),
+   ville (toute la France, API Adresse) + rayon, envies, genres, plateformes. Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
 2. **Pour vous** (sélection mixte), **Films & Séries** (Tout / Films / Séries), **Sorties** (ville, rayon, horizon, type), **Profil**.
-   Horizons : Aujourd'hui / Ce week-end, Dans la semaine, Dans le mois.
+   Horizons : Maintenant (3 h), Aujourd'hui, Ce week-end, Dans la semaine, Dans le mois.
+   Envies : 11 catégories de sorties + « Séries & binge-watch » (écrans seulement). Ambiances (Faire la fête, Tranquille, Pour rire, Insolite, Esprit de compét', Inspirant) : sorties seulement.
 3. **Curseur Zone de confort — Découverte** : 0/10 = genres cochés ; 10/10 = hors de ses genres (malus -90 %). Étiquettes « Pépite » / « Hors piste ».
 4. **Budget** : Tous les prix, Gratuit, Moins de 10 €, Moins de 25 €.
 5. **Déjà vu** : retire l'œuvre et l'ajoute au profil, ce qui affine les recommandations en direct.

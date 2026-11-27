@@ -279,6 +279,7 @@ def metadonnees_sorties(sorties, decalage):
             "type": "sortie",
             "titre": s["titre"],
             "genres": s["genres"],
+            "ambiances": s.get("ambiances", []),   # calme, insolite, drole, competitif, artistique
             "categorie": s["categorie"],
             "ville": s["ville"],
             "lieu": s["lieu"],

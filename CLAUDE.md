@@ -1,0 +1,68 @@
+# CLAUDE.md — hackathon_ennui
+
+> Contexte principal du projet. `frontend/` et `backend/` ont leur propre `CLAUDE.md`,
+> chargé automatiquement quand Claude travaille dans ces dossiers.
+
+## 1. Vue d'ensemble et objectifs
+
+- **Problème :** l'ennui et l'isolement des étudiants sur des campus excentrés, surtout le week-end.
+- **Utilisateurs cibles :** étudiants partout en France (40 villes universitaires couvertes en sorties), sans historique (cold start).
+- **Solution :** application web mobile de recommandation culturelle hybride : films, séries et événements
+  culturels réels à venir près de chez soi, selon les goûts, la ville, le rayon, l'horizon temporel et les abonnements.
+- **Direction artistique :** sobre, éditoriale, haut de gamme (MUBI / DICE / Apple TV). Mode sombre, **zéro émoji**.
+
+### Parcours
+1. **Accueil** « Qu'est-ce qu'on fait aujourd'hui ? » : ville (toute la France, API Adresse) + rayon 5–50 km, types d'activités, genres, plateformes.
+2. **Pour vous** (sélection mixte), **Films & Séries** (Tout / Films / Séries), **Sorties** (ville, rayon, horizon, type), **Profil**.
+   Horizons : Aujourd'hui / Ce week-end, Dans la semaine, Dans le mois.
+3. **Curseur Zone de confort — Découverte** : part de « pépites » (0 à 10 sur 10).
+4. **Déjà vu** : retire l'œuvre et l'ajoute au profil, ce qui affine les recommandations en direct.
+5. **Intéressé · X étudiants** sur les sorties (dimension sociale).
+
+### Objectifs du hackathon
+- **Priorité absolue :** MVP fluide, sans latence, **aucune dépendance réseau bloquante pendant la démo**.
+- **Deadline / livrables / critères du jury :** _à compléter_
+
+## 2. Stack technique et commandes
+
+| Couche      | Technologie |
+|-------------|-------------|
+| Backend     | Python 3.9+, FastAPI, NumPy, SciPy, Pandas |
+| Données     | Pré-calculées en local : `P.npz` (creux), `pi_star.npy`, `noeuds.json` |
+| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main, police et icônes Lucide en local |
+| Sources     | MovieLens (films), TVmaze (séries), OpenAgenda (sorties France), API Adresse (communes), TMDB (affiches + plateformes FR.flatrate) |
+
+### Commandes (depuis la racine)
+```bash
+pip install -r backend/requirements.txt
+python3 backend/fetch_france.py          # rafraîchit les événements à venir (réseau, ~1 min) — à refaire avant la démo
+python3 backend/fetch_series.py          # optionnel : rafraîchit les séries (réseau, ~10 s)
+python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB dans .env (~5 min)
+python3 backend/build_graph.py --movielens /chemin/ml-latest-small   # pré-calcul (< 1 s)
+uvicorn backend.main:app --reload        # http://127.0.0.1:8000
+# Tests : aucun pour l'instant
+```
+
+## 3. Règles d'architecture et conventions de code
+
+- **Séparation stricte :** `fetch_*.py` / `enrich_tmdb.py` (réseau, hors ligne) → `build_graph.py` (hors ligne)
+  → `moteur.py` (calcul pur) → `main.py` (HTTP uniquement) → frontend.
+- **Un seul appel réseau à l'exécution :** `/api/communes` (API Adresse, timeout 3 s, cache, repli local sur les villes couvertes).
+  Tout le reste est pré-téléchargé ; les fichiers `backend/data/*.json` sont versionnés (repli). Le fichier `tmdb.json` aussi, une fois créé.
+- **Budget de latence :** < 20 ms de calcul par requête (~17 ms). Aucune I/O par requête.
+- **Identifiants publics :** `film:<movieId>`, `serie:<tvmazeId>`, `sortie:oa-<uid>` (OpenAgenda).
+- **Dates :** jamais d'événement passé. La prochaine occurrence est recalculée à chaque requête (fuseau Europe/Paris).
+- **Plateformes :** uniquement TMDB `results.FR.flatrate`. **Aucune simulation.** Une donnée non vérifiée s'affiche « Disponibilité non vérifiée ».
+- **Design :** zéro émoji ; icônes Lucide (`stroke-width 1.5`) ; pas de CDN ; couleurs définies uniquement par les variables de `app.css`.
+- **Honnêteté des données :** ne jamais inventer de prix, d'horaires, de dates ni de plateformes. Seul le compteur « Intéressé » part d'une valeur simulée (signalé dans le Profil).
+- **Langue :** code, commentaires et interface en français.
+- **Python 3.9 :** pas de syntaxe `X | None` ; utiliser `typing.Optional` / `List`.
+
+## 4. Fichiers de contexte secondaires
+
+- Spécifications fonctionnelles : @docs/specs.md
+- Architecture, données et modèle mathématique : @docs/architecture.md
+- Tâches et avancement : @docs/todo.md
+- Contrat d'API (lu à la demande) : `docs/api.md`
+- Contexte frontend : `frontend/CLAUDE.md`
+- Contexte backend : `backend/CLAUDE.md`

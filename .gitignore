@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.DS_Store
+# dataset brut MovieLens (non versionné, voir docs/architecture.md)
+backend/data/raw/

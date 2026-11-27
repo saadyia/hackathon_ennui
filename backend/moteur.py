@@ -1,0 +1,381 @@
+"""
+Moteur de recommandation : PageRank personnalisé + restart biaisé anti-hubs.
+
+Chargé une seule fois au démarrage de l'API (artefacts produits par build_graph.py).
+Une requête = 2 marches aléatoires sur une matrice creuse (~15 ms au total).
+
+Cold start : l'utilisateur n'a pas d'historique. Le point de départ v_u est construit à
+partir de ses genres favoris (films les plus aimés de chaque genre) et, au fil de l'usage,
+des œuvres marquées « Déjà vu » (voir vecteur_depart).
+
+Deux marches, une par extrémité du curseur :
+    v_u  = distribution de départ (genres + œuvres déjà vues)
+    b    ∝ pi_star^(-beta), restreint aux films du voisinage à 2 pas du départ
+    r    = (1 - lambda) v_u + lambda b                    (distribution de restart)
+    pi   <- (1 - alpha) pi P + alpha r                    (jusqu'à (1-alpha)^n <= TOL_MARCHE)
+
+    CONFORT    : alpha=0.10, beta=0, lambda=0  -> PageRank personnalisé classique
+    DECOUVERTE : alpha=0.50, beta=2, lambda=1  -> restart biaisé vers la niche du voisinage
+
+Classements (multipliés par l'affinité de genres, voir plus bas) :
+    confort    : pi_confort                     (proche des goûts, souvent des classiques)
+    découverte : pi_decouverte / pi_star        (lift : ce qui est sur-représenté autour
+                                                 de l'utilisateur par rapport au global)
+
+Affinité de genres : a_i = EPS_AFFINITE + cos(genres_i, genres de l'utilisateur), où les
+genres de l'utilisateur sont ses genres favoris + ceux de ses « Déjà vu ». Sans ce terme,
+partir de 25 films par genre suffit à peine : la marche dérive vers les mêmes classiques
+(Pulp Fiction, Shawshank) quels que soient les genres choisis.
+
+Le curseur s ∈ [0, 1] fixe un quota : sur k résultats, round(s·k) viennent du classement
+découverte, le reste du classement confort, entrelacés. Chaque résultat est étiqueté
+("confort" / "decouverte") pour l'affichage.
+
+Pourquoi pas une interpolation continue de alpha/beta avec s ? Mesuré sur MovieLens :
+le top-10 reste figé sur les hubs jusqu'à s≈0.45 puis bascule d'un coup (effet
+interrupteur) ; une fusion de rangs pondérée a le même défaut. Le quota est linéaire.
+
+Séries et sorties sont des nœuds du même graphe, reliés aux films par genres : la même
+marche les classe à partir des goûts de l'utilisateur. Pour elles, le classement confort
+est aussi divisé par pi_star (lift_confort=True) : sinon celles reliées aux films les plus
+populaires sortent en tête pour tout le monde.
+"""
+
+import json
+import time
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+import numpy as np
+from scipy import sparse
+
+DOSSIER_DONNEES = Path(__file__).resolve().parent / "data" / "processed"
+TOL_MARCHE = 0.04  # erreur relative visée : (1-alpha)^n <= 4 %, suffisant pour classer
+FILMS_PAR_GENRE = 25   # films de référence par genre favori dans v_u
+PART_DEJA_VUS = 0.6    # poids des « Déjà vu » dans v_u quand il y a aussi des genres
+EPS_AFFINITE = 0.15    # plancher de l'affinité : un genre éloigné reste recommandable
+PARIS = ZoneInfo("Europe/Paris")
+HORIZONS = ("court", "semaine", "mois")  # aujourd'hui / ce week-end, 7 jours, 30 jours
+Fenetre = Tuple[float, float]            # (début, fin) en timestamps
+
+
+def fenetres(horizon: str, maintenant: Optional[datetime] = None) -> List[Fenetre]:
+    """
+    Intervalles de temps couverts par un horizon (fuseau Europe/Paris) :
+      court   : reste d'aujourd'hui + le week-end à venir (samedi 0h -> dimanche 24h ;
+                le week-end en cours si on est samedi ou dimanche)
+      semaine : maintenant -> +7 jours
+      mois    : maintenant -> +30 jours
+    """
+    now = (maintenant or datetime.now(PARIS)).astimezone(PARIS)
+    if horizon == "semaine":
+        return [(now.timestamp(), (now + timedelta(days=7)).timestamp())]
+    if horizon == "mois":
+        return [(now.timestamp(), (now + timedelta(days=30)).timestamp())]
+    minuit = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    fin_du_jour = minuit + timedelta(days=1)
+    samedi = minuit + timedelta(days=(5 - now.weekday()) % 7)  # aujourd'hui si on est samedi
+    if now.weekday() == 6:                                      # dimanche : week-end en cours
+        samedi = minuit - timedelta(days=1)
+    fin_weekend = samedi + timedelta(days=2)
+    return [(now.timestamp(), fin_du_jour.timestamp()), (max(now, samedi).timestamp(), fin_weekend.timestamp())]
+
+
+def haversine_km(lat0: float, lon0: float, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
+    """Distance de grand cercle (km) entre un point et des tableaux de points."""
+    p = np.pi / 180
+    a = (np.sin((lat - lat0) * p / 2) ** 2
+         + np.cos(lat0 * p) * np.cos(lat * p) * np.sin((lon - lon0) * p / 2) ** 2)
+    return 12742.0 * np.arcsin(np.sqrt(a))
+
+
+@dataclass(frozen=True)
+class Parametres:
+    alpha: float       # poids du restart
+    beta: float        # pénalisation des hubs dans le restart
+    part_niche: float  # lambda : part du restart envoyée vers les œuvres de niche
+
+
+CONFORT = Parametres(alpha=0.10, beta=0.0, part_niche=0.0)
+DECOUVERTE = Parametres(alpha=0.50, beta=2.0, part_niche=1.0)
+
+
+@dataclass
+class Recommandation:
+    index: int
+    score: float
+    origine: str  # "confort" | "decouverte"
+    noeud: dict
+
+
+def cle_titre(noeud: dict) -> str:
+    """« Apéro des randonneurs — Brest » et « … — Vannes » : un seul résultat."""
+    return noeud["titre"].split(" — ")[0].split(" - ")[0].strip().lower()
+
+
+def meilleurs(scores: np.ndarray, k: int) -> np.ndarray:
+    """Indices des k plus grands scores finis, par ordre décroissant."""
+    k = min(k, len(scores))
+    top = np.argpartition(-scores, k - 1)[:k]
+    top = top[np.argsort(-scores[top])]
+    return top[np.isfinite(scores[top])]
+
+
+class Moteur:
+    def __init__(self, dossier: Path = DOSSIER_DONNEES):
+        P = sparse.load_npz(dossier / "P.npz").tocsr()
+        # pi @ P  ==  P.T @ pi : on stocke P.T en CSR pour un produit rapide
+        self.PT = P.T.tocsr()
+        self.n = P.shape[0]
+        self.pi_star = np.load(dossier / "pi_star.npy")
+        with open(dossier / "noeuds.json", encoding="utf-8") as fh:
+            self.noeuds: List[dict] = json.load(fh)
+        self.index_par_id: Dict[str, int] = {nd["id"]: nd["index"] for nd in self.noeuds}
+
+        # masques pré-calculés : aucun parcours Python des nœuds par requête
+        self.types = np.array([nd["type"] for nd in self.noeuds])
+        self.masque_type = {t: self.types == t for t in set(self.types)}
+        self.masque_plateforme: Dict[int, np.ndarray] = {}
+        self.masque_categorie: Dict[str, np.ndarray] = {}
+        for nd in self.noeuds:
+            for p in nd.get("plateformes", []):
+                self.masque_plateforme.setdefault(p, np.zeros(self.n, dtype=bool))[nd["index"]] = True
+            if nd.get("categorie"):
+                self.masque_categorie.setdefault(nd["categorie"], np.zeros(self.n, dtype=bool))[nd["index"]] = True
+        # plateformes : seules les données confirmées par TMDB (FR.flatrate) comptent
+        self.verifie = np.array([bool(nd.get("plateformes_verifiees")) for nd in self.noeuds])
+        self.plateformes_verifiees = bool(self.verifie.any())
+
+        # coordonnées des sorties (NaN ailleurs), pour le filtre de Haversine
+        self.lat = np.array([nd.get("lat") if nd.get("lat") is not None else np.nan for nd in self.noeuds])
+        self.lon = np.array([nd.get("lon") if nd.get("lon") is not None else np.nan for nd in self.noeuds])
+
+        # occurrences des sorties, à plat : (nœud, début, fin) en timestamps
+        lignes = [(nd["index"], datetime.fromisoformat(d).timestamp(), datetime.fromisoformat(f).timestamp())
+                  for nd in self.noeuds for d, f in nd.get("occurrences", [])]
+        occ = np.array(lignes, dtype=float).reshape(-1, 3)
+        self.occ_noeud = occ[:, 0].astype(np.int64)
+        self.occ_debut = occ[:, 1]
+        self.occ_fin = occ[:, 2]
+
+        # films de référence par genre (les plus aimés), pour le cold start
+        films = sorted((nd for nd in self.noeuds if nd["type"] == "film"), key=lambda nd: -nd["nb_likes"])
+        self.references_genre: Dict[str, np.ndarray] = {}
+        for nd in films:
+            for g in nd["genres"]:
+                ref = self.references_genre.setdefault(g, [])
+                if len(ref) < FILMS_PAR_GENRE:
+                    ref.append(nd["index"])
+        self.references_genre = {g: np.array(v) for g, v in self.references_genre.items()}
+        self.films_populaires = np.array([nd["index"] for nd in films[:50]])
+
+        # matrice genres (n x G), lignes normalisées, pour l'affinité utilisateur
+        self.genres = sorted({g for nd in self.noeuds for g in nd.get("genres", [])})
+        pos = {g: j for j, g in enumerate(self.genres)}
+        lignes = [nd["index"] for nd in self.noeuds for g in nd.get("genres", [])]
+        colonnes = [pos[g] for nd in self.noeuds for g in nd.get("genres", [])]
+        G = sparse.csr_matrix((np.ones(len(lignes)), (lignes, colonnes)), shape=(self.n, len(self.genres)))
+        normes = np.sqrt(np.asarray(G.multiply(G).sum(axis=1)).ravel())
+        normes[normes == 0] = 1.0
+        self.G = sparse.diags(1.0 / normes) @ G
+
+    # -------------------------------------------------------------- #
+
+    def indices(self, ids: Sequence[str]) -> List[int]:
+        """Identifiants publics ("film:1") -> indices du graphe (inconnus ignorés)."""
+        return [self.index_par_id[i] for i in ids if i in self.index_par_id]
+
+    def vecteur_depart(self, deja_vus: Sequence[int], genres: Sequence[str]) -> np.ndarray:
+        """
+        v_u : PART_DEJA_VUS sur les œuvres déjà vues, le reste réparti entre les genres
+        favoris (uniforme sur les FILMS_PAR_GENRE films les plus aimés de chaque genre).
+        Sans aucun signal : les 50 films les plus aimés.
+        """
+        v = np.zeros(self.n)
+        genres = [g for g in genres if g in self.references_genre]
+        part_vus = (PART_DEJA_VUS if genres else 1.0) if deja_vus else 0.0
+        if deja_vus:
+            v[list(deja_vus)] += part_vus / len(deja_vus)
+        for g in genres:
+            ref = self.references_genre[g]
+            v[ref] += (1 - part_vus) / len(genres) / len(ref)
+        if v.sum() == 0:
+            v[self.films_populaires] = 1.0 / len(self.films_populaires)
+        return v / v.sum()
+
+    def affinite(self, vus: Sequence[int], genres: Sequence[str]) -> np.ndarray:
+        """EPS + cos(genres de chaque nœud, profil de genres de l'utilisateur)."""
+        profil = np.zeros(len(self.genres))
+        for g in genres:
+            if g in self.genres:
+                profil[self.genres.index(g)] += 1.0
+        if len(vus):
+            profil += 0.5 * np.asarray(self.G[list(vus)].sum(axis=0)).ravel()
+        if not profil.any():
+            return np.ones(self.n)
+        return EPS_AFFINITE + self.G @ (profil / np.linalg.norm(profil))
+
+    def autorises(self, types: Iterable[str], plateformes: Iterable[int] = (),
+                  centre: Optional[Tuple[float, float]] = None, rayon_km: float = 15.0,
+                  categories: Iterable[str] = (), horizon: str = "mois") -> np.ndarray:
+        """
+        Masque des nœuds recommandables (listes vides = pas de filtre).
+          - plateformes (films, séries) : présence CONFIRMÉE par TMDB sur l'une d'elles ;
+            ignoré si le catalogue n'a aucune donnée vérifiée (pas de clé TMDB)
+          - centre + rayon (sorties) : distance de Haversine <= rayon
+          - horizon (sorties) : au moins une occurrence dans la fenêtre ; jamais rien de passé
+        """
+        vide = np.zeros(self.n, dtype=bool)
+        sortie = self.masque_type.get("sortie", vide)
+        masque = vide.copy()
+        for t in types:
+            masque |= self.masque_type.get(t, vide)
+
+        plateformes = list(plateformes)
+        if plateformes and self.plateformes_verifiees:
+            dispo = vide.copy()
+            for p in plateformes:
+                dispo |= self.masque_plateforme.get(p, vide)
+            masque &= (dispo & self.verifie) | sortie
+
+        if centre is not None:
+            with np.errstate(invalid="ignore"):
+                proches = haversine_km(centre[0], centre[1], self.lat, self.lon) <= rayon_km  # NaN -> False
+            masque &= proches | ~sortie
+
+        categories = list(categories)
+        if categories:
+            dans_cat = vide.copy()
+            for c in categories:
+                dans_cat |= self.masque_categorie.get(c, vide)
+            masque &= dans_cat | ~sortie
+
+        dans_fenetre = vide.copy()
+        for debut, fin in fenetres(horizon):
+            ok = (self.occ_fin >= max(debut, time.time())) & (self.occ_debut <= fin)
+            dans_fenetre[self.occ_noeud[ok]] = True
+        masque &= dans_fenetre | ~sortie
+        return masque
+
+    def distances(self, centre: Tuple[float, float], indices: Sequence[int]) -> List[float]:
+        idx = np.asarray(indices, dtype=np.int64)
+        return haversine_km(centre[0], centre[1], self.lat[idx], self.lon[idx]).tolist()
+
+    def prochaine_occurrence(self, index: int, horizon: str = "mois") -> Optional[Tuple[str, str]]:
+        """Première occurrence non terminée de la sortie, dans la fenêtre si possible (ISO, Paris)."""
+        maintenant = time.time()
+        futures = [i for i in np.where(self.occ_noeud == index)[0] if self.occ_fin[i] >= maintenant]
+        if not futures:
+            return None
+        dans = [i for i in futures for d, f in fenetres(horizon)
+                if self.occ_fin[i] >= d and self.occ_debut[i] <= f]
+        i = min(dans or futures, key=lambda j: self.occ_debut[j])
+        iso = lambda ts: datetime.fromtimestamp(ts, PARIS).isoformat()
+        return iso(self.occ_debut[i]), iso(self.occ_fin[i])
+
+    def _voisinage(self, v_u: np.ndarray) -> np.ndarray:
+        """Masque des nœuds atteignables en 1 ou 2 pas depuis les œuvres de départ."""
+        un_pas = self.PT @ v_u
+        deux_pas = self.PT @ un_pas
+        return (un_pas + deux_pas) > 0
+
+    def marche(self, v_u: np.ndarray, params: Parametres) -> np.ndarray:
+        """Distribution pi_u partant de v_u (non nulle sur le départ, à masquer ensuite)."""
+        r = v_u
+        if params.part_niche > 0:
+            voisins = self._voisinage(v_u)
+            voisins[v_u > 0] = False
+            # restart biaisé sur les films seulement : séries et sorties ont très peu de
+            # liens entrants, donc un pi_star minuscule ; pi_star^-beta les rendrait
+            # écrasantes (mêmes pépites pour tout le monde). Elles sont atteintes ensuite
+            # par la marche depuis ces films de niche.
+            voisins &= self.masque_type["film"]
+            poids = np.zeros(self.n)
+            poids[voisins] = self.pi_star[voisins] ** (-params.beta)
+            if poids.sum() > 0:
+                r = (1 - params.part_niche) * v_u + params.part_niche * poids / poids.sum()
+
+        # float32 comme P : évite une conversion de type à chaque produit matrice-vecteur
+        r = r.astype(np.float32)
+        pi = r.copy()
+        # nb d'itérations tel que (1-alpha)^n <= TOL_MARCHE : 31 en confort, 5 en découverte
+        n_iter = int(np.ceil(np.log(TOL_MARCHE) / np.log(1 - params.alpha)))
+        a, b = np.float32(1 - params.alpha), np.float32(params.alpha)
+        for _ in range(n_iter):
+            pi = a * (self.PT @ pi) + b * r
+        return pi.astype(np.float64)
+
+    def recommander(
+        self,
+        deja_vus: Sequence[str] = (),
+        genres: Sequence[str] = (),
+        decouverte: float = 0.0,
+        k: int = 10,
+        autorises: Optional[np.ndarray] = None,
+        lift_confort: bool = False,
+        cache: Optional[dict] = None,
+    ) -> List[Recommandation]:
+        """cache : dict partagé entre plusieurs appels d'une même requête (mêmes goûts)
+        pour ne calculer chaque marche qu'une fois (ex. films puis séries)."""
+        cache = {} if cache is None else cache
+        vus = self.indices(deja_vus)
+        v_u = self.vecteur_depart(vus, genres)
+        s = float(np.clip(decouverte, 0.0, 1.0))
+        n_dec = int(round(s * k))
+
+        masque = np.zeros(self.n, dtype=bool) if autorises is None else ~autorises
+        masque[vus] = True  # jamais recommander ce qui est déjà vu
+        aff = self.affinite(vus, genres)
+
+        listes = {}
+        if n_dec < k:
+            if "confort" not in cache:
+                cache["confort"] = self.marche(v_u, CONFORT)
+            c = cache["confort"] * aff
+            if lift_confort:
+                c = c / self.pi_star
+            c[masque] = -np.inf
+            listes["confort"] = (c, meilleurs(c, 3 * k))
+        if n_dec > 0:
+            if "decouverte" not in cache:
+                cache["decouverte"] = self.marche(v_u, DECOUVERTE)
+            d = cache["decouverte"] / self.pi_star * aff
+            d[masque] = -np.inf
+            listes["decouverte"] = (d, meilleurs(d, 3 * k))
+
+        # entrelacement : la découverte prend ses places réparties uniformément
+        quotas = {"confort": k - n_dec, "decouverte": n_dec}
+        curseurs = {o: 0 for o in listes}
+        pris, titres, resultat = set(), set(), []
+        for pos in range(k):
+            pris_dec = int(round((pos + 1) * n_dec / k)) - int(round(pos * n_dec / k))
+            ordre = ["decouverte", "confort"] if pris_dec else ["confort", "decouverte"]
+            for origine in ordre:
+                if origine not in listes or quotas[origine] == 0:
+                    continue
+                scores, top = listes[origine]
+                while curseurs[origine] < len(top) and (
+                        int(top[curseurs[origine]]) in pris
+                        or cle_titre(self.noeuds[int(top[curseurs[origine]])]) in titres):
+                    curseurs[origine] += 1
+                if curseurs[origine] < len(top):
+                    i = int(top[curseurs[origine]])
+                    pris.add(i)
+                    titres.add(cle_titre(self.noeuds[i]))
+                    quotas[origine] -= 1
+                    resultat.append(Recommandation(i, float(scores[i]), origine, self.noeuds[i]))
+                    break
+        return resultat
+
+    def rechercher(self, requete: str, limite: int = 10) -> List[dict]:
+        """Recherche de films et séries (sous-chaîne, plus populaires d'abord)."""
+        q = requete.strip().lower()
+        if not q:
+            return []
+        trouves = [nd for nd in self.noeuds
+                   if nd["type"] in ("film", "serie") and q in nd["titre"].lower()]
+        trouves.sort(key=lambda nd: -(nd.get("nb_likes") or 0))
+        return trouves[:limite]

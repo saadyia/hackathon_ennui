@@ -18,10 +18,16 @@ const TEINTES = {
   Action: 14, Romance: 325, Crime: 222, Fantasy: 258, Adventure: 120, Mystery: 245, Children: 190,
   Musical: 300, War: 80, Western: 35,
 };
-const ICONES_CATEGORIE = { cinema: "clapperboard", expo: "landmark", scene: "music", nature: "trees", rencontres: "messages-square" };
+const ICONES_CATEGORIE = { soirees: "disc-3", cinema: "clapperboard", expo: "landmark", scene: "drama", nature: "trees", rencontres: "messages-square", livres: "book-open" };
+const TYPES = {
+  film: { nom: "Film", icone: "film", vu: "Déjà vu", collectif: "Watch-party" },
+  serie: { nom: "Série", icone: "tv", vu: "Déjà vu", collectif: "Watch-party" },
+  livre: { nom: "Livre", icone: "book-open", vu: "Déjà lu", collectif: "Club de lecture" },
+  sortie: { nom: "Sortie", icone: "ticket", vu: "", collectif: "Sortie à plusieurs" },
+};
 const ONGLETS = [
   { id: "pour-vous", nom: "Pour vous", icone: "sparkles" },
-  { id: "ecrans", nom: "Films & Séries", icone: "clapperboard" },
+  { id: "ecrans", nom: "Chez soi", icone: "sofa" },
   { id: "sorties", nom: "Sorties", icone: "ticket" },
   { id: "profil", nom: "Profil", icone: "user" },
 ];
@@ -176,8 +182,8 @@ function affiche(o) {
   const teinte = TEINTES[o.genres?.[0]] ?? 230;
   const fond = `background: linear-gradient(160deg, hsl(${teinte} 32% 24%) 0%, hsl(${teinte} 20% 12%) 55%, #141417 100%)`;
   const typo = `<div class="visuel-typo" style="${fond}">
-      <span class="surtitre">${o.type === "serie" ? "Série" : "Film"}</span>
-      <div><strong>${esc(o.titre)}</strong><div class="annee">${o.annee ?? ""}</div></div>
+      <span class="surtitre">${TYPES[o.type]?.nom || "Film"}</span>
+      <div><strong>${esc(o.titre)}</strong><div class="annee">${esc(o.auteur || o.annee || "")}</div></div>
     </div>`;
   const srcset = o.affiche_mini ? ` srcset="${esc(o.affiche_mini)} 210w, ${esc(o.affiche)} 680w" sizes="180px"` : "";
   const img = o.affiche ? `<img src="${esc(o.affiche_mini || o.affiche)}"${srcset} alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
@@ -214,7 +220,7 @@ function ligneCollab(o, { compacte = false } = {}) {
   if (!plan) {
     return `<div class="collab ${compacte ? "compacte" : ""}">
         ${compacte ? "" : `<span class="collab-texte tres-muet">Personne encore. Lance le premier plan.</span>`}
-        <button class="bouton-ligne" data-action="ouvrir-plans" data-id="${id}">${icone("plus", 14)}${compacte ? "Organiser" : "Proposer un créneau"}</button>
+        <button class="bouton-ligne" data-action="ouvrir-plans" data-id="${id}">${icone("plus", 14)}${compacte ? (o.type === "livre" ? "Club de lecture" : "Organiser") : "Proposer un créneau"}</button>
       </div>`;
   }
   const quand = libelleInstant(new Date(plan.debut));
@@ -232,16 +238,17 @@ function ligneCollab(o, { compacte = false } = {}) {
 }
 
 function carteOeuvre(o, i = 0) {
-  const meta = [o.annee, genresFr(o)].filter(Boolean).join(" · ");
+  const livre = o.type === "livre";
+  const meta = livre ? [o.auteur, o.annee].filter(Boolean).join(" · ") : [o.annee, genresFr(o)].filter(Boolean).join(" · ");
   return `<article class="carte-oeuvre apparition" data-carte="${esc(o.id)}" style="animation-delay:${i * 25}ms">
       ${affiche(o)}
-      <span class="type-oeuvre">${o.type === "serie" ? "Série" : "Film"}</span>
+      <span class="type-oeuvre">${TYPES[o.type].nom}${livre && !o.francais ? " · VO" : ""}</span>
       <h3>${esc(o.titre)}</h3>
       <div class="meta">${esc(meta)}</div>
-      ${lignePlateformes(o)}
+      ${livre ? `<div class="plateformes"><span class="non-verifie">${esc(genresFr(o))}</span></div>` : lignePlateformes(o)}
       ${ligneCollab(o, { compacte: true })}
       <div class="carte-actions">
-        <button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone("eye", 14)}Déjà vu</button>
+        <button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(livre ? "book-open" : "eye", 14)}${TYPES[o.type].vu}</button>
       </div>
     </article>`;
 }
@@ -259,6 +266,7 @@ function carteSortie(o, i = 0) {
         <h3>${esc(o.titre)}</h3>
         <div class="ligne-info date">${icone("calendar", 15)}<span>${esc(libelleDate(o))}</span></div>
         <div class="ligne-info">${icone("map-pin", 15)}<span>${esc(lieu)}</span></div>
+        ${o.propose_par ? `<div class="ligne-info">${icone("user", 15)}<span>Proposée par ${esc(o.propose_par)}</span></div>` : ""}
         ${o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
         <div class="ligne-info">${icone("ticket", 15)}<span class="tarif">${esc(tarif(o))}</span></div>
         <div class="carte-sortie-pied">${ligneCollab(o)}</div>
@@ -372,7 +380,7 @@ function preferences() {
   const noteTmdb = CONFIG.plateformes_verifiees ? "" :
     `<p class="tres-muet petit" style="margin:10px 2px 0">Disponibilités en cours de vérification : le filtre s'appliquera dès que les plateformes seront confirmées.</p>`;
   return `<section class="groupe"><span class="surtitre">Où es-tu ?</span>${localisation()}</section>`
-    + groupePuces("Envie de…", "categories", CONFIG.categories)
+    + groupePuces("Envie de…", "categories", CONFIG.envies)
     + groupePuces("Tes genres favoris", "genres", CONFIG.genres)
     + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb;
 }
@@ -409,7 +417,7 @@ function ecranPourVous() {
     ${instrument()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
-      <div class="titre-section"><h2 class="titre-2">À l'écran ce soir</h2>
+      <div class="titre-section"><h2 class="titre-2">Ce soir, au chaud</h2>
         <button class="lien-discret" data-action="onglet" data-onglet="ecrans">Tout voir ${icone("chevron-right", 16)}</button></div>
       ${ecrans.length ? `<div class="carrousel">${ecrans.map(carteOeuvre).join("")}</div>`
         : d.chargement ? squelettesAffiches(2) : videEcrans()}
@@ -433,12 +441,13 @@ function ecranPourVous() {
 function ecranEcrans() {
   const d = donnees;
   const liste = d.grille || [];
-  const surtitre = { tout: "Films & Séries", film: "Films", serie: "Séries" }[etat.ecrans];
-  return `${entete(surtitre, "Ce soir, à l'écran")}
-    <div class="segment segment-3" role="group" aria-label="Type de contenu">
+  const surtitre = { tout: "Chez soi", film: "Films", serie: "Séries", livre: "Livres" }[etat.ecrans];
+  return `${entete(surtitre, "Ce soir, au chaud")}
+    <div class="segment segment-4" role="group" aria-label="Type de contenu">
       <button data-action="segment" data-valeur="tout" aria-pressed="${etat.ecrans === "tout"}">Tout</button>
-      <button data-action="segment" data-valeur="film" aria-pressed="${etat.ecrans === "film"}">${icone("film", 16)}Films</button>
-      <button data-action="segment" data-valeur="serie" aria-pressed="${etat.ecrans === "serie"}">${icone("tv", 16)}Séries</button>
+      <button data-action="segment" data-valeur="film" aria-pressed="${etat.ecrans === "film"}">${icone("film", 15)}Films</button>
+      <button data-action="segment" data-valeur="serie" aria-pressed="${etat.ecrans === "serie"}">${icone("tv", 15)}Séries</button>
+      <button data-action="segment" data-valeur="livre" aria-pressed="${etat.ecrans === "livre"}">${icone("book-open", 15)}Livres</button>
     </div>
     <div style="margin-top:12px">${selecteurBudget()}</div>
     ${instrument()}
@@ -453,6 +462,7 @@ function ecranSorties() {
   const liste = d.grille || [];
   return `${entete("Sorties", "Sortir près de chez toi")}
     ${statutAgenda()}
+    <button class="bouton-ligne" style="margin-top:12px" data-action="ouvrir-publication">${icone("calendar-plus", 14)}Proposer une sortie</button>
     <div style="margin-top:16px">${localisation()}</div>
     <div style="margin-top:14px">${selecteurHorizon()}</div>
     <div style="margin-top:12px">${selecteurBudget()}</div>
@@ -481,7 +491,7 @@ function ecranProfil() {
       <span class="surtitre">Mes plans</span>
       ${mesPlans === undefined ? `<div class="squelette" style="height:64px"></div>`
         : mesPlans.length ? `<div class="liste-vus"><ul>${mesPlans.map((p) => `<li>
-            ${icone(p.oeuvre_type === "sortie" ? "ticket" : p.oeuvre_type === "serie" ? "tv" : "film", 16, "tres-muet")}
+            ${icone(TYPES[p.oeuvre_type]?.icone || "film", 16, "tres-muet")}
             <button class="titre plan-ligne" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">
               <span>${esc(p.oeuvre_titre)}</span>
               <span class="tres-muet petit">${esc(libelleInstant(new Date(p.debut)))} · ${esc(avecQui(p))}${p.est_auteur ? " · organisé par toi" : ""}</span>
@@ -492,13 +502,13 @@ function ecranProfil() {
     </section>
     ${preferences()}
     <section class="groupe">
-      <span class="surtitre">Déjà vus · ${vus.length}</span>
+      <span class="surtitre">Déjà vus et lus · ${vus.length}</span>
       <div class="liste-vus">${vus.length ? `<ul>${vus.map((o) => `<li>
-          ${icone(o.type === "serie" ? "tv" : "film", 16, "tres-muet")}
+          ${icone(TYPES[o.type]?.icone || "film", 16, "tres-muet")}
           <span class="titre">${esc(o.titre)}</span>
           <button class="bouton-icone" data-action="retirer-vu" data-id="${esc(o.id)}" aria-label="Retirer ${esc(o.titre)}">${icone("x", 14)}</button>
-        </li>`).join("")}</ul>` : `<div class="vide">Touche « Déjà vu » sur un film ou une série : on s'en servira pour affiner tes recommandations.</div>`}</div>
-      <input class="champ" id="recherche-vu" type="search" placeholder="Ajouter un film ou une série déjà vu…" autocomplete="off" style="margin-top:12px">
+        </li>`).join("")}</ul>` : `<div class="vide">Touche « Déjà vu » ou « Déjà lu » sur une carte : on s'en servira pour affiner tes recommandations.</div>`}</div>
+      <input class="champ" id="recherche-vu" type="search" placeholder="Ajouter un film, une série ou un livre…" autocomplete="off" style="margin-top:12px">
       <ul class="suggestions" id="suggestions-vu" hidden></ul>
     </section>
     <section class="groupe">${statutAgenda()}</section>
@@ -509,6 +519,8 @@ function ecranProfil() {
       Sources : sorties <a href="https://openagenda.com" target="_blank" rel="noopener">OpenAgenda</a> (via Opendatasoft, synchronisé toutes les 6 h) ;
       communes <a href="https://adresse.data.gouv.fr" target="_blank" rel="noopener">API Adresse</a> ;
       séries <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA) ;
+      livres GoodReads et <a href="https://openlibrary.org" target="_blank" rel="noopener">OpenLibrary</a> ;
+      affiches de films <a href="https://www.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a> ;
       affiches et plateformes <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a> (abonnements en France uniquement) ;
       films MovieLens (GroupLens).
     </p>`;
@@ -521,15 +533,60 @@ const ECRANS = { "pour-vous": ecranPourVous, ecrans: ecranEcrans, sorties: ecran
 // ------------------------------------------------------------------ //
 function creneauParDefaut(o) {
   if (o.type === "sortie" && o.prochaine && new Date(o.prochaine.debut) > new Date()) return new Date(o.prochaine.debut);
+  if (o.type === "livre") return new Date(`${jourParis(new Date(Date.now() + 7 * 864e5))}T18:30:00`);
   const d = new Date();
   const ce_soir = new Date(`${jourParis(d)}T21:00:00`);
   // 21h heure de Paris ≈ 21h locale pour un public en France ; sinon demain
   return ce_soir > d ? ce_soir : new Date(ce_soir.getTime() + 864e5);
 }
 
+function formulairePublication() {
+  const v = etat.prefs.ville;
+  const demain = new Date(`${jourParis(new Date(Date.now() + 864e5))}T20:00:00`);
+  return `<div class="feuille-fond" data-action="fermer-feuille"></div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Proposer une sortie">
+      <div class="feuille-tete">
+        <div><span class="surtitre">Publier pour les étudiants</span><h2 class="titre-2" style="margin-top:4px">Proposer une sortie</h2></div>
+        <button class="bouton-icone" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+      </div>
+      <form class="feuille-corps proposer" id="form-sortie">
+        <label class="petit muet">Titre
+          <input class="champ" name="titre" required minlength="3" maxlength="100" placeholder="Soirée jeux, concert, expo…"></label>
+        <label class="petit muet">Catégorie
+          <select class="champ" name="categorie">${CONFIG.categories.map((c) => `<option value="${c.id}">${esc(c.nom)}</option>`).join("")}</select></label>
+        <label class="petit muet">Lieu
+          <input class="champ" name="lieu" required minlength="2" maxlength="120" placeholder="Nom du bar, de la salle, adresse…"></label>
+        <div class="petit muet">Ville
+          <div class="localisation" style="margin-top:6px">
+            <div class="champ-ville">${icone("map-pin", 16, "tres-muet")}
+              <input id="champ-ville-pub" class="champ-nu" type="search" autocomplete="off" required placeholder="Ville" value="${esc(v?.nom || "")}">
+            </div>
+            <ul class="suggestions" id="suggestions-ville-pub" hidden></ul>
+          </div>
+        </div>
+        <div class="deux-colonnes">
+          <label class="petit muet">Quand
+            <input class="champ" type="datetime-local" name="debut" required value="${esc(valeurLocale(demain))}" min="${esc(valeurLocale(new Date()))}"></label>
+          <label class="petit muet">Durée
+            <select class="champ" name="duree_h">${[1, 2, 3, 4, 6].map((h) => `<option value="${h}" ${h === 3 ? "selected" : ""}>${h} h</option>`).join("")}</select></label>
+        </div>
+        <label class="petit muet">Prix en euros (0 = gratuit)
+          <input class="champ" type="number" name="prix" min="0" max="500" step="0.5" placeholder="Laisser vide si non précisé"></label>
+        <label class="petit muet">Description (facultatif)
+          <input class="champ" name="description" maxlength="500" placeholder="Ambiance, programme, comment venir…"></label>
+        <button class="bouton-principal" type="submit">${icone("calendar-plus", 18)}Publier la sortie</button>
+      </form>
+    </section>`;
+}
+
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
+  if (feuille.mode === "publier") {
+    racine.hidden = false;
+    racine.innerHTML = formulairePublication();
+    return;
+  }
   const { oeuvre: o, plans } = feuille;
   const estSortie = o.type === "sortie";
   const plansHtml = plans === null ? `<div class="squelette" style="height:90px"></div>`
@@ -557,7 +614,7 @@ function rendreFeuille() {
     <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Organiser ${esc(o.titre)}">
       <div class="feuille-tete">
         <div style="min-width:0">
-          <span class="surtitre">${estSortie ? "Sortie à plusieurs" : "Watch-party"}</span>
+          <span class="surtitre">${esc(TYPES[o.type]?.collectif || "Sortie à plusieurs")}</span>
           <h2 class="titre-2" style="margin-top:4px">${esc(o.titre)}</h2>
         </div>
         <button class="bouton-icone" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
@@ -569,12 +626,12 @@ function rendreFeuille() {
           <label class="petit muet">Quand
             <input class="champ" type="datetime-local" name="debut" required value="${esc(valeurLocale(creneauParDefaut(o)))}" min="${esc(valeurLocale(new Date()))}">
           </label>
-          <label class="petit muet">${estSortie ? "Point de rendez-vous" : "Lien de la watch-party"}
+          <label class="petit muet">${estSortie ? "Point de rendez-vous" : o.type === "livre" ? "Lieu ou lien visio" : "Lien de la watch-party"}
             <input class="champ" name="rendez_vous" maxlength="200"
-              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : "Lien Discord, Teleparty… (https://)"}">
+              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : o.type === "livre" ? "Café, bibliothèque, lien visio…" : "Lien Discord, Teleparty… (https://)"}">
           </label>
           <label class="petit muet">Un mot (facultatif)
-            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : "On lance l'épisode à 21h ?"}">
+            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : o.type === "livre" ? "On lit les 100 premières pages pour la prochaine fois ?" : "On lance l'épisode à 21h ?"}">
           </label>
           <button class="bouton-principal" type="submit">${icone("plus", 18)}Proposer ce créneau</button>
         </form>
@@ -627,10 +684,10 @@ function rendreContenu() {
   if (nouvelle) zone.replaceWith(nouvelle);
 }
 
-function corps(type, k) {
+function corps(type, k, ecrans = ["film", "serie", "livre"]) {
   const v = etat.prefs.ville;
   return {
-    type, k,
+    type, k, ecrans,
     genres: etat.prefs.genres,
     deja_vus: etat.dejaVus.map((o) => o.id),
     decouverte: etat.decouverte,
@@ -662,7 +719,7 @@ async function charger({ partiel = false } = {}) {
   try {
     if (etat.onglet === "pour-vous") {
       const [ecrans, sorties] = await Promise.all([
-        api("/api/recommandations", corps("tout", 9), signal),
+        api("/api/recommandations", corps("tout", 9, ["film", "serie", ...(etat.prefs.categories.includes("livres") ? ["livre"] : [])]), signal),
         api("/api/recommandations", corps("sortie", 6), signal),
       ]);
       donnees = { ecrans, sorties, couverture: await couvertureSiVide(sorties, signal) };
@@ -847,7 +904,7 @@ const actions = {
     etat.dejaVus.push({ id, titre: o.titre, type: o.type });
     sauvegarder();
     b.closest("[data-carte]")?.classList.add("sortante");
-    toast(`« ${o.titre} » ajouté à tes déjà vus · sélection ajustée`);
+    toast(`« ${o.titre} » ajouté à tes ${o.type === "livre" ? "déjà lus" : "déjà vus"} · sélection ajustée`);
     setTimeout(() => charger({ partiel: true }), 260);
   },
   "ouvrir-plans"(b) {
@@ -855,6 +912,15 @@ const actions = {
     ouvrirFeuille(o);
   },
   "fermer-feuille"() { feuille = null; rendreFeuille(); },
+  "ouvrir-publication"() {
+    feuille = { mode: "publier", ville: etat.prefs.ville };
+    rendreFeuille();
+  },
+  "choisir-ville-pub"(b) {
+    feuille.ville = resultatsVille[Number(b.dataset.index)];
+    $("#champ-ville-pub").value = feuille.ville.nom;
+    $("#suggestions-ville-pub").hidden = true;
+  },
   async rejoindre(b) {
     try {
       await api(`/api/plans/${b.dataset.plan}/participation`, { actif: true });
@@ -901,13 +967,14 @@ const actions = {
 // Autocomplétions                                                      //
 // ------------------------------------------------------------------ //
 let resultatsVille = [];
-const rechercherVille = debounce(async (q) => {
-  const liste = $("#suggestions-ville");
+const rechercherVille = debounce(async (q, suffixe = "") => {
+  const liste = $(`#suggestions-ville${suffixe}`);
+  const action = suffixe ? "choisir-ville-pub" : "choisir-ville";
   if (!liste) return;
   if (q.length < 2) { liste.hidden = true; return; }
   try { resultatsVille = (await api(`/api/communes?q=${encodeURIComponent(q)}`)).communes; } catch (_) { resultatsVille = []; }
   liste.innerHTML = resultatsVille.length
-    ? resultatsVille.map((c, i) => `<li><button data-action="choisir-ville" data-index="${i}">
+    ? resultatsVille.map((c, i) => `<li><button type="button" data-action="${action}" data-index="${i}">
         ${icone("map-pin", 16, "tres-muet")}<span style="flex:1">${esc(c.nom)}</span>
         <span class="tres-muet petit">${esc(c.code_postal || "")}</span></button></li>`).join("")
     : `<li class="vide">Aucune commune trouvée</li>`;
@@ -922,7 +989,7 @@ const rechercherVu = debounce(async (q) => {
   try { resultatsRecherche = await api(`/api/oeuvres?q=${encodeURIComponent(q)}&limite=6`); } catch (_) { resultatsRecherche = []; }
   liste.innerHTML = resultatsRecherche.length
     ? resultatsRecherche.map((o, i) => `<li><button data-action="ajouter-vu" data-index="${i}">
-        ${icone(o.type === "serie" ? "tv" : "film", 16, "tres-muet")}<span style="flex:1">${esc(o.titre)}</span>
+        ${icone(TYPES[o.type]?.icone || "film", 16, "tres-muet")}<span style="flex:1">${esc(o.titre)}</span>
         <span class="tres-muet petit">${o.annee ?? ""}</span></button></li>`).join("")
     : `<li class="vide">Aucun titre trouvé</li>`;
   liste.hidden = false;
@@ -935,12 +1002,25 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-action]");
   if (b && !b.disabled && actions[b.dataset.action]) { e.preventDefault(); actions[b.dataset.action](b); }
   if (!e.target.closest("#champ-ville, #suggestions-ville")) { const l = $("#suggestions-ville"); if (l) l.hidden = true; }
+  if (!e.target.closest("#champ-ville-pub, #suggestions-ville-pub")) { const l = $("#suggestions-ville-pub"); if (l) l.hidden = true; }
 });
 
 document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target;
-  if (f.id === "form-plan" && feuille) {
+  if (f.id === "form-sortie" && feuille) {
+    const d = Object.fromEntries(new FormData(f));
+    if (!feuille.ville || feuille.ville.nom !== $("#champ-ville-pub").value) return toast("Choisis la ville dans la liste.");
+    const bouton = f.querySelector("button[type=submit]");
+    bouton.disabled = true;
+    try {
+      await api("/api/sorties", { ...d, ville: feuille.ville, duree_h: Number(d.duree_h), prix: d.prix === "" ? null : Number(d.prix) });
+      feuille = null;
+      rendreFeuille();
+      toast("Sortie publiée. Les étudiants autour peuvent la rejoindre.");
+      charger();
+    } catch (err) { bouton.disabled = false; toast(err.message); }
+  } else if (f.id === "form-plan" && feuille) {
     const donneesForm = Object.fromEntries(new FormData(f));
     try {
       await api("/api/plans", { oeuvre_id: feuille.oeuvre.id, ...donneesForm });
@@ -978,6 +1058,8 @@ document.addEventListener("input", (e) => {
     if (b) b.disabled = !etat.prenom.trim();
   } else if (id === "champ-ville") {
     rechercherVille(e.target.value.trim());
+  } else if (id === "champ-ville-pub") {
+    rechercherVille(e.target.value.trim(), "-pub");
   } else if (id === "recherche-vu") {
     rechercherVu(e.target.value.trim());
   }

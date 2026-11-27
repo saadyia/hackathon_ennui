@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -74,11 +74,12 @@ app = FastAPI(title="hackathon_ennui", lifespan=cycle_de_vie)
 app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
 
 CATEGORIES = {
+    "soirees": "Soirées & Concerts",
     "cinema": "Cinéma",
     "expo": "Expositions & Musées",
-    "scene": "Concerts & Scène",
+    "scene": "Spectacles & Scène",
     "nature": "Nature & Balades",
-    "rencontres": "Rencontres & Soirées",
+    "rencontres": "Rencontres & Ateliers",
 }
 GENRES = {  # libellé affiché -> genre MovieLens
     "Science-Fiction": "Sci-Fi", "Thriller": "Thriller", "Drame": "Drama", "Comédie": "Comedy",
@@ -122,7 +123,9 @@ class Profil(BaseModel):
 
 
 class DemandeRecommandation(BaseModel):
-    type: Literal["film", "serie", "tout", "sortie"] = "film"
+    type: Literal["film", "serie", "livre", "tout", "sortie"] = "film"
+    ecrans: List[Literal["film", "serie", "livre"]] = Field(default_factory=lambda: ["film", "serie"],
+                                                         description="composition du type « tout »")
     genres: List[str] = Field(default_factory=list, description="genres MovieLens (ex. Sci-Fi)")
     deja_vus: List[str] = Field(default_factory=list, max_length=300)
     decouverte: float = Field(0.0, ge=0.0, le=1.0, description="0 = zone de confort, 1 = découverte")
@@ -141,6 +144,17 @@ class DemandePlan(BaseModel):
     debut: str = Field(..., description="ISO 8601 ; sans fuseau = heure de Paris (champ datetime-local)")
     rendez_vous: str = Field("", max_length=200, description="point de rendez-vous ou lien de watch-party")
     message: str = Field("", max_length=280)
+
+
+class DemandeSortie(BaseModel):
+    titre: str = Field(..., min_length=3, max_length=100)
+    categorie: str
+    lieu: str = Field(..., min_length=2, max_length=120)
+    ville: Ville
+    debut: str = Field(..., description="ISO 8601 ; sans fuseau = heure de Paris")
+    duree_h: float = Field(3.0, gt=0, le=24)
+    prix: Optional[float] = Field(None, ge=0, le=500, description="euros ; 0 = gratuit ; vide = non précisé")
+    description: str = Field("", max_length=500)
 
 
 class Participation(BaseModel):
@@ -200,6 +214,7 @@ def sante():
 def config():
     return {
         "categories": [{"id": k, "nom": v} for k, v in CATEGORIES.items()],
+        "envies": [{"id": k, "nom": v} for k, v in CATEGORIES.items()] + [{"id": "livres", "nom": "Livres"}],
         "genres": [{"id": v, "nom": k} for k, v in GENRES.items()],
         "plateformes": [{"id": i, "nom": PLATEFORMES[i]} for i in PLATEFORMES_PROPOSEES],
         "plateformes_verifiees": Catalogue.moteur.plateformes_verifiees,
@@ -261,14 +276,15 @@ def rechercher(q: str = Query(..., min_length=2), limite: int = Query(10, ge=1, 
 # Routes : recommandations                                             #
 # ------------------------------------------------------------------ #
 
-def _entrelacer(films, series, k):
-    """2 films, 1 série, 2 films, 1 série…"""
+POIDS_ECRANS = {"film": 2, "serie": 1, "livre": 1}  # « tout » : 2 films, 1 série, 1 livre…
+
+
+def _entrelacer(listes: Dict[str, list], k: int) -> list:
     out = []
-    while (films or series) and len(out) < k:
-        out += films[:2]
-        films = films[2:]
-        out += series[:1]
-        series = series[1:]
+    while any(listes.values()) and len(out) < k:
+        for t, l in listes.items():
+            out += l[:POIDS_ECRANS[t]]
+            listes[t] = l[POIDS_ECRANS[t]:]
     return out[:k]
 
 
@@ -281,11 +297,12 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
     def classer(type_, k):
         autorises = m.autorises([type_], d.plateformes, centre, d.rayon_km, d.categories, d.horizon, d.budget)
         return m.recommander(d.deja_vus, d.genres, d.decouverte, k, autorises,
-                             lift_confort=type_ in ("serie", "sortie"), cache=cache)
+                             lift_confort=type_ in ("serie", "livre", "sortie"), cache=cache)
 
     if d.type == "tout":
-        n_series = max(1, d.k // 3)
-        recos = _entrelacer(classer("film", d.k - n_series), classer("serie", n_series), d.k)
+        types = list(dict.fromkeys(d.ecrans)) or ["film"]
+        total = sum(POIDS_ECRANS[t] for t in types)
+        recos = _entrelacer({t: classer(t, max(1, round(d.k * POIDS_ECRANS[t] / total)) + 1) for t in types}, d.k)
     else:
         recos = classer(d.type, d.k)
 
@@ -309,7 +326,9 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
 # ------------------------------------------------------------------ #
 
 @app.post("/api/utilisateurs")
-def creer_utilisateur(p: Profil):
+def creer_utilisateur(p: Profil, taches: BackgroundTasks):
+    if p.ville:  # ville hors couverture : collecte ciblée en arrière-plan
+        taches.add_task(synchro.ajouter_ville, p.ville.nom, p.ville.lat, p.ville.lon)
     return database.creer_utilisateur(p.prenom, p.ville.model_dump() if p.ville else None, p.prefs)
 
 
@@ -319,8 +338,10 @@ def moi(x_utilisateur: Optional[str] = Header(None)):
 
 
 @app.put("/api/utilisateurs/moi")
-def modifier_moi(p: Profil, x_utilisateur: Optional[str] = Header(None)):
+def modifier_moi(p: Profil, taches: BackgroundTasks, x_utilisateur: Optional[str] = Header(None)):
     u = utilisateur_requis(x_utilisateur)
+    if p.ville and (u["ville"] or {}).get("nom") != p.ville.nom:
+        taches.add_task(synchro.ajouter_ville, p.ville.nom, p.ville.lat, p.ville.lon)
     return database.mettre_a_jour_utilisateur(u["id"], p.prenom, p.ville.model_dump() if p.ville else None, p.prefs)
 
 
@@ -369,6 +390,28 @@ def message(plan_id: int, msg: Message, x_utilisateur: Optional[str] = Header(No
 @app.get("/api/mes-plans")
 def mes_plans(x_utilisateur: Optional[str] = Header(None)):
     return database.mes_plans(utilisateur_requis(x_utilisateur)["id"])
+
+
+# ------------------------------------------------------------------ #
+# Routes : sorties publiées par les utilisateurs                       #
+# ------------------------------------------------------------------ #
+
+@app.post("/api/sorties")
+async def publier_sortie(s: DemandeSortie, x_utilisateur: Optional[str] = Header(None)):
+    """Publie une soirée / sortie étudiante : enregistrée en SQLite et ajoutée au graphe (~1 s)."""
+    u = utilisateur_requis(x_utilisateur)
+    if s.categorie not in CATEGORIES:
+        raise HTTPException(status_code=422, detail="Catégorie inconnue")
+    debut = lire_date(s.debut)
+    maintenant = datetime.now(timezone.utc)
+    if not maintenant - timedelta(minutes=5) <= debut <= maintenant + timedelta(days=60):
+        raise HTTPException(status_code=422, detail="La date doit être dans les 60 prochains jours")
+    fin = debut + timedelta(hours=s.duree_h)
+    sortie_id = database.creer_sortie(u["id"], " ".join(s.titre.split()), s.categorie, s.lieu.strip(),
+                                      s.ville.model_dump(), debut.isoformat(), fin.isoformat(), s.prix,
+                                      s.description.strip())
+    await synchro.reconstruire()
+    return {"id": f"sortie:co-{sortie_id}"}
 
 
 # ------------------------------------------------------------------ #

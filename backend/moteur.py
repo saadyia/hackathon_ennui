@@ -70,6 +70,8 @@ MIN_LIKES_DECOUVERTE = 5  # en dessous, un film est trop confidentiel pour être
 BUDGETS = ("tous", "gratuit", "moins10", "moins25")
 PLAFOND_BUDGET = {"gratuit": 0.0, "moins10": 10.0, "moins25": 25.0}
 ARTE = 234
+SEUIL_AFFICHES_STRICT = 0.9  # au-delà de 90 % d'œuvres avec affiche, les autres sont exclues
+BONUS_SANS_AFFICHE = 0.3     # en dessous : une œuvre sans affiche voit son score multiplié par 0.3
 PARIS = ZoneInfo("Europe/Paris")
 HORIZONS = ("court", "semaine", "mois")  # aujourd'hui / ce week-end, 7 jours, 30 jours
 Fenetre = Tuple[float, float]            # (début, fin) en timestamps
@@ -162,6 +164,21 @@ class Moteur:
         # plateformes : seules les données confirmées par TMDB (FR.flatrate) comptent
         self.verifie = np.array([bool(nd.get("plateformes_verifiees")) for nd in self.noeuds])
         self.plateformes_verifiees = bool(self.verifie.any())
+        # Affiches (films, séries, livres). Par type : si au moins 90 % ont une vraie affiche, les
+        # autres sont exclues (100 % d'affiches à l'écran) ; sinon (enrichissement en cours) elles
+        # sont fortement défavorisées, pour ne pas vider le catalogue.
+        self.a_affiche = np.array([bool(nd.get("affiche")) for nd in self.noeuds])
+        vide = np.zeros(self.n, dtype=bool)
+        self.couverture_affiches = {t: float(self.a_affiche[m].mean()) for t, m in self.masque_type.items() if t != "sortie"}
+        self.sans_affiche_exclu = vide.copy()
+        self.bonus_affiche = np.ones(self.n)
+        for t, part in self.couverture_affiches.items():
+            m = self.masque_type[t] & ~self.a_affiche
+            if part >= SEUIL_AFFICHES_STRICT:
+                self.sans_affiche_exclu |= m
+            else:
+                self.bonus_affiche[m] = BONUS_SANS_AFFICHE
+        self.ecran = self.masque_type.get("film", vide) | self.masque_type.get("serie", vide)
 
         # coordonnées des sorties (NaN ailleurs), pour le filtre de Haversine
         self.lat = np.array([nd.get("lat") if nd.get("lat") is not None else np.nan for nd in self.noeuds])
@@ -265,23 +282,25 @@ class Moteur:
         """
         vide = np.zeros(self.n, dtype=bool)
         sortie = self.masque_type.get("sortie", vide)
+        livre = self.masque_type.get("livre", vide)
         masque = vide.copy()
         for t in types:
             masque |= self.masque_type.get(t, vide)
+        masque &= ~self.sans_affiche_exclu
 
         plateformes = list(plateformes)
         if plateformes and self.plateformes_verifiees:
             dispo = vide.copy()
             for p in plateformes:
                 dispo |= self.masque_plateforme.get(p, vide)
-            masque &= (dispo & self.verifie) | sortie
+            masque &= (dispo & self.verifie) | ~self.ecran
 
         if centre is not None:
             with np.errstate(invalid="ignore"):
                 proches = haversine_km(centre[0], centre[1], self.lat, self.lon) <= rayon_km  # NaN -> False
             masque &= proches | ~sortie
 
-        categories = list(categories)
+        categories = [c for c in categories if c in self.masque_categorie]  # ignore « livres », etc.
         if categories:
             dans_cat = vide.copy()
             for c in categories:
@@ -301,7 +320,8 @@ class Moteur:
             for p in set(plateformes) | {ARTE}:
                 inclus |= self.masque_plateforme.get(p, vide)
             inclus &= self.verifie
-            masque &= np.where(sortie, abordable, inclus)
+            # livres : prix inconnu -> exclus dès qu'un budget est demandé
+            masque &= np.where(sortie, abordable, np.where(livre, False, inclus))
         return masque
 
     def distances(self, centre: Tuple[float, float], indices: Sequence[int]) -> List[float]:
@@ -378,7 +398,7 @@ class Moteur:
         if n_dec < k:
             if "confort" not in cache:
                 cache["confort"] = self.marche(v_u, CONFORT)
-            c = cache["confort"] * aff
+            c = cache["confort"] * aff * self.bonus_affiche
             if lift_confort:
                 c = c / self.pi_star
             c[masque] = -np.inf
@@ -387,7 +407,8 @@ class Moteur:
             if "decouverte" not in cache:
                 cache["decouverte"] = self.marche(v_u, DECOUVERTE)
             dans_mes_genres = self.part_genres_choisis(vus, genres)
-            d = cache["decouverte"] / self.pi_star * self.qualite * (1 - MALUS_MAX * s * dans_mes_genres)
+            d = (cache["decouverte"] / self.pi_star * self.qualite * self.bonus_affiche
+                 * (1 - MALUS_MAX * s * dans_mes_genres))
             d[masque] = -np.inf
             listes["decouverte"] = (d, meilleurs(d, 3 * k))
 
@@ -419,11 +440,12 @@ class Moteur:
         return resultat
 
     def rechercher(self, requete: str, limite: int = 10) -> List[dict]:
-        """Recherche de films et séries (sous-chaîne, plus populaires d'abord)."""
+        """Recherche de films, séries et livres (titre FR ou original, auteur ; plus populaires d'abord)."""
         q = requete.strip().lower()
         if not q:
             return []
-        trouves = [nd for nd in self.noeuds
-                   if nd["type"] in ("film", "serie") and q in nd["titre"].lower()]
+        trouves = [nd for nd in self.noeuds if nd["type"] in ("film", "serie", "livre") and (
+            q in nd["titre"].lower() or q in (nd.get("titre_original") or "").lower()
+            or q in (nd.get("auteur") or "").lower())]
         trouves.sort(key=lambda nd: -(nd.get("nb_likes") or 0))
         return trouves[:limite]

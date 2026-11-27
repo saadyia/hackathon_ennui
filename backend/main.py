@@ -80,12 +80,32 @@ CATEGORIES = {
     "scene": "Spectacles & Scène",
     "nature": "Nature & Balades",
     "rencontres": "Rencontres & Ateliers",
+    "series": "Séries & binge-watch",
+    "jeux": "Jeux vidéo (solo ou coop)",
+    "cuisine": "Cuisine & pâtisserie",
+    "creatif": "Créatif",
+    "lecture": "Lecture",
+    "cafe": "Café & salon de thé",
+    "sport": "Sport chill",
 }
+CATEGORIES_ECRANS = {"series"}  # envies d'écran : ne filtrent pas les sorties (aucun événement associé)
 GENRES = {  # libellé affiché -> genre MovieLens
     "Science-Fiction": "Sci-Fi", "Thriller": "Thriller", "Drame": "Drama", "Comédie": "Comedy",
     "Animation": "Animation", "Documentaire": "Documentary", "Horreur": "Horror", "Action": "Action",
+    "Romance": "Romance", "Policier": "Crime", "Fantastique": "Fantasy",
+    "Historique": "War",  # MovieLens n'a pas de genre « Histoire » : « War » est le plus proche
 }
-HORIZONS_LIBELLES = {"court": "Aujourd'hui / Ce week-end", "semaine": "Dans la semaine", "mois": "Dans le mois"}
+AMBIANCES = {  # étiquettes des sorties, repérées dans leur texte par fetch_france.py
+    "festif": "Faire la fête",
+    "calme": "Tranquille",
+    "drole": "Pour rire",
+    "insolite": "Insolite",
+    "competitif": "Esprit de compét'",
+    "artistique": "Inspirant",
+}
+HORIZONS_PROPOSES = ("maintenant", "aujourdhui", "weekend", "semaine", "mois")
+HORIZONS_LIBELLES = {"maintenant": "Maintenant", "aujourdhui": "Aujourd'hui", "weekend": "Ce week-end",
+                     "semaine": "Dans la semaine", "mois": "Dans le mois", "court": "Aujourd'hui / Ce week-end"}
 BUDGETS_LIBELLES = {"tous": "Tous les prix", "gratuit": "Gratuit", "moins10": "Moins de 10 €", "moins25": "Moins de 25 €"}
 PLATEFORMES_PROPOSEES = [8, 119, 337, 381, 234, 350]  # abonnements (FR.flatrate) uniquement
 CONSOLES = {"pc": "PC", "mac": "Mac", "switch": "Switch", "playstation": "PlayStation", "xbox": "Xbox", "mobile": "Mobile"}
@@ -134,7 +154,7 @@ class DemandeRecommandation(BaseModel):
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lon: Optional[float] = Field(None, ge=-180, le=180)
     rayon_km: float = Field(15.0, ge=5.0, le=50.0)
-    horizon: Literal["court", "semaine", "mois"] = "semaine"
+    horizon: Literal["maintenant", "aujourdhui", "weekend", "semaine", "mois", "court"] = "semaine"
     budget: Literal["tous", "gratuit", "moins10", "moins25"] = "tous"
     categories: List[str] = Field(default_factory=list)
     consoles: List[str] = Field(default_factory=list, description="jeux : pc, mac, playstation, xbox, switch, mobile")
@@ -216,16 +236,18 @@ def sante():
 @app.get("/api/config")
 def config():
     return {
-        "categories": [{"id": k, "nom": v} for k, v in CATEGORIES.items()],
-        "envies": [{"id": k, "nom": v} for k, v in CATEGORIES.items()]
-                  + [{"id": "livres", "nom": "Livres"}, {"id": "jeux", "nom": "Jeux vidéo"}],
+        "categories": [{"id": k, "nom": v, "sorties": k not in CATEGORIES_ECRANS} for k, v in CATEGORIES.items()],
+        # « jeux » est à la fois une catégorie de sorties (événements gaming) et l'envie qui ajoute
+        # les jeux vidéo « Chez soi » dans Pour vous : une seule envie, les deux sens
+        "envies": [{"id": k, "nom": v} for k, v in CATEGORIES.items()] + [{"id": "livres", "nom": "Livres"}],
         "consoles": [{"id": k, "nom": v} for k, v in CONSOLES.items()],
         "modes_jeu": [{"id": "tous", "nom": "Tous les modes"}, {"id": "solo", "nom": "Solo"},
                       {"id": "multi", "nom": "Co-op & Multi"}],
         "genres": [{"id": v, "nom": k} for k, v in GENRES.items()],
+        "ambiances": [{"id": k, "nom": v} for k, v in AMBIANCES.items()],
         "plateformes": [{"id": i, "nom": PLATEFORMES[i]} for i in PLATEFORMES_PROPOSEES],
         "plateformes_verifiees": Catalogue.moteur.plateformes_verifiees,
-        "horizons": [{"id": h, "nom": HORIZONS_LIBELLES[h]} for h in HORIZONS],
+        "horizons": [{"id": h, "nom": HORIZONS_LIBELLES[h]} for h in HORIZONS_PROPOSES],
         "budgets": [{"id": b, "nom": BUDGETS_LIBELLES[b]} for b in BUDGETS],
         "rayon": {"min": 5, "max": 50, "defaut": 15},
         "villes_couvertes": sorted(Catalogue.villes),
@@ -300,11 +322,14 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
     m = Catalogue.moteur  # référence figée pour toute la requête (synchronisation à chaud)
     centre = (d.lat, d.lon) if d.lat is not None and d.lon is not None else None
     cache: dict = {}  # marches partagées entre films et séries
+    categories = [c for c in d.categories if c not in CATEGORIES_ECRANS]
+    genres_ecrans = [g for g in d.genres if g not in AMBIANCES]  # les ambiances ne concernent que les sorties
 
     def classer(type_, k):
-        autorises = m.autorises([type_], d.plateformes, centre, d.rayon_km, d.categories, d.horizon, d.budget,
+        autorises = m.autorises([type_], d.plateformes, centre, d.rayon_km, categories, d.horizon, d.budget,
                                 d.consoles, d.mode_jeu)
-        return m.recommander(d.deja_vus, d.genres, d.decouverte, k, autorises,
+        genres = d.genres if type_ == "sortie" else genres_ecrans
+        return m.recommander(d.deja_vus, genres, d.decouverte, k, autorises,
                              lift_confort=type_ in ("serie", "livre", "jeu", "sortie"), cache=cache)
 
     if d.type == "tout":

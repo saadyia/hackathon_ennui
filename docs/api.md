@@ -11,7 +11,7 @@
 ## `GET /api/config`
 `categories` (sorties, dont `soirees`), `envies` (catégories + `livres` + `jeux`), `consoles`, `modes_jeu`, `genres` (`id` = genre MovieLens), `plateformes` (abonnements uniquement : Netflix 8, Prime Video 119,
 Disney+ 337, Canal+ 381, Arte 234, Apple TV+ 350), `plateformes_verifiees` (au moins un titre vérifié par TMDB),
-`horizons` (`court`, `semaine`, `mois`), `rayon` (`min` 5, `max` 50, `defaut` 15), `villes_couvertes`.
+`horizons` (`maintenant`, `aujourdhui`, `weekend`, `semaine`, `mois`), `ambiances` (`festif`, `calme`, `drole`, `insolite`, `competitif`, `artistique`), `categories[].sorties` (faux pour `series` : envie d'écran, ignorée par le filtre des sorties), `rayon` (`min` 5, `max` 50, `defaut` 15), `villes_couvertes`.
 
 ## `GET /api/communes?q=<texte>`
 Proxy de `https://api-adresse.data.gouv.fr/search/?type=municipality&limit=5`, avec timeout de 3 s et cache.
@@ -35,7 +35,8 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
 - `ecrans` (type `tout`) : composition, par défaut `["film", "serie"]` ; ajouter `"livre"` (2 films, 1 série, 1 livre…)
 - `plateformes` : présence confirmée par TMDB (FR.flatrate) ; ignoré si `plateformes_verifiees` est faux
 - `lat` / `lon` (optionnels) + `rayon_km` (5–50) : filtre Haversine des sorties
-- `horizon` : `court` (aujourd'hui + week-end) | `semaine` | `mois`
+- `horizon` : `maintenant` (+3 h) | `aujourdhui` | `weekend` | `semaine` | `mois` | `court` (aujourd'hui + week-end, anciens profils)
+- `genres` : genres MovieLens et ambiances ; les ambiances ne servent qu'aux sorties
 - `budget` : `tous` | `gratuit` | `moins10` | `moins25` (sorties : tarif connu ≤ plafond ; écrans : inclus sans surcoût)
 
 Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `plateformes`, `plateformes_verifiees`,

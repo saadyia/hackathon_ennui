@@ -66,6 +66,12 @@ CATEGORIES = {
     "scene": "Spectacles & Scène",
     "nature": "Nature & Balades",
     "rencontres": "Rencontres & Ateliers",
+    "jeux": "Jeux vidéo (solo ou coop)",
+    "cuisine": "Cuisine & pâtisserie",
+    "creatif": "Créatif",
+    "lecture": "Lecture",
+    "cafe": "Café & salon de thé",
+    "sport": "Sport chill",
 }
 QUOTA_SOIREES = 25  # soirées & concerts supplémentaires par ville (requête nocturne dédiée)
 MOTS_NOCTURNES = ["concert", "soirée", "DJ", "festival", "club", "fête", "live", "étudiant",
@@ -81,8 +87,26 @@ MOTS_CATEGORIE = {
             r"sculpture|\bart\b|arts plastiques",
     "nature": r"balade|randonn[ée]e|\brando\b|nature|jardin|marais|for[êe]t|littoral|oiseaux|botanique|"
               r"\bv[ée]lo\b|sentier|plage|estran|\bparcs?\b",
-    "rencontres": r"conf[ée]rence|rencontre|d[ée]bat|atelier|quiz|\bjeux?\b|lecture|d[ée]dicace|"
-                  r"ap[ée]ro|caf[ée]|discussion|table ronde",
+    "rencontres": r"conf[ée]rence|rencontre|d[ée]bat|atelier|quiz|\bjeux?\b|"
+                  r"ap[ée]ro|discussion|table ronde",
+    "jeux": r"jeux? vid[ée]o|gaming|gamers?\b|e-?sport|r[ée]tro-?gaming|\blan party\b|consoles?\b|"
+            r"nintendo|playstation|\bxbox\b|minecraft|mario kart",
+    "cuisine": r"cuisine|culinaire|p[âa]tisserie|p[âa]tissier|recettes?\b|d[ée]gustation|gastronom|"
+               r"chef cuisinier|boulangerie|fabrication du pain|chocolat|\bbrunch\b",
+    "creatif": r"atelier cr[ée]atif|loisirs cr[ée]atifs|cr[ée]ation manuelle|\bdiy\b|fait main|couture|poterie|"
+               r"c[ée]ramique|tricot|broderie|crochet|origami|gravure|s[ée]rigraphie|scrapbooking|upcycling|"
+               r"customis|modelage|aquarelle|atelier (de )?(dessin|peinture|collage|[ée]criture)",
+    # « livre » seul est exclu (« il livre un concert »), comme « auteur-compositeur »
+    "lecture": r"lecture|\blivres\b|\b(un|le|son|leur|du) livre\b|auteur(?!-compositeur)|autrice(?!-compositrice)|"
+               r"[ée]crivain|biblioth[èe]que|m[ée]diath[èe]que|d[ée]dicace|po[ée]sie|po[èe]mes?\b|\bromans?\b|"
+               r"librairie|salon du livre|club de lecture|litt[ée]ra",
+    # « café » seul désigne souvent une salle de concert : seulement les formats café explicites
+    "cafe": r"salon de th[ée]|coffee shop|torr[ée]fact|barista|tea[- ]time|d[ée]gustation de (caf[ée]|th[ée])|"
+            r"caf[ée][- ](philo|des langues|langues|litt[ée]raire|tricot|couture|r[ée]paration|jeux|lecture|"
+            r"psycho|histoire|sciences?|d[ée]bat|rencontre|discussion|cr[ée]atif)",
+    "sport": r"yoga|pilates|m[ée]ditation|tai[- ]chi|qi[- ]?gong|sophrologie|stretching|marche nordique|"
+             r"\bsports?\b|sportive|escalade|natation|course [àa] pied|running|footing|badminton|ping[- ]pong|"
+             r"p[ée]tanque|roller|skate|zumba|fitness|gym douce",
 }
 
 MOTS_GENRES = [
@@ -103,6 +127,25 @@ MOTS_GENRES = [
     (r"drame|trag[ée]die", ["Drama"]),
 ]
 
+# Ambiances (transversales) : repérées dans le texte, plus une valeur par défaut selon la catégorie.
+MOTS_AMBIANCE = {
+    "calme": r"yoga|m[ée]ditation|relaxation|sophrologie|\bzen\b|calme|d[ée]tente|contemplat|bien-[êe]tre|"
+             r"douceur|apaisant|s[ée]r[ée]nit|sieste|tisane|salon de th[ée]",
+    "insolite": r"insolite|[ée]trange|surprenant|surprise|myst[èe]re|secret|escape|cach[ée]s?\b|in[ée]dit|"
+                r"nocturne|bizarre|curiosit[ée]s?\b|immersi|enqu[êe]te|murder|[ée]nigme|d[ée]cal[ée]",
+    "drole": r"humour|com[ée]die|\brire\b|impro|stand[- ]up|dr[ôo]le|burlesque|clown|karaok[ée]|"
+             r"blind test|loufoque",
+    "festif": r"\bdj\b|dj set|clubbing|\bclub\b|bo[îi]te de nuit|nightclub|\btechno\b|\bhouse\b|[ée]lectro|"
+              r"dancefloor|\brave\b|\bparty\b|soir[ée]e dansante|\bf[êe]te\b|festif|festive|\bbal\b|"
+              r"after\b|open air|warehouse|guinguette|disco|ambiance de folie",
+    "competitif": r"tournoi|comp[ée]tition|concours|d[ée]fi|challenge|quiz|blind test|battle|championnat|"
+                  r"\bmatch|troph[ée]e|e-?sport|escape game",
+    "artistique": r"\bart\b|\barts\b|artiste|peinture|sculpture|photograph|dessin|cr[ée]ation|po[ée]sie|"
+                  r"vernissage|th[ée][aâ]tre|chor[ée]graph|illustration|street art|graff|design|[ée]criture",
+}
+AMBIANCES_CATEGORIE = {"nature": ["calme"], "lecture": ["calme"], "cafe": ["calme"],
+                       "expo": ["artistique"], "creatif": ["artistique"]}
+
 GENRES_CATEGORIE = {
     "soirees": ["Musical", "Comedy"],
     "cinema": ["Drama"],
@@ -110,6 +153,12 @@ GENRES_CATEGORIE = {
     "scene": ["Drama", "Comedy"],
     "nature": ["Documentary", "Adventure"],
     "rencontres": ["Documentary", "Comedy"],
+    "jeux": ["Action", "Adventure"],
+    "cuisine": ["Documentary", "Comedy"],
+    "creatif": ["Documentary", "Animation"],
+    "lecture": ["Drama", "Documentary"],
+    "cafe": ["Comedy", "Documentary"],
+    "sport": ["Adventure", "Documentary"],
 }
 
 EXCLUSIONS = (r"annul|report[ée]|complet|b[ée]b[ée]|tout-petits|0-3 ans|3-6 ans|maternelle|ehpad|r[ée]serv[ée] aux|"
@@ -161,6 +210,14 @@ def genres_pour(categorie: str, texte: str):
         if re.search(motif, t):
             genres += [g for g in gs if g not in genres]
     return genres[:3]
+
+
+def ambiances_pour(categorie: str, texte: str):
+    """Ambiances écrites dans le texte (mots-clés), plus celle qui va de soi pour la catégorie."""
+    t = texte.lower()
+    ambiances = list(AMBIANCES_CATEGORIE.get(categorie, []))
+    ambiances += [a for a, motif in MOTS_AMBIANCE.items() if a not in ambiances and re.search(motif, t)]
+    return ambiances
 
 
 def tarif(conditions: str):
@@ -254,6 +311,7 @@ def evenements_ville(ville, lat, lon, jours, maintenant):
             "description": desc or None,
             "categorie": categorie,
             "genres": genres_pour(categorie, texte),
+            "ambiances": ambiances_pour(categorie, texte),
             "ville": e.get("location_city"),
             "ville_reference": ville,
             "lieu": e.get("location_name"),

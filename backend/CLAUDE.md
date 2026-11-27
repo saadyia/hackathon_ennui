@@ -25,6 +25,7 @@ backend/
 ├── enrich_tmdb.py     # hors ligne : TMDB (affiches, FR.flatrate) -> data/tmdb.json
 ├── enrich_affiches.py # hors ligne : Wikidata + Wikipédia (affiches films, titres FR) -> data/affiches.json
 ├── import_books.py    # hors ligne : CSV GoodReads + OpenLibrary -> data/livres.json
+├── import_games.py    # hors ligne : CSV jeux Wikidata + Wikipédia -> data/jeux.json
 ├── build_graph.py     # hors ligne : tout -> data/processed/
 ├── moteur.py          # classe Moteur (calcul pur, testable sans HTTP)
 ├── main.py            # FastAPI : routes, /assets, comptes, plans, agenda
@@ -34,6 +35,7 @@ backend/
 └── data/
     ├── france.json    # versionné (repli hors ligne)
     ├── livres.json    # versionné
+    ├── jeux.json      # versionné
     ├── affiches.json  # versionné (cache, reprise)
     ├── tmdb.json      # créé par enrich_tmdb.py (à versionner une fois créé)
     ├── series.json    # versionné (repli hors ligne)

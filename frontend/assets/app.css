@@ -466,3 +466,8 @@ select.champ { appearance: none; -webkit-appearance: none; color-scheme: dark; c
   background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
 .deux-colonnes { display: grid; grid-template-columns: 1.6fr 1fr; gap: 10px; }
 .proposer input[type="number"] { color-scheme: dark; }
+
+/* Jeux vidéo */
+.segment.segment-5 { grid-template-columns: repeat(5, 1fr); }
+.segment.segment-5 button { font-size: 12px; padding: 0 2px; }
+.tag-mode { height: 20px; font-size: 9.5px; letter-spacing: 0.06em; }

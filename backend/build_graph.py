@@ -5,6 +5,7 @@ Entrées :
     - dataset MovieLens ml-latest-small (ratings.csv, movies.csv, links.csv)
     - backend/data/series.json      séries TVmaze (fetch_series.py)
     - backend/data/livres.json      livres GoodReads francisés (import_books.py)
+    - backend/data/jeux.json        jeux vidéo Wikidata francisés (import_games.py)
     - backend/data/affiches.json    affiches et titres FR des films via Wikidata/Wikipédia (enrich_affiches.py)
     - backend/data/france.json      événements à venir en France (fetch_france.py)
     - backend/data/tmdb.json        optionnel, produit par enrich_tmdb.py : affiches et
@@ -16,7 +17,7 @@ Sorties : backend/data/processed/
     - P.npz          matrice de transition creuse (CSR, float32), lignes stochastiques
     - pi_star.npy    état stationnaire global (proxy de popularité, sert au restart biaisé)
     - noeuds.json    métadonnées par nœud, dans l'ordre des indices de P
-                     (films, puis séries, puis livres, puis sorties)
+                     (films, puis séries, livres, jeux, sorties)
 
 Usage :
     python3 backend/build_graph.py --movielens /chemin/vers/ml-latest-small
@@ -36,6 +37,7 @@ import argparse
 import json
 import os
 import re
+import urllib.parse
 import time
 from pathlib import Path
 
@@ -44,10 +46,10 @@ import pandas as pd
 from scipy import sparse
 
 SEUIL = 3.5            # note minimale pour "aimé"
-K_COMPTAGE = 25        # voisins gardés par co-occurrence brute
-K_COSINUS = 25         # voisins gardés par similarité cosinus
+K_COMPTAGE = 20        # voisins gardés par co-occurrence brute (20 : latence < 20 ms)
+K_COSINUS = 20         # voisins gardés par similarité cosinus
 MIN_COOCCURRENCE = 2   # support minimal pour la sélection cosinus (évite le bruit)
-K_FILMS_EXTERNE = 15   # films reliés à chaque série / livre / sortie (15 : garde la requête < 20 ms)
+K_FILMS_EXTERNE = 10   # films reliés à chaque nœud externe (10 : garde la requête < 20 ms avec ~14 600 nœuds)
 PART_EXTERNE = 0.15    # part max. de la ligne d'un film envoyée vers séries / sorties
 ALPHA_PI_STAR = 0.15   # téléportation pour le calcul de pi_star
 TOL = 1e-10
@@ -220,12 +222,23 @@ def nettoyer_titre(brut: str):
     return titre, annee
 
 
+LOGO = re.compile(r"(^|[_\W])(logo|wordmark|title|titre|icon|banner)([_\W]|$)", re.I)
+
+
+def image_valide(url):
+    """Écarte les images qui ne sont pas des affiches ou jaquettes (logos, bannières…), d'après le nom du fichier."""
+    if not url:
+        return None
+    nom = urllib.parse.unquote(url.rsplit("/", 1)[-1]).rsplit(".", 1)[0]
+    return None if LOGO.search(nom) else url
+
+
 def appliquer_affiches(noeud: dict, info_tmdb: dict, info_wiki: dict) -> dict:
     """Affiche et titre FR d'un film : TMDB d'abord, sinon Wikipédia/Wikidata (enrich_affiches.py)."""
     info_tmdb, info_wiki = info_tmdb or {}, info_wiki or {}
     if info_tmdb.get("poster_path"):
         noeud["affiche"], noeud["source_affiche"] = URL_AFFICHE + info_tmdb["poster_path"], "TMDB"
-    elif info_wiki.get("affiche"):
+    elif image_valide(info_wiki.get("affiche")):
         noeud["affiche"], noeud["source_affiche"] = info_wiki["affiche"], "Wikipédia"
     else:
         noeud["affiche"], noeud["source_affiche"] = None, None
@@ -307,6 +320,26 @@ def metadonnees_livres(livres, decalage):
     } for i, l in enumerate(livres)]
 
 
+def metadonnees_jeux(jeux, decalage):
+    return [{
+        "index": decalage + i,
+        "id": f"jeu:{j['id']}",
+        "type": "jeu",
+        "titre": j["titre"],
+        "titre_original": j["titre_original"],
+        "annee": j["annee"],
+        "genres": j["genres"],          # genres de l'application (graphe, affinité)
+        "genres_fr": j["genres_fr"],    # libellés affichés (français)
+        "consoles": j["consoles"],      # pc, mac, playstation, xbox, switch, mobile
+        "modes": j["modes"],            # solo, coop, multi
+        "studio": j["studio"],
+        "editeur": j["editeur"],
+        "affiche": image_valide(j["jaquette"]),
+        "resume": j["resume"],          # extrait de Wikipédia en français, sinon rien
+        "plateformes": [],
+    } for i, j in enumerate(jeux)]
+
+
 def metadonnees_sorties(sorties, decalage):
     noeuds = []
     for i, s in enumerate(sorties):
@@ -360,12 +393,12 @@ def ecrire_atomique(chemin: Path, ecrire):
     os.replace(tmp, chemin)
 
 
-def assembler(S_films, noeuds_films, series, livres, sorties, tmdb_series, journal=print):
-    """Films + séries + livres + sorties -> P, pi_star, noeuds.json (écritures atomiques)."""
+def assembler(S_films, noeuds_films, series, livres, jeux, sorties, tmdb_series, journal=print):
+    """Films + séries + livres + jeux + sorties -> P, pi_star, noeuds.json (écritures atomiques)."""
     genres_films = [nd["genres"] for nd in noeuds_films]
     nb_likes = np.array([nd["nb_likes"] for nd in noeuds_films])
-    S = relier_externes(S_films, genres_films, nb_likes, series + livres + sorties)
-    journal(f"Externes : {len(series)} séries + {len(livres)} livres + {len(sorties)} sorties, "
+    S = relier_externes(S_films, genres_films, nb_likes, series + livres + jeux + sorties)
+    journal(f"Externes : {len(series)} séries + {len(livres)} livres + {len(jeux)} jeux + {len(sorties)} sorties, "
             f"{S.nnz:,} entrées au total")
     P, n_isoles = normaliser_lignes(S)
     journal(f"P : {P.shape[0]} nœuds, {n_isoles} nœud(s) isolé(s)")
@@ -374,6 +407,7 @@ def assembler(S_films, noeuds_films, series, livres, sorties, tmdb_series, journ
     noeuds = list(noeuds_films)
     noeuds += metadonnees_series(series, len(noeuds_films), tmdb_series)
     noeuds += metadonnees_livres(livres, len(noeuds))
+    noeuds += metadonnees_jeux(jeux, len(noeuds))
     noeuds += metadonnees_sorties(sorties, len(noeuds))
 
     SORTIE.mkdir(parents=True, exist_ok=True)
@@ -385,10 +419,12 @@ def assembler(S_films, noeuds_films, series, livres, sorties, tmdb_series, journ
     return len(noeuds)
 
 
-def livres_et_sorties(sorties_supplementaires=()):
+def externes_locaux(sorties_supplementaires=()):
+    """Livres, jeux et sorties (fichiers locaux + sorties publiées par les utilisateurs)."""
     livres = charger_json("livres.json", {"livres": []})["livres"]
+    jeux = charger_json("jeux.json", {"jeux": []})["jeux"]
     sorties = charger_json("france.json")["sorties"] + list(sorties_supplementaires)
-    return livres, sorties
+    return livres, jeux, sorties
 
 
 def reconstruire_externes(journal=print, sorties_supplementaires=()):
@@ -405,8 +441,8 @@ def reconstruire_externes(journal=print, sorties_supplementaires=()):
     for nd in noeuds_films:
         mid = nd["id"].split(":")[1]
         appliquer_affiches(nd, tmdb["films"].get(mid), wiki.get(mid))
-    livres, sorties = livres_et_sorties(sorties_supplementaires)
-    return assembler(S_films, noeuds_films, charger_json("series.json")["series"], livres, sorties,
+    livres, jeux, sorties = externes_locaux(sorties_supplementaires)
+    return assembler(S_films, noeuds_films, charger_json("series.json")["series"], livres, jeux, sorties,
                      tmdb["series"], journal)
 
 
@@ -443,8 +479,8 @@ def main():
         communaute = database.sorties_communaute() if database.CHEMIN.exists() else []
     except Exception:
         communaute = []
-    livres, sorties = livres_et_sorties(communaute)
-    assembler(S, noeuds_films, charger_json("series.json")["series"], livres, sorties, tmdb["series"])
+    livres, jeux, sorties = externes_locaux(communaute)
+    assembler(S, noeuds_films, charger_json("series.json")["series"], livres, jeux, sorties, tmdb["series"])
     print(f"Écrit dans {SORTIE} en {time.perf_counter() - t0:.1f} s")
 
 

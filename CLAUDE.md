@@ -7,7 +7,7 @@
 
 - **Problème :** l'ennui et l'isolement des étudiants sur des campus excentrés, surtout le week-end.
 - **Utilisateurs cibles :** étudiants partout en France (40 villes universitaires couvertes en sorties), sans historique (cold start).
-- **Solution :** application web mobile de recommandation culturelle hybride : films, séries, **livres** et événements
+- **Solution :** application web mobile de recommandation culturelle hybride : films, séries, **livres**, **jeux vidéo** et événements
   culturels réels à venir près de chez soi (dont **soirées & concerts**), selon les goûts, la ville, le rayon,
   l'horizon temporel, le budget et les abonnements. Tous les contenus sont reliés dans un même graphe.
 - **Direction artistique :** sobre, éditoriale, haut de gamme (MUBI / DICE / Apple TV). Mode sombre, **zéro émoji**.
@@ -15,7 +15,7 @@
 ### Parcours
 1. **Connexion express** « Seul chez soi ne veut pas dire isolé. » : prénom + ville (toute la France, API Adresse) + rayon,
    envies, genres, plateformes. Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
-2. **Pour vous** (sélection mixte), **Chez soi** (Tout / Films / Séries / Livres), **Sorties** (ville, rayon, horizon, type,
+2. **Pour vous** (sélection mixte), **Chez soi** (Tout / Films / Séries / Livres / Jeux, filtre Solo / Co-op & Multi), **Sorties** (ville, rayon, horizon, type,
    budget, « Proposer une sortie »), **Profil**.
    Horizons : Aujourd'hui / Ce week-end, Dans la semaine, Dans le mois.
 3. **Curseur Zone de confort — Découverte** : 0/10 = genres cochés ; 10/10 = hors de ses genres (malus -90 %). Étiquettes « Pépite » / « Hors piste ».
@@ -45,6 +45,7 @@ python3 backend/fetch_france.py          # rafraîchit les événements à venir
 python3 backend/fetch_series.py          # optionnel : rafraîchit les séries (réseau, ~10 s)
 python3 backend/import_books.py --csv ~/Downloads/GoodReadsData.csv  # livres (OpenLibrary, ~40 min, reprise possible)
 python3 backend/enrich_affiches.py --movielens /chemin/ml-latest-small  # affiches de films sans clé (Wikimedia, lent)
+python3 backend/import_games.py --csv ~/Downloads/video_games.csv     # jeux vidéo (Wikimedia, ~1 h, reprise possible)
 python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB dans .env (~5 min)
 python3 backend/build_graph.py --movielens /chemin/ml-latest-small   # pré-calcul (< 1 s)
 uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 : pas de synchro auto)
@@ -59,14 +60,15 @@ uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 :
   (thread, jamais sur le chemin d'une requête). Les fichiers `backend/data/*.json` sont versionnés (repli). Le fichier `tmdb.json` aussi, une fois créé.
 - **Persistance :** SQLite `backend/data/ennui.sqlite3` (non versionné). Identifiant de compte = jeton aléatoire dans l'en-tête `X-Utilisateur`.
   Ce n'est pas une authentification (pas de mot de passe) : c'est un outil de démo.
-- **Budget de latence :** < 20 ms de calcul par requête (~19 ms avec 11 367 nœuds). Aucune I/O par requête.
-  Levier si on ajoute des contenus : `K_FILMS_EXTERNE` dans `build_graph.py` (liens par nœud externe).
-- **Identifiants publics :** `film:<movieId>`, `serie:<tvmazeId>`, `livre:gr-<goodreadsId>`, `sortie:oa-<uid>` (OpenAgenda),
+- **Budget de latence :** < 20 ms de calcul par requête (~17 ms avec 14 646 nœuds). Aucune I/O par requête.
+  Leviers si on ajoute des contenus : `K_FILMS_EXTERNE` (10), `K_COMPTAGE` / `K_COSINUS` (20) dans `build_graph.py`,
+  `TOL_MARCHE` (5 %) dans `moteur.py`. Toujours mesurer la latence ET la stabilité du top 10 après un changement.
+- **Identifiants publics :** `film:<movieId>`, `serie:<tvmazeId>`, `livre:gr-<goodreadsId>`, `jeu:<QID Wikidata>`, `sortie:oa-<uid>` (OpenAgenda),
   `sortie:co-<id>` (publiée par un utilisateur).
 - **Affiches :** un type dont au moins 90 % des œuvres ont une vraie affiche n'affiche que celles-là. En dessous, les œuvres
   sans affiche sont fortement défavorisées. Jamais d'affiche inventée.
 - **Français partout :** genres traduits ; titres FR quand une source les fournit ; aucun texte traduit automatiquement
-  (pas de résumé plutôt qu'un résumé anglais).
+  (pas de résumé plutôt qu'un résumé anglais). Un genre sans traduction est ignoré, jamais affiché en anglais.
 - **Dates :** jamais d'événement passé. La prochaine occurrence est recalculée à chaque requête (fuseau Europe/Paris).
 - **Plateformes :** uniquement TMDB `results.FR.flatrate`. **Aucune simulation.** Une donnée non vérifiée s'affiche « Disponibilité non vérifiée ».
 - **Design :** zéro émoji ; icônes Lucide (`stroke-width 1.5`) ; pas de CDN ; couleurs définies uniquement par les variables de `app.css`.

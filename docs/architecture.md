@@ -10,6 +10,8 @@ flowchart LR
   GR[(GoodReads CSV)] --> IB[import_books.py] --> LJ[(data/livres.json)] --> B
   OL[(OpenLibrary)] --> IB
   WM[(Wikidata + Wikipédia)] --> EA[enrich_affiches.py] --> AJ[(data/affiches.json)] --> B
+  VG[(CSV jeux Wikidata)] --> IG[import_games.py] --> JJ[(data/jeux.json)] --> B
+  WM --> IG
   B --> D[(data/processed : P.npz, pi_star.npy, noeuds.json)]
   D --> M[moteur.py] --> A[main.py FastAPI] --> F[frontend]
   AD[(API Adresse)] -. autocomplétion ville .-> A
@@ -63,6 +65,20 @@ Avec une clé TMDB, ou une fois `enrich_affiches.py` terminé, les films passero
 - Budget : un livre n'a pas de prix connu, il est donc exclu dès qu'un budget est demandé.
 - Pas de traduction automatique : sans édition française trouvée, le titre reste en VO et aucun résumé n'est affiché.
 
+## Jeux vidéo
+- Filtre : `Type == "video game"`, sortie en 2015 ou après, fiche complète (plateformes, genres, studio, éditeur, URL) ;
+  16 jeux à contenu adulte (eroge, bishōjo) exclus, soit **3 279 jeux**.
+- Consoles regroupées : PC (Windows et Linux), Mac, PlayStation, Xbox, Nintendo Switch, Mobile (iOS et Android).
+  Les consoles anciennes (3DS, Wii U…) sont ignorées.
+- Genres : 309 genres anglais, traduits par environ 60 règles ordonnées vers une quarantaine de libellés français (RPG, Action-RPG,
+  Tir à la première personne, Stratégie au tour par tour, Réflexion, Roman visuel…). Un genre non couvert est **ignoré**
+  (119 jeux n'ont aucun genre affiché). Les termes d'usage dans la presse française sont conservés (RPG, Metroidvania, Roguelike, Battle royale).
+- Modes : `solo` / `coop` / `multi` → badge « Solo » ou « Co-op / Multi » ; filtre `mode_jeu`.
+- Données françaises, par lots : Wikidata `wbgetentities` (libellé FR, articles), extrait d'introduction de fr.wikipedia
+  (2 phrases), jaquette = image principale de l'article anglais (`pilicense=any`).
+- Graphe : chaque genre français est aussi associé à des genres de l'application (ex. RPG → Fantasy + Adventure) pour relier les jeux aux films.
+- Budget : prix inconnu, donc exclus dès qu'un budget est demandé (comme les livres).
+
 ## Soirées & Concerts
 - Catégorie `soirees` (concert, soirée, DJ, club, électro, festival, live, fête, karaoké, afterwork, open mic, blind test, jazz, rock, rap…).
   « Spectacles & Scène » regroupe désormais théâtre, danse, cirque et humour.
@@ -104,7 +120,9 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
 ## Graphe et moteur
 - Films : co-occurrences MovieLens, élagage hybride (25 voisins par comptage + 25 par cosinus).
 - Séries et sorties : reliées aux 30 films les plus proches selon `cos(genres) · log(1 + likes)`. Chaque film consacre au plus 15 % de sa ligne aux nœuds externes.
-- 11 367 nœuds (7 363 films, 220 séries, 2 500 livres, ~1 280 sorties), environ 390 k arêtes. Latence ~19 ms.
+- 14 646 nœuds (7 363 films, 220 séries, 2 500 livres, 3 279 jeux, ~1 280 sorties), environ 364 k arêtes. Latence ~17 ms.
+- Réglages de taille : 20 + 20 voisins par film (comptage + cosinus), 10 films par nœud externe, tolérance de la marche de 5 %.
+  Mesuré : top 10 films stable (8 à 10 sur 10) par rapport aux réglages précédents.
 - `v_u` : 25 films de référence par genre favori, plus les « Déjà vu » (60 % de la masse).
 - Deux marches (Confort α = 0.10, Découverte α = 0.50 avec un restart biaisé π\*^-2 limité aux films du voisinage).
   Nombre d'itérations adaptatif, tel que (1-α)^n ≤ 4 %. Calcul en float32, comme P.

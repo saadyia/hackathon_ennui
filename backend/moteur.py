@@ -61,7 +61,7 @@ import numpy as np
 from scipy import sparse
 
 DOSSIER_DONNEES = Path(__file__).resolve().parent / "data" / "processed"
-TOL_MARCHE = 0.04  # erreur relative visée : (1-alpha)^n <= 4 %, suffisant pour classer
+TOL_MARCHE = 0.05  # erreur relative visée : (1-alpha)^n <= 5 %, suffisant pour classer
 FILMS_PAR_GENRE = 25   # films de référence par genre favori dans v_u
 PART_DEJA_VUS = 0.6    # poids des « Déjà vu » dans v_u quand il y a aussi des genres
 EPS_AFFINITE = 0.15    # plancher de l'affinité : un genre éloigné reste recommandable
@@ -70,7 +70,8 @@ MIN_LIKES_DECOUVERTE = 5  # en dessous, un film est trop confidentiel pour être
 BUDGETS = ("tous", "gratuit", "moins10", "moins25")
 PLAFOND_BUDGET = {"gratuit": 0.0, "moins10": 10.0, "moins25": 25.0}
 ARTE = 234
-SEUIL_AFFICHES_STRICT = 0.9  # au-delà de 90 % d'œuvres avec affiche, les autres sont exclues
+SEUIL_AFFICHES_STRICT = 0.9  # au-delà de 90 % d'œuvres avec affiche, les autres sont exclues…
+MIN_AFFICHES_STRICT = 1500   # … ou dès que 1 500 œuvres du type ont une affiche (catalogue assez riche)
 BONUS_SANS_AFFICHE = 0.3     # en dessous : une œuvre sans affiche voit son score multiplié par 0.3
 PARIS = ZoneInfo("Europe/Paris")
 HORIZONS = ("court", "semaine", "mois")  # aujourd'hui / ce week-end, 7 jours, 30 jours
@@ -164,9 +165,9 @@ class Moteur:
         # plateformes : seules les données confirmées par TMDB (FR.flatrate) comptent
         self.verifie = np.array([bool(nd.get("plateformes_verifiees")) for nd in self.noeuds])
         self.plateformes_verifiees = bool(self.verifie.any())
-        # Affiches (films, séries, livres). Par type : si au moins 90 % ont une vraie affiche, les
-        # autres sont exclues (100 % d'affiches à l'écran) ; sinon (enrichissement en cours) elles
-        # sont fortement défavorisées, pour ne pas vider le catalogue.
+        # Affiches (films, séries, livres, jeux). Par type : si au moins 90 % ont une vraie affiche, ou
+        # au moins 1 500 œuvres, les autres sont exclues (100 % d'affiches à l'écran) ; sinon
+        # (enrichissement en cours) elles sont fortement défavorisées, pour ne pas vider le catalogue.
         self.a_affiche = np.array([bool(nd.get("affiche")) for nd in self.noeuds])
         vide = np.zeros(self.n, dtype=bool)
         self.couverture_affiches = {t: float(self.a_affiche[m].mean()) for t, m in self.masque_type.items() if t != "sortie"}
@@ -174,11 +175,23 @@ class Moteur:
         self.bonus_affiche = np.ones(self.n)
         for t, part in self.couverture_affiches.items():
             m = self.masque_type[t] & ~self.a_affiche
-            if part >= SEUIL_AFFICHES_STRICT:
+            if part >= SEUIL_AFFICHES_STRICT or int((self.masque_type[t] & self.a_affiche).sum()) >= MIN_AFFICHES_STRICT:
                 self.sans_affiche_exclu |= m
             else:
                 self.bonus_affiche[m] = BONUS_SANS_AFFICHE
         self.ecran = self.masque_type.get("film", vide) | self.masque_type.get("serie", vide)
+        # jeux vidéo : consoles possédées et modes de jeu
+        self.masque_console: Dict[str, np.ndarray] = {}
+        self.jeu_multi = vide.copy()   # co-op ou multijoueur
+        self.jeu_solo = vide.copy()
+        for nd in self.noeuds:
+            if nd["type"] != "jeu":
+                continue
+            for c in nd.get("consoles", []):
+                self.masque_console.setdefault(c, vide.copy())[nd["index"]] = True
+            modes = set(nd.get("modes", []))
+            self.jeu_multi[nd["index"]] = bool(modes & {"coop", "multi"})
+            self.jeu_solo[nd["index"]] = "solo" in modes
 
         # coordonnées des sorties (NaN ailleurs), pour le filtre de Haversine
         self.lat = np.array([nd.get("lat") if nd.get("lat") is not None else np.nan for nd in self.noeuds])
@@ -268,13 +281,16 @@ class Moteur:
 
     def autorises(self, types: Iterable[str], plateformes: Iterable[int] = (),
                   centre: Optional[Tuple[float, float]] = None, rayon_km: float = 15.0,
-                  categories: Iterable[str] = (), horizon: str = "mois", budget: str = "tous") -> np.ndarray:
+                  categories: Iterable[str] = (), horizon: str = "mois", budget: str = "tous",
+                  consoles: Iterable[str] = (), mode_jeu: str = "tous") -> np.ndarray:
         """
         Masque des nœuds recommandables (listes vides = pas de filtre).
           - plateformes (films, séries) : présence CONFIRMÉE par TMDB sur l'une d'elles ;
             ignoré si le catalogue n'a aucune donnée vérifiée (pas de clé TMDB)
           - centre + rayon (sorties) : distance de Haversine <= rayon
           - horizon (sorties) : au moins une occurrence dans la fenêtre ; jamais rien de passé
+          - consoles (jeux) : jouable sur au moins une console de l'utilisateur ;
+            mode_jeu (jeux) : "solo" | "multi" (co-op ou multijoueur) | "tous"
           - budget : sorties -> tarif connu <= plafond (prix inconnu exclu) ;
                      films/séries -> seulement ce qui est inclus SANS SURCOÛT : confirmé par TMDB
                      sur un abonnement de l'utilisateur ou sur Arte. Sans données TMDB, rien
@@ -283,6 +299,7 @@ class Moteur:
         vide = np.zeros(self.n, dtype=bool)
         sortie = self.masque_type.get("sortie", vide)
         livre = self.masque_type.get("livre", vide)
+        jeu = self.masque_type.get("jeu", vide)
         masque = vide.copy()
         for t in types:
             masque |= self.masque_type.get(t, vide)
@@ -299,6 +316,17 @@ class Moteur:
             with np.errstate(invalid="ignore"):
                 proches = haversine_km(centre[0], centre[1], self.lat, self.lon) <= rayon_km  # NaN -> False
             masque &= proches | ~sortie
+
+        consoles = [c for c in consoles if c in self.masque_console]
+        if consoles:
+            jouable = vide.copy()
+            for c in consoles:
+                jouable |= self.masque_console[c]
+            masque &= jouable | ~jeu
+        if mode_jeu == "multi":
+            masque &= self.jeu_multi | ~jeu
+        elif mode_jeu == "solo":
+            masque &= self.jeu_solo | ~jeu
 
         categories = [c for c in categories if c in self.masque_categorie]  # ignore « livres », etc.
         if categories:
@@ -320,8 +348,8 @@ class Moteur:
             for p in set(plateformes) | {ARTE}:
                 inclus |= self.masque_plateforme.get(p, vide)
             inclus &= self.verifie
-            # livres : prix inconnu -> exclus dès qu'un budget est demandé
-            masque &= np.where(sortie, abordable, np.where(livre, False, inclus))
+            # livres et jeux : prix inconnu -> exclus dès qu'un budget est demandé
+            masque &= np.where(sortie, abordable, np.where(livre | jeu, False, inclus))
         return masque
 
     def distances(self, centre: Tuple[float, float], indices: Sequence[int]) -> List[float]:
@@ -444,8 +472,8 @@ class Moteur:
         q = requete.strip().lower()
         if not q:
             return []
-        trouves = [nd for nd in self.noeuds if nd["type"] in ("film", "serie", "livre") and (
+        trouves = [nd for nd in self.noeuds if nd["type"] in ("film", "serie", "livre", "jeu") and (
             q in nd["titre"].lower() or q in (nd.get("titre_original") or "").lower()
-            or q in (nd.get("auteur") or "").lower())]
+            or q in (nd.get("auteur") or "").lower() or q in (nd.get("studio") or "").lower())]
         trouves.sort(key=lambda nd: -(nd.get("nb_likes") or 0))
         return trouves[:limite]

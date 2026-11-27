@@ -9,7 +9,7 @@
 `{"statut": "ok", "noeuds": 8706, "par_type": {...}, "plateformes_verifiees": false}`
 
 ## `GET /api/config`
-`categories` (sorties, dont `soirees`), `envies` (catégories + `livres`), `genres` (`id` = genre MovieLens), `plateformes` (abonnements uniquement : Netflix 8, Prime Video 119,
+`categories` (sorties, dont `soirees`), `envies` (catégories + `livres` + `jeux`), `consoles`, `modes_jeu`, `genres` (`id` = genre MovieLens), `plateformes` (abonnements uniquement : Netflix 8, Prime Video 119,
 Disney+ 337, Canal+ 381, Arte 234, Apple TV+ 350), `plateformes_verifiees` (au moins un titre vérifié par TMDB),
 `horizons` (`court`, `semaine`, `mois`), `rayon` (`min` 5, `max` 50, `defaut` 15), `villes_couvertes`.
 
@@ -30,7 +30,8 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
   "plateformes": [8, 119], "lat": 45.7772, "lon": 3.087, "rayon_km": 15,
   "horizon": "semaine", "categories": ["scene"], "k": 10 }
 ```
-- `type` : `film` | `serie` | `livre` | `tout` | `sortie`
+- `type` : `film` | `serie` | `livre` | `jeu` | `tout` | `sortie`
+- `consoles` (jeux) : `pc`, `mac`, `playstation`, `xbox`, `switch`, `mobile` ; `mode_jeu` : `tous` | `solo` | `multi`
 - `ecrans` (type `tout`) : composition, par défaut `["film", "serie"]` ; ajouter `"livre"` (2 films, 1 série, 1 livre…)
 - `plateformes` : présence confirmée par TMDB (FR.flatrate) ; ignoré si `plateformes_verifiees` est faux
 - `lat` / `lon` (optionnels) + `rayon_km` (5–50) : filtre Haversine des sorties
@@ -41,6 +42,7 @@ Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `pl
 `score`, `origine` (`confort` | `decouverte`), `etiquette` (`pepite` | `hors-piste` | `null`), `plans` (créneaux à venir), plus :
 - **film / serie** : `annee` (+ `annee_fin`, `note`, `chaine`, `affiche_mini` pour les séries ; `source_affiche` pour les films)
 - **livre** : `auteur`, `annee`, `pages`, `note`, `titre_original`, `francais` (édition française trouvée)
+- **jeu** : `studio`, `editeur`, `annee`, `consoles`, `modes`, `genres_fr` (libellés français), `titre_original`
 - **sortie** : `categorie`, `categorie_libelle`, `ville`, `lieu`, `adresse`, `lat`, `lon`, `acces`, `prix`, `tarif`,
   `date_debut` / `date_fin` (`YYYY-MM-DD`), `prochaine` (`{"debut", "fin"}` ISO Paris, dans la fenêtre demandée),
   `distance_km` (si `lat` / `lon`), `credit_image`, `url`

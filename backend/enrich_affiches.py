@@ -67,7 +67,7 @@ def get(url, params):
                 time.sleep(10)
                 continue
             raise
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, OSError):  # socket.timeout (Python 3.9) inclus
             time.sleep(10)
     raise RuntimeError(f"Abandon : {url}")
 
@@ -82,6 +82,8 @@ def lot_wikidata(imdb_ids):
     r = get("https://www.wikidata.org/w/api.php", {
         "action": "query", "list": "search", "format": "json", "srlimit": LOT,
         "srsearch": "haswbstatement:" + "|".join(f"P345={i}" for i in imdb_ids)})
+    if "query" not in r:  # réponse d'erreur de l'API : lot repris au prochain lancement
+        raise RuntimeError(json.dumps(r.get("error", r))[:200])
     qids = [x["title"] for x in r["query"]["search"]]
     if not qids:
         return {}
@@ -105,6 +107,8 @@ def lot_affiches(titres):
     r = get("https://en.wikipedia.org/w/api.php", {
         "action": "query", "titles": "|".join(titres), "prop": "pageimages", "piprop": "original",
         "pilicense": "any", "redirects": 1, "format": "json"})
+    if "query" not in r:
+        raise RuntimeError(json.dumps(r.get("error", r))[:200])
     alias = {x["from"]: x["to"] for x in r["query"].get("normalized", []) + r["query"].get("redirects", [])}
     images = {p["title"]: p["original"]["source"].split("?")[0]
               for p in r["query"]["pages"].values() if p.get("original")}

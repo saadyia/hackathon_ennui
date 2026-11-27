@@ -18,11 +18,13 @@ const TEINTES = {
   Action: 14, Romance: 325, Crime: 222, Fantasy: 258, Adventure: 120, Mystery: 245, Children: 190,
   Musical: 300, War: 80, Western: 35,
 };
-const ICONES_CATEGORIE = { soirees: "disc-3", cinema: "clapperboard", expo: "landmark", scene: "drama", nature: "trees", rencontres: "messages-square", livres: "book-open" };
+const ICONES_CATEGORIE = { soirees: "disc-3", cinema: "clapperboard", expo: "landmark", scene: "drama", nature: "trees", rencontres: "messages-square", livres: "book-open", jeux: "gamepad-2" };
+const NOMS_CONSOLES = { pc: "PC", mac: "Mac", switch: "Switch", playstation: "PlayStation", xbox: "Xbox", mobile: "Mobile" };
 const TYPES = {
   film: { nom: "Film", icone: "film", vu: "Déjà vu", collectif: "Watch-party" },
   serie: { nom: "Série", icone: "tv", vu: "Déjà vu", collectif: "Watch-party" },
   livre: { nom: "Livre", icone: "book-open", vu: "Déjà lu", collectif: "Club de lecture" },
+  jeu: { nom: "Jeu vidéo", icone: "gamepad-2", vu: "Déjà joué", collectif: "Session de jeu" },
   sortie: { nom: "Sortie", icone: "ticket", vu: "", collectif: "Sortie à plusieurs" },
 };
 const ONGLETS = [
@@ -35,7 +37,7 @@ const ONGLETS = [
 // ------------------------------------------------------------------ //
 // État, comptes et persistance                                         //
 // ------------------------------------------------------------------ //
-const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [] });
+const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [], consoles: [], modeJeu: "tous" });
 const ETAT_INITIAL = () => ({
   uid: null, prenom: "",
   prefs: PREFS_INITIALES(),
@@ -111,7 +113,8 @@ function toast(message) {
   minuteurToast = setTimeout(() => t.classList.remove("visible"), 2400);
 }
 
-const genresFr = (o, n = 2) => (o.genres || []).slice(0, n).map((g) => GENRES_FR[g] || g).join(", ");
+const genresFr = (o, n = 2) => (o.genres_fr || (o.genres || []).map((g) => GENRES_FR[g] || g)).slice(0, n).join(", ");
+const estMulti = (o) => (o.modes || []).some((m) => m === "coop" || m === "multi");
 const nbPepites = () => Math.round(etat.decouverte * 10);
 const km = (x) => `${x < 10 ? x.toFixed(1) : Math.round(x)} km`.replace(".", ",");
 const nomVille = () => etat.prefs.ville?.nom || "Partout en France";
@@ -220,7 +223,7 @@ function ligneCollab(o, { compacte = false } = {}) {
   if (!plan) {
     return `<div class="collab ${compacte ? "compacte" : ""}">
         ${compacte ? "" : `<span class="collab-texte tres-muet">Personne encore. Lance le premier plan.</span>`}
-        <button class="bouton-ligne" data-action="ouvrir-plans" data-id="${id}">${icone("plus", 14)}${compacte ? (o.type === "livre" ? "Club de lecture" : "Organiser") : "Proposer un créneau"}</button>
+        <button class="bouton-ligne ${o.type === "jeu" && estMulti(o) ? "bouton-accent" : ""}" data-action="ouvrir-plans" data-id="${id}">${icone(o.type === "jeu" ? "gamepad-2" : "plus", 14)}${compacte ? (o.type === "livre" ? "Club de lecture" : o.type === "jeu" ? "Lancer une session" : "Organiser") : "Proposer un créneau"}</button>
       </div>`;
   }
   const quand = libelleInstant(new Date(plan.debut));
@@ -237,18 +240,29 @@ function ligneCollab(o, { compacte = false } = {}) {
     </div>`;
 }
 
+function ligneJeu(o) {
+  const consoles = (o.consoles || []).map((c) =>
+    `<span class="plateforme ${etat.prefs.consoles.includes(c) ? "possedee" : ""}">${esc(NOMS_CONSOLES[c] || c)}</span>`).join("");
+  const mode = estMulti(o) ? "Co-op / Multi" : "Solo";
+  return `<div class="plateformes"><span class="tag tag-discret tag-mode">${mode}</span>${consoles}</div>`;
+}
+
 function carteOeuvre(o, i = 0) {
   const livre = o.type === "livre";
-  const meta = livre ? [o.auteur, o.annee].filter(Boolean).join(" · ") : [o.annee, genresFr(o)].filter(Boolean).join(" · ");
+  const jeu = o.type === "jeu";
+  const meta = livre ? [o.auteur, o.annee].filter(Boolean).join(" · ")
+    : jeu ? [o.studio, o.annee].filter(Boolean).join(" · ")
+      : [o.annee, genresFr(o)].filter(Boolean).join(" · ");
   return `<article class="carte-oeuvre apparition" data-carte="${esc(o.id)}" style="animation-delay:${i * 25}ms">
       ${affiche(o)}
       <span class="type-oeuvre">${TYPES[o.type].nom}${livre && !o.francais ? " · VO" : ""}</span>
       <h3>${esc(o.titre)}</h3>
       <div class="meta">${esc(meta)}</div>
-      ${livre ? `<div class="plateformes"><span class="non-verifie">${esc(genresFr(o))}</span></div>` : lignePlateformes(o)}
+      ${livre ? `<div class="plateformes"><span class="non-verifie">${esc(genresFr(o))}</span></div>`
+        : jeu ? `${genresFr(o) ? `<div class="meta">${esc(genresFr(o))}</div>` : ""}${ligneJeu(o)}` : lignePlateformes(o)}
       ${ligneCollab(o, { compacte: true })}
       <div class="carte-actions">
-        <button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(livre ? "book-open" : "eye", 14)}${TYPES[o.type].vu}</button>
+        <button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(livre ? "book-open" : jeu ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>
       </div>
     </article>`;
 }
@@ -382,7 +396,8 @@ function preferences() {
   return `<section class="groupe"><span class="surtitre">Où es-tu ?</span>${localisation()}</section>`
     + groupePuces("Envie de…", "categories", CONFIG.envies)
     + groupePuces("Tes genres favoris", "genres", CONFIG.genres)
-    + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb;
+    + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb
+    + groupePuces("Tes consoles et appareils", "consoles", CONFIG.consoles);
 }
 
 function ecranAccueil() {
@@ -441,14 +456,16 @@ function ecranPourVous() {
 function ecranEcrans() {
   const d = donnees;
   const liste = d.grille || [];
-  const surtitre = { tout: "Chez soi", film: "Films", serie: "Séries", livre: "Livres" }[etat.ecrans];
+  const surtitre = { tout: "Chez soi", film: "Films", serie: "Séries", livre: "Livres", jeu: "Jeux vidéo" }[etat.ecrans];
   return `${entete(surtitre, "Ce soir, au chaud")}
-    <div class="segment segment-4" role="group" aria-label="Type de contenu">
-      <button data-action="segment" data-valeur="tout" aria-pressed="${etat.ecrans === "tout"}">Tout</button>
-      <button data-action="segment" data-valeur="film" aria-pressed="${etat.ecrans === "film"}">${icone("film", 15)}Films</button>
-      <button data-action="segment" data-valeur="serie" aria-pressed="${etat.ecrans === "serie"}">${icone("tv", 15)}Séries</button>
-      <button data-action="segment" data-valeur="livre" aria-pressed="${etat.ecrans === "livre"}">${icone("book-open", 15)}Livres</button>
+    <div class="segment segment-5" role="group" aria-label="Type de contenu">
+      ${[["tout", "Tout"], ["film", "Films"], ["serie", "Séries"], ["livre", "Livres"], ["jeu", "Jeux"]].map(([v, nom]) =>
+        `<button data-action="segment" data-valeur="${v}" aria-pressed="${etat.ecrans === v}">${nom}</button>`).join("")}
     </div>
+    ${["tout", "jeu"].includes(etat.ecrans) ? `<div class="puces defilement" style="margin-top:12px" role="group" aria-label="Mode de jeu">
+      ${CONFIG.modes_jeu.map((m) => `<button class="puce puce-s" data-action="mode-jeu" data-valeur="${m.id}" aria-pressed="${etat.prefs.modeJeu === m.id}">
+        ${m.id === "tous" ? "" : icone(m.id === "solo" ? "user" : "users", 14)}${esc(m.id === "tous" ? "Jeux : tous les modes" : m.nom)}</button>`).join("")}
+    </div>` : ""}
     <div style="margin-top:12px">${selecteurBudget()}</div>
     ${instrument()}
     <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:26px">
@@ -502,13 +519,13 @@ function ecranProfil() {
     </section>
     ${preferences()}
     <section class="groupe">
-      <span class="surtitre">Déjà vus et lus · ${vus.length}</span>
+      <span class="surtitre">Déjà vus, lus et joués · ${vus.length}</span>
       <div class="liste-vus">${vus.length ? `<ul>${vus.map((o) => `<li>
           ${icone(TYPES[o.type]?.icone || "film", 16, "tres-muet")}
           <span class="titre">${esc(o.titre)}</span>
           <button class="bouton-icone" data-action="retirer-vu" data-id="${esc(o.id)}" aria-label="Retirer ${esc(o.titre)}">${icone("x", 14)}</button>
         </li>`).join("")}</ul>` : `<div class="vide">Touche « Déjà vu » ou « Déjà lu » sur une carte : on s'en servira pour affiner tes recommandations.</div>`}</div>
-      <input class="champ" id="recherche-vu" type="search" placeholder="Ajouter un film, une série ou un livre…" autocomplete="off" style="margin-top:12px">
+      <input class="champ" id="recherche-vu" type="search" placeholder="Ajouter un film, une série, un livre ou un jeu…" autocomplete="off" style="margin-top:12px">
       <ul class="suggestions" id="suggestions-vu" hidden></ul>
     </section>
     <section class="groupe">${statutAgenda()}</section>
@@ -520,7 +537,7 @@ function ecranProfil() {
       communes <a href="https://adresse.data.gouv.fr" target="_blank" rel="noopener">API Adresse</a> ;
       séries <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA) ;
       livres GoodReads et <a href="https://openlibrary.org" target="_blank" rel="noopener">OpenLibrary</a> ;
-      affiches de films <a href="https://www.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a> ;
+      affiches de films, jeux vidéo et jaquettes <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a> et <a href="https://www.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a> ;
       affiches et plateformes <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a> (abonnements en France uniquement) ;
       films MovieLens (GroupLens).
     </p>`;
@@ -626,12 +643,12 @@ function rendreFeuille() {
           <label class="petit muet">Quand
             <input class="champ" type="datetime-local" name="debut" required value="${esc(valeurLocale(creneauParDefaut(o)))}" min="${esc(valeurLocale(new Date()))}">
           </label>
-          <label class="petit muet">${estSortie ? "Point de rendez-vous" : o.type === "livre" ? "Lieu ou lien visio" : "Lien de la watch-party"}
+          <label class="petit muet">${estSortie ? "Point de rendez-vous" : o.type === "livre" ? "Lieu ou lien visio" : o.type === "jeu" ? "Lien Discord ou lieu" : "Lien de la watch-party"}
             <input class="champ" name="rendez_vous" maxlength="200"
-              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : o.type === "livre" ? "Café, bibliothèque, lien visio…" : "Lien Discord, Teleparty… (https://)"}">
+              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : o.type === "livre" ? "Café, bibliothèque, lien visio…" : o.type === "jeu" ? "Serveur Discord, chez qui, salle du campus…" : "Lien Discord, Teleparty… (https://)"}">
           </label>
           <label class="petit muet">Un mot (facultatif)
-            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : o.type === "livre" ? "On lit les 100 premières pages pour la prochaine fois ?" : "On lance l'épisode à 21h ?"}">
+            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : o.type === "livre" ? "On lit les 100 premières pages pour la prochaine fois ?" : o.type === "jeu" ? "On lance une partie à 21h ? Il reste deux places." : "On lance l'épisode à 21h ?"}">
           </label>
           <button class="bouton-principal" type="submit">${icone("plus", 18)}Proposer ce créneau</button>
         </form>
@@ -684,7 +701,7 @@ function rendreContenu() {
   if (nouvelle) zone.replaceWith(nouvelle);
 }
 
-function corps(type, k, ecrans = ["film", "serie", "livre"]) {
+function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
   const v = etat.prefs.ville;
   return {
     type, k, ecrans,
@@ -698,6 +715,8 @@ function corps(type, k, ecrans = ["film", "serie", "livre"]) {
     horizon: etat.horizon,
     budget: etat.prefs.budget,
     categories: etat.prefs.categories,
+    consoles: etat.prefs.consoles,
+    mode_jeu: etat.prefs.modeJeu,
   };
 }
 
@@ -719,7 +738,9 @@ async function charger({ partiel = false } = {}) {
   try {
     if (etat.onglet === "pour-vous") {
       const [ecrans, sorties] = await Promise.all([
-        api("/api/recommandations", corps("tout", 9, ["film", "serie", ...(etat.prefs.categories.includes("livres") ? ["livre"] : [])]), signal),
+        api("/api/recommandations", corps("tout", 9, ["film", "serie",
+          ...(etat.prefs.categories.includes("livres") ? ["livre"] : []),
+          ...(etat.prefs.categories.includes("jeux") ? ["jeu"] : [])]), signal),
         api("/api/recommandations", corps("sortie", 6), signal),
       ]);
       donnees = { ecrans, sorties, couverture: await couvertureSiVide(sorties, signal) };
@@ -825,6 +846,12 @@ const actions = {
     if (!etat.uid || etat.onglet === "profil") b.setAttribute("aria-pressed", etat.prefs[groupe].includes(valeur));
     else charger();
   },
+  "mode-jeu"(b) {
+    if (etat.prefs.modeJeu === b.dataset.valeur) return;
+    etat.prefs.modeJeu = b.dataset.valeur;
+    sauvegarder();
+    charger();
+  },
   budget(b) {
     if (etat.prefs.budget === b.dataset.valeur) return;
     etat.prefs.budget = b.dataset.valeur;
@@ -904,7 +931,7 @@ const actions = {
     etat.dejaVus.push({ id, titre: o.titre, type: o.type });
     sauvegarder();
     b.closest("[data-carte]")?.classList.add("sortante");
-    toast(`« ${o.titre} » ajouté à tes ${o.type === "livre" ? "déjà lus" : "déjà vus"} · sélection ajustée`);
+    toast(`« ${o.titre} » ajouté à tes ${{ livre: "déjà lus", jeu: "déjà joués" }[o.type] || "déjà vus"} · sélection ajustée`);
     setTimeout(() => charger({ partiel: true }), 260);
   },
   "ouvrir-plans"(b) {

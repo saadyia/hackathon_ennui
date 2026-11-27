@@ -88,6 +88,7 @@ GENRES = {  # libellé affiché -> genre MovieLens
 HORIZONS_LIBELLES = {"court": "Aujourd'hui / Ce week-end", "semaine": "Dans la semaine", "mois": "Dans le mois"}
 BUDGETS_LIBELLES = {"tous": "Tous les prix", "gratuit": "Gratuit", "moins10": "Moins de 10 €", "moins25": "Moins de 25 €"}
 PLATEFORMES_PROPOSEES = [8, 119, 337, 381, 234, 350]  # abonnements (FR.flatrate) uniquement
+CONSOLES = {"pc": "PC", "mac": "Mac", "switch": "Switch", "playstation": "PlayStation", "xbox": "Xbox", "mobile": "Mobile"}
 
 
 # ------------------------------------------------------------------ #
@@ -123,8 +124,8 @@ class Profil(BaseModel):
 
 
 class DemandeRecommandation(BaseModel):
-    type: Literal["film", "serie", "livre", "tout", "sortie"] = "film"
-    ecrans: List[Literal["film", "serie", "livre"]] = Field(default_factory=lambda: ["film", "serie"],
+    type: Literal["film", "serie", "livre", "jeu", "tout", "sortie"] = "film"
+    ecrans: List[Literal["film", "serie", "livre", "jeu"]] = Field(default_factory=lambda: ["film", "serie"],
                                                          description="composition du type « tout »")
     genres: List[str] = Field(default_factory=list, description="genres MovieLens (ex. Sci-Fi)")
     deja_vus: List[str] = Field(default_factory=list, max_length=300)
@@ -136,6 +137,8 @@ class DemandeRecommandation(BaseModel):
     horizon: Literal["court", "semaine", "mois"] = "semaine"
     budget: Literal["tous", "gratuit", "moins10", "moins25"] = "tous"
     categories: List[str] = Field(default_factory=list)
+    consoles: List[str] = Field(default_factory=list, description="jeux : pc, mac, playstation, xbox, switch, mobile")
+    mode_jeu: Literal["tous", "solo", "multi"] = "tous"
     k: int = Field(10, ge=1, le=40)
 
 
@@ -214,7 +217,11 @@ def sante():
 def config():
     return {
         "categories": [{"id": k, "nom": v} for k, v in CATEGORIES.items()],
-        "envies": [{"id": k, "nom": v} for k, v in CATEGORIES.items()] + [{"id": "livres", "nom": "Livres"}],
+        "envies": [{"id": k, "nom": v} for k, v in CATEGORIES.items()]
+                  + [{"id": "livres", "nom": "Livres"}, {"id": "jeux", "nom": "Jeux vidéo"}],
+        "consoles": [{"id": k, "nom": v} for k, v in CONSOLES.items()],
+        "modes_jeu": [{"id": "tous", "nom": "Tous les modes"}, {"id": "solo", "nom": "Solo"},
+                      {"id": "multi", "nom": "Co-op & Multi"}],
         "genres": [{"id": v, "nom": k} for k, v in GENRES.items()],
         "plateformes": [{"id": i, "nom": PLATEFORMES[i]} for i in PLATEFORMES_PROPOSEES],
         "plateformes_verifiees": Catalogue.moteur.plateformes_verifiees,
@@ -276,7 +283,7 @@ def rechercher(q: str = Query(..., min_length=2), limite: int = Query(10, ge=1, 
 # Routes : recommandations                                             #
 # ------------------------------------------------------------------ #
 
-POIDS_ECRANS = {"film": 2, "serie": 1, "livre": 1}  # « tout » : 2 films, 1 série, 1 livre…
+POIDS_ECRANS = {"film": 2, "serie": 1, "livre": 1, "jeu": 1}  # « tout » : 2 films, 1 série, 1 livre, 1 jeu…
 
 
 def _entrelacer(listes: Dict[str, list], k: int) -> list:
@@ -295,9 +302,10 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
     cache: dict = {}  # marches partagées entre films et séries
 
     def classer(type_, k):
-        autorises = m.autorises([type_], d.plateformes, centre, d.rayon_km, d.categories, d.horizon, d.budget)
+        autorises = m.autorises([type_], d.plateformes, centre, d.rayon_km, d.categories, d.horizon, d.budget,
+                                d.consoles, d.mode_jeu)
         return m.recommander(d.deja_vus, d.genres, d.decouverte, k, autorises,
-                             lift_confort=type_ in ("serie", "livre", "sortie"), cache=cache)
+                             lift_confort=type_ in ("serie", "livre", "jeu", "sortie"), cache=cache)
 
     if d.type == "tout":
         types = list(dict.fromkeys(d.ecrans)) or ["film"]

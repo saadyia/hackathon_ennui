@@ -17,15 +17,23 @@ Deux marches, une par extrémité du curseur :
     CONFORT    : alpha=0.10, beta=0, lambda=0  -> PageRank personnalisé classique
     DECOUVERTE : alpha=0.50, beta=2, lambda=1  -> restart biaisé vers la niche du voisinage
 
-Classements (multipliés par l'affinité de genres, voir plus bas) :
-    confort    : pi_confort                     (proche des goûts, souvent des classiques)
-    découverte : pi_decouverte / pi_star        (lift : ce qui est sur-représenté autour
-                                                 de l'utilisateur par rapport au global)
+Deux notions séparées : la NICHE (popularité, via pi_star) et le DÉPAYSEMENT (genres).
 
-Affinité de genres : a_i = EPS_AFFINITE + cos(genres_i, genres de l'utilisateur), où les
-genres de l'utilisateur sont ses genres favoris + ceux de ses « Déjà vu ». Sans ce terme,
-partir de 25 films par genre suffit à peine : la marche dérive vers les mêmes classiques
-(Pulp Fiction, Shawshank) quels que soient les genres choisis.
+    confort    : pi_confort × aff                         aff = affinité avec les genres cochés
+    découverte : pi_decouverte / pi_star × q × (1 - MALUS_MAX · s · m)
+        pi_decouverte / pi_star : lift, ce qui est sur-représenté autour de l'utilisateur (niche)
+        m  : part des genres de l'œuvre qui sont des genres COCHÉS par l'utilisateur
+        s  : position du curseur ; à 10/10 une œuvre 100 % dans les genres cochés perd 90 %
+        q  : plancher de qualité (films aimés par au moins MIN_LIKES_DECOUVERTE personnes)
+    La cohérence reste assurée par la marche : seules les œuvres atteignables depuis les
+    goûts de l'utilisateur ont un pi_decouverte non négligeable.
+
+Étiquettes des résultats découverte : « pepite » (niche dans ses genres, m >= 0.5) ou
+« hors-piste » (majoritairement hors de ses genres).
+
+Affinité de genres : aff_i = EPS_AFFINITE + cos(genres_i, profil), profil = genres cochés +
+genres des « Déjà vu ». Sans ce terme, partir de 25 films par genre suffit à peine : la
+marche dérive vers les mêmes classiques (Pulp Fiction, Shawshank) quels que soient les genres.
 
 Le curseur s ∈ [0, 1] fixe un quota : sur k résultats, round(s·k) viennent du classement
 découverte, le reste du classement confort, entrelacés. Chaque résultat est étiqueté
@@ -57,6 +65,11 @@ TOL_MARCHE = 0.04  # erreur relative visée : (1-alpha)^n <= 4 %, suffisant pour
 FILMS_PAR_GENRE = 25   # films de référence par genre favori dans v_u
 PART_DEJA_VUS = 0.6    # poids des « Déjà vu » dans v_u quand il y a aussi des genres
 EPS_AFFINITE = 0.15    # plancher de l'affinité : un genre éloigné reste recommandable
+MALUS_MAX = 0.9        # découverte à 10/10 : -90 % sur les œuvres des genres cochés
+MIN_LIKES_DECOUVERTE = 5  # en dessous, un film est trop confidentiel pour être fiable
+BUDGETS = ("tous", "gratuit", "moins10", "moins25")
+PLAFOND_BUDGET = {"gratuit": 0.0, "moins10": 10.0, "moins25": 25.0}
+ARTE = 234
 PARIS = ZoneInfo("Europe/Paris")
 HORIZONS = ("court", "semaine", "mois")  # aujourd'hui / ce week-end, 7 jours, 30 jours
 Fenetre = Tuple[float, float]            # (début, fin) en timestamps
@@ -109,6 +122,7 @@ class Recommandation:
     score: float
     origine: str  # "confort" | "decouverte"
     noeud: dict
+    etiquette: Optional[str] = None  # découverte : "pepite" | "hors-piste"
 
 
 def cle_titre(noeud: dict) -> str:
@@ -181,6 +195,13 @@ class Moteur:
         normes = np.sqrt(np.asarray(G.multiply(G).sum(axis=1)).ravel())
         normes[normes == 0] = 1.0
         self.G = sparse.diags(1.0 / normes) @ G
+        self.G_binaire = G.tocsr()
+        self.nb_genres = np.maximum(1.0, np.asarray(G.sum(axis=1)).ravel())
+
+        # qualité minimale en découverte (films très confidentiels exclus) ; prix des sorties
+        likes = np.array([nd.get("nb_likes") or 0 for nd in self.noeuds])
+        self.qualite = np.where(self.types == "film", (likes >= MIN_LIKES_DECOUVERTE).astype(float), 1.0)
+        self.prix = np.array([nd.get("prix") if nd.get("prix") is not None else np.nan for nd in self.noeuds])
 
     # -------------------------------------------------------------- #
 
@@ -218,15 +239,29 @@ class Moteur:
             return np.ones(self.n)
         return EPS_AFFINITE + self.G @ (profil / np.linalg.norm(profil))
 
+    def part_genres_choisis(self, vus: Sequence[int], genres: Sequence[str]) -> np.ndarray:
+        """m_i : part des genres de chaque œuvre qui font partie des genres cochés (à défaut :
+        des genres des « Déjà vu »). 0 partout si l'utilisateur n'a exprimé aucun genre."""
+        choisis = {g for g in genres if g in self.genres}
+        if not choisis and len(vus):
+            colonnes = np.asarray(self.G_binaire[list(vus)].sum(axis=0)).ravel()
+            choisis = {self.genres[j] for j in np.where(colonnes > 0)[0]}
+        u = np.array([1.0 if g in choisis else 0.0 for g in self.genres])
+        return (self.G_binaire @ u) / self.nb_genres
+
     def autorises(self, types: Iterable[str], plateformes: Iterable[int] = (),
                   centre: Optional[Tuple[float, float]] = None, rayon_km: float = 15.0,
-                  categories: Iterable[str] = (), horizon: str = "mois") -> np.ndarray:
+                  categories: Iterable[str] = (), horizon: str = "mois", budget: str = "tous") -> np.ndarray:
         """
         Masque des nœuds recommandables (listes vides = pas de filtre).
           - plateformes (films, séries) : présence CONFIRMÉE par TMDB sur l'une d'elles ;
             ignoré si le catalogue n'a aucune donnée vérifiée (pas de clé TMDB)
           - centre + rayon (sorties) : distance de Haversine <= rayon
           - horizon (sorties) : au moins une occurrence dans la fenêtre ; jamais rien de passé
+          - budget : sorties -> tarif connu <= plafond (prix inconnu exclu) ;
+                     films/séries -> seulement ce qui est inclus SANS SURCOÛT : confirmé par TMDB
+                     sur un abonnement de l'utilisateur ou sur Arte. Sans données TMDB, rien
+                     ne peut être garanti : aucun film/série ne passe.
         """
         vide = np.zeros(self.n, dtype=bool)
         sortie = self.masque_type.get("sortie", vide)
@@ -258,6 +293,15 @@ class Moteur:
             ok = (self.occ_fin >= max(debut, time.time())) & (self.occ_debut <= fin)
             dans_fenetre[self.occ_noeud[ok]] = True
         masque &= dans_fenetre | ~sortie
+
+        if budget in PLAFOND_BUDGET:
+            with np.errstate(invalid="ignore"):
+                abordable = self.prix <= PLAFOND_BUDGET[budget]  # NaN (prix inconnu) -> False
+            inclus = vide.copy()
+            for p in set(plateformes) | {ARTE}:
+                inclus |= self.masque_plateforme.get(p, vide)
+            inclus &= self.verifie
+            masque &= np.where(sortie, abordable, inclus)
         return masque
 
     def distances(self, centre: Tuple[float, float], indices: Sequence[int]) -> List[float]:
@@ -322,8 +366,8 @@ class Moteur:
         pour ne calculer chaque marche qu'une fois (ex. films puis séries)."""
         cache = {} if cache is None else cache
         vus = self.indices(deja_vus)
-        v_u = self.vecteur_depart(vus, genres)
         s = float(np.clip(decouverte, 0.0, 1.0))
+        v_u = self.vecteur_depart(vus, genres)
         n_dec = int(round(s * k))
 
         masque = np.zeros(self.n, dtype=bool) if autorises is None else ~autorises
@@ -342,7 +386,8 @@ class Moteur:
         if n_dec > 0:
             if "decouverte" not in cache:
                 cache["decouverte"] = self.marche(v_u, DECOUVERTE)
-            d = cache["decouverte"] / self.pi_star * aff
+            dans_mes_genres = self.part_genres_choisis(vus, genres)
+            d = cache["decouverte"] / self.pi_star * self.qualite * (1 - MALUS_MAX * s * dans_mes_genres)
             d[masque] = -np.inf
             listes["decouverte"] = (d, meilleurs(d, 3 * k))
 
@@ -366,7 +411,10 @@ class Moteur:
                     pris.add(i)
                     titres.add(cle_titre(self.noeuds[i]))
                     quotas[origine] -= 1
-                    resultat.append(Recommandation(i, float(scores[i]), origine, self.noeuds[i]))
+                    etiquette = None
+                    if origine == "decouverte":
+                        etiquette = "pepite" if dans_mes_genres[i] >= 0.5 else "hors-piste"
+                    resultat.append(Recommandation(i, float(scores[i]), origine, self.noeuds[i], etiquette))
                     break
         return resultat
 

@@ -12,7 +12,7 @@ python3 backend/fetch_france.py [--jours 35]        # réseau : OpenAgenda (40 v
 python3 backend/fetch_series.py [--nb 220]          # réseau : TVmaze
 python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB_API_KEY (env ou .env)
 python3 backend/build_graph.py --movielens /chemin/ml-latest-small
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload                   # ENNUI_SYNC=0 pour couper la synchro auto
 ```
 
 ## Structure
@@ -23,14 +23,17 @@ backend/
 ├── enrich_tmdb.py     # hors ligne : TMDB (affiches, FR.flatrate) -> data/tmdb.json
 ├── build_graph.py     # hors ligne : tout -> data/processed/
 ├── moteur.py          # classe Moteur (calcul pur, testable sans HTTP)
-├── main.py            # FastAPI : routes, /assets, compteurs d'intérêts
+├── main.py            # FastAPI : routes, /assets, comptes, plans, agenda
+├── database.py        # SQLite : utilisateurs, plans, participants, messages, meta
+├── scheduler.py       # synchro OpenAgenda toutes les 6 h + reconstruction à chaud
 ├── plateformes.py     # IDs TMDB des plateformes
 └── data/
     ├── france.json    # versionné (repli hors ligne)
     ├── tmdb.json      # créé par enrich_tmdb.py (à versionner une fois créé)
     ├── series.json    # versionné (repli hors ligne)
     ├── raw/           # dataset MovieLens (non versionné)
-    └── processed/     # P.npz, pi_star.npy, noeuds.json
+    ├── ennui.sqlite3  # base locale (NON versionnée)
+    └── processed/     # S_films.npz, P.npz, pi_star.npy, noeuds.json
 ```
 
 ## Conventions
@@ -42,4 +45,7 @@ backend/
 - Sur macOS, NumPy 2 + Accelerate émet de faux warnings sur `@` : utiliser `np.errstate` localement.
 - Plateformes : ne JAMAIS en déduire ni en simuler. Seul `enrich_tmdb.py` les écrit, depuis `results.FR.flatrate`.
 - Dates : tout calcul temporel passe par `moteur.fenetres()` (Europe/Paris). Les occurrences gardent leurs vraies heures.
+- Accès au moteur : toujours via `Catalogue.moteur`, lu **une fois** en début de requête (il peut être remplacé à chaud).
+- `build_graph.assembler()` est partagé entre le build complet et `reconstruire_externes()` : ne pas dupliquer cette logique.
+- Écritures de fichiers de données : toujours atomiques (`.tmp` puis `os.replace`).
 - La clé TMDB ne doit jamais apparaître dans le code ni dans les logs ; `.env` est dans `.gitignore`.

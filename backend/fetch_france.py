@@ -277,42 +277,67 @@ def selection(evenements, quota):
     return pris
 
 
+def collecter(jours: int = 35, journal=print) -> dict:
+    """Interroge OpenAgenda pour toutes les villes. Lève une exception réseau en cas d'échec."""
+    maintenant = datetime.now(timezone.utc)
+    tous, vus, villes = [], set(), {}
+    for ville, (lat0, lon0, quota) in VILLES.items():
+        lat, lon = geocoder(ville, (lat0, lon0))
+        villes[ville] = [lat, lon]
+        evs, n_bruts = evenements_ville(ville, lat, lon, jours, maintenant)
+        evs = [e for e in evs if e["id"] not in vus]  # zones qui se chevauchent
+        pris = selection(evs, quota)
+        vus.update(e["id"] for e in pris)
+        tous += pris
+        journal(f"  {ville:17s} {n_bruts:4d} bruts -> {len(evs):4d} valides -> {len(pris):3d} retenus")
+        time.sleep(0.3)
+    return {
+        "genere_le": maintenant.isoformat(timespec="seconds"),
+        "horizon_jours": jours,
+        "source": "OpenAgenda via Opendatasoft (evenements-publics-openagenda)",
+        "categories": CATEGORIES,
+        "villes": villes,
+        "sorties": tous,
+    }
+
+
+def retirer_passes(donnees: dict) -> int:
+    """Supprime les occurrences terminées et les événements qui n'en ont plus. Renvoie le nb retiré."""
+    maintenant = datetime.now(timezone.utc)
+    gardes = []
+    for s in donnees["sorties"]:
+        s["occurrences"] = [o for o in s["occurrences"] if datetime.fromisoformat(o[1]) >= maintenant]
+        if s["occurrences"]:
+            s["date_debut"] = max(datetime.fromisoformat(s["occurrences"][0][0]), maintenant).astimezone(PARIS).date().isoformat()
+            gardes.append(s)
+    retires = len(donnees["sorties"]) - len(gardes)
+    donnees["sorties"] = gardes
+    return retires
+
+
+def ecrire(donnees: dict):
+    tmp = SORTIE.with_name(SORTIE.name + ".tmp")
+    tmp.write_text(json.dumps(donnees, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(SORTIE)  # atomique : jamais de fichier à moitié écrit
+
+
 def main():
     parser = argparse.ArgumentParser(description="Événements culturels à venir en France (OpenAgenda)")
     parser.add_argument("--jours", type=int, default=35, help="horizon de collecte (>= 30 pour le filtre « mois »)")
     args = parser.parse_args()
-    maintenant = datetime.now(timezone.utc)
-
-    tous, vus = [], set()
     try:
-        for ville, (lat0, lon0, quota) in VILLES.items():
-            lat, lon = geocoder(ville, (lat0, lon0))
-            evs, n_bruts = evenements_ville(ville, lat, lon, args.jours, maintenant)
-            evs = [e for e in evs if e["id"] not in vus]  # zones qui se chevauchent
-            pris = selection(evs, quota)
-            vus.update(e["id"] for e in pris)
-            tous += pris
-            print(f"  {ville:17s} {n_bruts:4d} bruts -> {len(evs):4d} valides -> {len(pris):3d} retenus")
-            time.sleep(0.3)
+        donnees = collecter(args.jours)
     except (urllib.error.URLError, TimeoutError, KeyError, ValueError) as e:
         if SORTIE.exists():
             print(f"Source injoignable ({e}) : on garde {SORTIE.name} existant.")
             sys.exit(0)
         sys.exit(f"Source injoignable ({e}) et aucun fichier de repli.")
-
-    SORTIE.write_text(json.dumps({
-        "genere_le": maintenant.isoformat(timespec="seconds"),
-        "horizon_jours": args.jours,
-        "source": "OpenAgenda via Opendatasoft (evenements-publics-openagenda)",
-        "categories": CATEGORIES,
-        "villes": {v: geocoder(v, (la, lo)) for v, (la, lo, _) in VILLES.items()},
-        "sorties": tous,
-    }, ensure_ascii=False), encoding="utf-8")
+    ecrire(donnees)
     par_cat = defaultdict(int)
-    for s in tous:
+    for s in donnees["sorties"]:
         par_cat[s["categorie"]] += 1
-    print(f"Écrit {len(tous)} sorties dans {SORTIE} : {dict(par_cat)} ; "
-          f"{sum(1 for s in tous if s['image'])} avec photo")
+    print(f"Écrit {len(donnees['sorties'])} sorties dans {SORTIE} : {dict(par_cat)} ; "
+          f"{sum(1 for s in donnees['sorties'] if s['image'])} avec photo")
 
 
 if __name__ == "__main__":

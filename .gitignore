@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 # dataset brut MovieLens (non versionné, voir docs/architecture.md)
 backend/data/raw/
+
+# base de données locale (comptes et plans des utilisateurs)
+backend/data/*.sqlite3*
+*.tmp

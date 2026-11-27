@@ -9,6 +9,8 @@ Entrées :
                                     plateformes FR.flatrate. Sans lui, AUCUNE plateforme n'est
                                     attribuée (jamais de simulation) : plateformes_verifiees=False.
 Sorties : backend/data/processed/
+    - S_films.npz    co-occurrences élaguées des films seuls (permet de reconstruire le graphe
+                     à chaud quand les sorties changent, sans MovieLens : reconstruire_externes)
     - P.npz          matrice de transition creuse (CSR, float32), lignes stochastiques
     - pi_star.npy    état stationnaire global (proxy de popularité, sert au restart biaisé)
     - noeuds.json    métadonnées par nœud, dans l'ordre des indices de P
@@ -30,6 +32,7 @@ Différences avec tipe_final.py (voir docs/architecture.md) :
 
 import argparse
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -225,7 +228,6 @@ def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films):
         titre, annee = nettoyer_titre(brut)
         tmdb_id = liens.at[mid, "tmdbId"] if mid in liens.index else None
         info = tmdb_films.get(str(mid))
-        rng = np.random.default_rng(mid + 1)
         noeuds.append({
             "index": idx,
             "id": f"film:{mid}",
@@ -239,13 +241,8 @@ def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films):
             "resume": (info or {}).get("overview") or None,
             "plateformes": info["plateformes"] if info else [],
             "plateformes_verifiees": info is not None,
-            "interesses": int(rng.integers(0, 9)),  # watch-party : compteur simulé
         })
     return noeuds
-
-
-def compteur_simule(graine: int, maxi: int) -> int:
-    return int(np.random.default_rng(graine).integers(0, maxi))
 
 
 def metadonnees_series(series, decalage, tmdb_series):
@@ -269,7 +266,6 @@ def metadonnees_series(series, decalage, tmdb_series):
             "resume": (info or {}).get("overview") or s["resume"],
             "plateformes": info["plateformes"] if info else [],
             "plateformes_verifiees": info is not None,
-            "interesses": compteur_simule(s["tvmaze_id"], 9),
         })
     return noeuds
 
@@ -300,19 +296,66 @@ def metadonnees_sorties(sorties, decalage):
             "resume": s.get("description"),
             "url": s.get("url"),
             "plateformes": [],
-            "interesses": compteur_simule(hash_stable(s["id"]), 40),  # compteur de démo
         })
     return noeuds
 
 
-def hash_stable(texte: str) -> int:
-    h = 0
-    for c in texte:
-        h = (h * 31 + ord(c)) % (2 ** 31)
-    return h
-
-
 # ------------------------------------------------------------------ #
+# Assemblage (partagé entre le build complet et la reconstruction à chaud)
+# ------------------------------------------------------------------ #
+
+def charger_json(nom, defaut=None):
+    chemin = DONNEES / nom
+    return json.loads(chemin.read_text(encoding="utf-8")) if chemin.exists() else defaut
+
+
+def charger_tmdb():
+    tmdb = charger_json("tmdb.json", {})
+    return tmdb if "films" in tmdb else {"films": {}, "series": {}}  # ancien format ignoré
+
+
+def ecrire_atomique(chemin: Path, ecrire):
+    """Écrit dans un fichier temporaire puis remplace : jamais de fichier à moitié écrit."""
+    tmp = chemin.with_name(chemin.name + ".tmp")
+    ecrire(tmp)
+    os.replace(tmp, chemin)
+
+
+def assembler(S_films, noeuds_films, series, sorties, tmdb_series, journal=print):
+    """Films + séries + sorties -> P, pi_star, noeuds.json (écritures atomiques)."""
+    genres_films = [nd["genres"] for nd in noeuds_films]
+    nb_likes = np.array([nd["nb_likes"] for nd in noeuds_films])
+    S = relier_externes(S_films, genres_films, nb_likes, series + sorties)
+    journal(f"Externes : {len(series)} séries + {len(sorties)} sorties, {S.nnz:,} entrées au total")
+    P, n_isoles = normaliser_lignes(S)
+    journal(f"P : {P.shape[0]} nœuds, {n_isoles} nœud(s) isolé(s)")
+    pi = pi_star(P)
+
+    noeuds = list(noeuds_films)
+    noeuds += metadonnees_series(series, len(noeuds_films), tmdb_series)
+    noeuds += metadonnees_sorties(sorties, len(noeuds_films) + len(series))
+
+    SORTIE.mkdir(parents=True, exist_ok=True)
+    # format .npz explicite : np.save / save_npz ajouteraient une extension au fichier .tmp
+    ecrire_atomique(SORTIE / "P.npz", lambda t: sparse.save_npz(open(t, "wb"), P))
+    ecrire_atomique(SORTIE / "pi_star.npy", lambda t: np.save(open(t, "wb"), pi.astype(np.float64)))
+    ecrire_atomique(SORTIE / "noeuds.json",
+                    lambda t: t.write_text(json.dumps(noeuds, ensure_ascii=False), encoding="utf-8"))
+    return len(noeuds)
+
+
+def reconstruire_externes(journal=print):
+    """
+    Reconstruction à chaud après une mise à jour des sorties (scheduler.py) : réutilise les
+    co-occurrences des films déjà calculées (S_films.npz), sans relire MovieLens.
+    """
+    S_films = sparse.load_npz(SORTIE / "S_films.npz").tocsr()
+    noeuds = json.loads((SORTIE / "noeuds.json").read_text(encoding="utf-8"))
+    noeuds_films = [nd for nd in noeuds if nd["type"] == "film"]
+    assert len(noeuds_films) == S_films.shape[0], "S_films.npz et noeuds.json incohérents : relancer le build"
+    return assembler(S_films, noeuds_films, charger_json("series.json")["series"],
+                     charger_json("france.json")["sorties"], charger_tmdb()["series"], journal)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Pré-calcul du graphe de recommandation")
@@ -330,34 +373,15 @@ def main():
     S = elaguer_hybride(S, nb_likes.astype(np.float64))
     print(f"Après élagage hybride : {S.nnz:,} entrées")
 
-    genres_par_id = films.set_index("movieId")["genres"].str.split("|").to_dict()
-    genres_films = [genres_par_id.get(int(m), []) for m in movie_ids]
-    series = json.loads((DONNEES / "series.json").read_text(encoding="utf-8"))["series"]
-    sorties = json.loads((DONNEES / "france.json").read_text(encoding="utf-8"))["sorties"]
-    S = relier_externes(S, genres_films, nb_likes, series + sorties)
-    print(f"Externes : {len(series)} séries + {len(sorties)} sorties, {S.nnz:,} entrées au total")
-
-    P, n_isoles = normaliser_lignes(S)
-    print(f"P : {P.shape[0]} nœuds, {n_isoles} nœud(s) isolé(s)")
-    pi = pi_star(P)
-
-    chemin_tmdb = DONNEES / "tmdb.json"
-    tmdb = json.loads(chemin_tmdb.read_text(encoding="utf-8")) if chemin_tmdb.exists() else {}
-    if "films" not in tmdb:  # absent ou ancien format (sans règle flatrate) : ignoré
-        tmdb = {"films": {}, "series": {}}
+    tmdb = charger_tmdb()
     print(f"TMDB : {len(tmdb['films'])} films et {len(tmdb['series'])} séries vérifiés"
           + ("" if tmdb["films"] else " (lancer enrich_tmdb.py : sans lui, aucune plateforme n'est affichée)"))
-
-    noeuds = metadonnees_films(movie_ids, films, liens, nb_likes, tmdb["films"])
-    noeuds += metadonnees_series(series, len(movie_ids), tmdb["series"])
-    noeuds += metadonnees_sorties(sorties, len(movie_ids) + len(series))
+    noeuds_films = metadonnees_films(movie_ids, films, liens, nb_likes, tmdb["films"])
 
     SORTIE.mkdir(parents=True, exist_ok=True)
-    sparse.save_npz(SORTIE / "P.npz", P)
-    np.save(SORTIE / "pi_star.npy", pi.astype(np.float64))
-    with open(SORTIE / "noeuds.json", "w", encoding="utf-8") as fh:
-        json.dump(noeuds, fh, ensure_ascii=False)
-
+    ecrire_atomique(SORTIE / "S_films.npz", lambda t: sparse.save_npz(open(t, "wb"), S))
+    assembler(S, noeuds_films, charger_json("series.json")["series"],
+              charger_json("france.json")["sorties"], tmdb["series"])
     print(f"Écrit dans {SORTIE} en {time.perf_counter() - t0:.1f} s")
 
 

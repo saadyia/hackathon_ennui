@@ -4,7 +4,7 @@ import { icone } from "./icones.js";
 // ------------------------------------------------------------------ //
 // Constantes                                                           //
 // ------------------------------------------------------------------ //
-const CLE_STOCKAGE = "ennui.v3";
+const PREFIXE = "ennui.v4";
 const FUSEAU = "Europe/Paris";
 const NOMS_PLATEFORMES = { 8: "Netflix", 119: "Prime Video", 337: "Disney+", 381: "Canal+", 234: "Arte", 350: "Apple TV+" };
 const GENRES_FR = {
@@ -13,7 +13,7 @@ const GENRES_FR = {
   Fantasy: "Fantastique", Adventure: "Aventure", Mystery: "Mystère", Children: "Jeunesse", Musical: "Musical",
   War: "Guerre", Western: "Western", "Film-Noir": "Film noir",
 };
-const TEINTES = { // teinte HSL des affiches typographiques, par genre principal
+const TEINTES = {
   "Sci-Fi": 212, Thriller: 0, Drama: 28, Comedy: 44, Animation: 275, Documentary: 160, Horror: 340,
   Action: 14, Romance: 325, Crime: 222, Fantasy: 258, Adventure: 120, Mystery: 245, Children: 190,
   Musical: 300, War: 80, Western: 35,
@@ -27,48 +27,72 @@ const ONGLETS = [
 ];
 
 // ------------------------------------------------------------------ //
-// État et persistance                                                  //
+// État, comptes et persistance                                         //
 // ------------------------------------------------------------------ //
+const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [] });
 const ETAT_INITIAL = () => ({
-  onboarde: false,
-  prefs: { ville: null, rayon: 15, categories: [], genres: [], plateformes: [] }, // ville : { nom, contexte, lat, lon }
-  horizon: "semaine",   // "court" | "semaine" | "mois"
+  uid: null, prenom: "",
+  prefs: PREFS_INITIALES(),
+  horizon: "semaine",
   dejaVus: [],          // [{ id, titre, type }]
-  interesses: [],       // ids marqués « Intéressé »
   decouverte: 0.3,
   onglet: "pour-vous",
-  ecrans: "tout",       // "tout" | "film" | "serie"
+  ecrans: "tout",
 });
-const etat = ETAT_INITIAL();
+let etat = ETAT_INITIAL();
 let CONFIG = null;
-let donnees = {};     // résultats de l'onglet courant
+let donnees = {};
 let controleur = null;
 let cleQuota = null;
+let feuille = null;     // feuille collaborative ouverte : { oeuvre, plans }
+let agenda = null;      // état de la synchronisation de l'agenda
+
+const stock = {
+  lire(cle, defaut) { try { return JSON.parse(localStorage.getItem(`${PREFIXE}.${cle}`)) ?? defaut; } catch (_) { return defaut; } },
+  ecrire(cle, valeur) { try { localStorage.setItem(`${PREFIXE}.${cle}`, JSON.stringify(valeur)); } catch (_) { /* indisponible */ } },
+  retirer(cle) { try { localStorage.removeItem(`${PREFIXE}.${cle}`); } catch (_) { /* indisponible */ } },
+};
+const comptes = () => stock.lire("comptes", []);       // [{ id, prenom }] connus sur cet appareil
 
 function sauvegarder() {
-  try { localStorage.setItem(CLE_STOCKAGE, JSON.stringify(etat)); } catch (_) { /* stockage indisponible */ }
+  if (!etat.uid) return;
+  stock.ecrire(`etat.${etat.uid}`, etat);
+  stock.ecrire("actif", etat.uid);
+  synchroniserProfil();
 }
 function restaurer() {
-  try {
-    const d = JSON.parse(localStorage.getItem(CLE_STOCKAGE) || "null");
-    if (d && typeof d === "object") Object.assign(etat, d, { prefs: { ...etat.prefs, ...(d.prefs || {}) } });
-  } catch (_) { /* stockage indisponible ou corrompu : on repart de zéro */ }
+  const uid = stock.lire("actif", null);
+  const local = uid ? stock.lire(`etat.${uid}`, null) : null;
+  if (local) etat = { ...ETAT_INITIAL(), ...local, prefs: { ...PREFS_INITIALES(), ...(local.prefs || {}) } };
 }
+
+/** Profil côté serveur (SQLite) : prénom, ville et préférences, pour changer d'appareil ou de compte. */
+const synchroniserProfil = debounce(() => {
+  if (!etat.uid) return;
+  const { ville, ...prefs } = etat.prefs;
+  api("/api/utilisateurs/moi", { prenom: etat.prenom, ville, prefs: { ...prefs, horizon: etat.horizon, dejaVus: etat.dejaVus } }, undefined, "PUT")
+    .catch(() => { /* hors ligne : le navigateur reste la référence */ });
+}, 800);
 
 // ------------------------------------------------------------------ //
 // Utilitaires                                                          //
 // ------------------------------------------------------------------ //
 const $ = (sel) => document.querySelector(sel);
-/** Remonte en haut : la page sur mobile, le cadre de l'application sur desktop. */
 const haut = () => { window.scrollTo(0, 0); $("#app").scrollTo(0, 0); };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const debounce = (fn, ms) => { let m; return (...a) => { clearTimeout(m); m = setTimeout(() => fn(...a), ms); }; };
+function debounce(fn, ms) { let m; return (...a) => { clearTimeout(m); m = setTimeout(() => fn(...a), ms); }; }
 
-async function api(chemin, corps, signal) {
-  const r = await fetch(chemin, corps === undefined ? { signal } : {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corps), signal,
-  });
-  if (!r.ok) throw new Error(`${r.status} ${chemin}`);
+async function api(chemin, corps, signal, methode) {
+  const entetes = { "Content-Type": "application/json" };
+  if (etat.uid) entetes["X-Utilisateur"] = etat.uid;
+  const options = corps === undefined ? { headers: entetes, signal, method: methode || "GET" }
+    : { method: methode || "POST", headers: entetes, body: JSON.stringify(corps), signal };
+  const r = await fetch(chemin, options);
+  if (!r.ok) {
+    let detail = `${r.status}`;
+    try { const d = await r.json(); detail = typeof d.detail === "string" ? d.detail : detail; } catch (_) { /* rien */ }
+    throw new Error(detail);
+  }
   return r.json();
 }
 
@@ -78,50 +102,76 @@ function toast(message) {
   t.textContent = message;
   t.classList.add("visible");
   clearTimeout(minuteurToast);
-  minuteurToast = setTimeout(() => t.classList.remove("visible"), 2200);
+  minuteurToast = setTimeout(() => t.classList.remove("visible"), 2400);
 }
 
 const genresFr = (o, n = 2) => (o.genres || []).slice(0, n).map((g) => GENRES_FR[g] || g).join(", ");
 const nbPepites = () => Math.round(etat.decouverte * 10);
 const km = (x) => `${x < 10 ? x.toFixed(1) : Math.round(x)} km`.replace(".", ",");
 const nomVille = () => etat.prefs.ville?.nom || "Partout en France";
+const lienSur = (t) => /^https:\/\/[^\s"'<>]+$/.test(t || "");
 
 // ------------------------------------------------------------------ //
-// Dates (toujours calculées dans le fuseau Europe/Paris)               //
+// Dates (toujours dans le fuseau Europe/Paris)                         //
 // ------------------------------------------------------------------ //
-const jourParis = (d) => d.toLocaleDateString("fr-CA", { timeZone: FUSEAU }); // AAAA-MM-JJ
+const jourParis = (d) => d.toLocaleDateString("fr-CA", { timeZone: FUSEAU });
 const heureParis = (d) => d.toLocaleTimeString("fr-FR", { timeZone: FUSEAU, hour: "2-digit", minute: "2-digit" }).replace(":", "h");
+const heureNum = (d) => Number(new Intl.DateTimeFormat("fr-FR", { timeZone: FUSEAU, hour: "numeric", hourCycle: "h23" })
+  .formatToParts(d).find((p) => p.type === "hour").value);
 const dateCourte = (d) => {
   const t = d.toLocaleDateString("fr-FR", { timeZone: FUSEAU, weekday: "short", day: "numeric", month: "short" });
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 const dateDuJour = () => new Date().toLocaleDateString("fr-FR", { timeZone: FUSEAU, weekday: "long", day: "numeric", month: "long" });
 
-/** « Ce soir · 20h30 », « Demain · 14h00 », « Sam. 28 nov. · 20h30 », « En cours · jusqu'à 22h00 ». */
-function libelleDate(o) {
-  if (!o.prochaine) return "";
-  const debut = new Date(o.prochaine.debut);
-  const fin = new Date(o.prochaine.fin);
+/** « Ce soir · 20h30 », « Demain · 14h00 », « Sam. 28 nov. · 20h30 ». */
+function libelleInstant(debut, { avecHeure = true } = {}) {
   const maintenant = new Date();
   const auj = jourParis(maintenant);
   const demain = jourParis(new Date(maintenant.getTime() + 864e5));
-  const journeeEntiere = heureParis(debut) === "00h00";
-  if (debut <= maintenant) {
-    return jourParis(fin) === auj ? `En cours · jusqu'à ${heureParis(fin)}`
-      : `En cours · jusqu'au ${fin.toLocaleDateString("fr-FR", { timeZone: FUSEAU, day: "numeric", month: "long" })}`;
-  }
-  const heure = journeeEntiere ? "" : ` · ${heureParis(debut)}`;
-  const heureNum = Number(debut.toLocaleString("fr-FR", { timeZone: FUSEAU, hour: "2-digit", hour12: false }));
-  if (jourParis(debut) === auj) return (heureNum >= 17 && !journeeEntiere ? "Ce soir" : "Aujourd'hui") + heure;
+  const heure = avecHeure ? ` · ${heureParis(debut)}` : "";
+  if (jourParis(debut) === auj) return (heureNum(debut) >= 17 && avecHeure ? "Ce soir" : "Aujourd'hui") + heure;
   if (jourParis(debut) === demain) return `Demain${heure}`;
   return `${dateCourte(debut)}${heure}`;
 }
 
-function tarif(o) { return o.tarif || "Tarif non communiqué"; }
+function libelleDate(o) {
+  if (!o.prochaine) return "";
+  const debut = new Date(o.prochaine.debut);
+  const fin = new Date(o.prochaine.fin);
+  if (debut <= new Date()) {
+    return jourParis(fin) === jourParis(new Date()) ? `En cours · jusqu'à ${heureParis(fin)}`
+      : `En cours · jusqu'au ${fin.toLocaleDateString("fr-FR", { timeZone: FUSEAU, day: "numeric", month: "long" })}`;
+  }
+  return libelleInstant(debut, { avecHeure: heureParis(debut) !== "00h00" });
+}
+
+/** Valeur pour <input type="datetime-local"> en heure de Paris. */
+function valeurLocale(d) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("fr-FR", { timeZone: FUSEAU, year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+function ilYa(iso) {
+  if (!iso) return "jamais";
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
+}
+
+const tarif = (o) => o.tarif || "Tarif non communiqué";
 
 // ------------------------------------------------------------------ //
 // Briques visuelles                                                    //
 // ------------------------------------------------------------------ //
+function tagDecouverte(o) {
+  if (o.origine !== "decouverte") return "";
+  return o.etiquette === "hors-piste" ? `<span class="tag tag-hors-piste">Hors piste</span>` : `<span class="tag tag-pepite">Pépite</span>`;
+}
+
 function affiche(o) {
   const teinte = TEINTES[o.genres?.[0]] ?? 230;
   const fond = `background: linear-gradient(160deg, hsl(${teinte} 32% 24%) 0%, hsl(${teinte} 20% 12%) 55%, #141417 100%)`;
@@ -131,26 +181,54 @@ function affiche(o) {
     </div>`;
   const srcset = o.affiche_mini ? ` srcset="${esc(o.affiche_mini)} 210w, ${esc(o.affiche)} 680w" sizes="180px"` : "";
   const img = o.affiche ? `<img src="${esc(o.affiche_mini || o.affiche)}"${srcset} alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
-  const pepite = o.origine === "decouverte" ? `<span class="tag tag-pepite">Pépite</span>` : "";
-  return `<div class="visuel affiche">${typo}${img}${pepite}</div>`;
+  return `<div class="visuel affiche">${typo}${img}${tagDecouverte(o)}</div>`;
 }
 
 function visuelSortie(o, format = "paysage") {
   const fond = `background: radial-gradient(120% 90% at 20% 0%, #26262C 0%, #141417 70%)`;
   const img = o.affiche ? `<img src="${esc(o.affiche)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
   const credit = o.affiche && o.credit_image ? `<span class="credit">© ${esc(o.credit_image)}</span>` : "";
-  const pepite = o.origine === "decouverte" ? `<span class="tag tag-pepite">Pépite</span>` : "";
   return `<div class="visuel ${format}" style="${fond}">
-      <div class="visuel-icone">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 40)}</div>${img}${credit}${pepite}
+      <div class="visuel-icone">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 40)}</div>${img}${credit}${tagDecouverte(o)}
     </div>`;
 }
 
-/** Plateformes : seulement ce que TMDB confirme (FR, abonnement). Jamais de supposition. */
 function lignePlateformes(o) {
   if (!o.plateformes_verifiees) return `<div class="plateformes"><span class="non-verifie">Disponibilité non vérifiée</span></div>`;
   if (!o.plateformes?.length) return `<div class="plateformes"><span class="non-verifie">Hors abonnements suivis</span></div>`;
   return `<div class="plateformes">${o.plateformes.filter((p) => p in NOMS_PLATEFORMES).map((p) =>
     `<span class="plateforme ${etat.prefs.plateformes.includes(p) ? "possedee" : ""}">${esc(NOMS_PLATEFORMES[p])}</span>`).join("")}</div>`;
+}
+
+/** « Avec Chloé, Théo et 2 autres » (soi-même affiché « toi »). */
+function avecQui(plan) {
+  const noms = plan.participants.map((n, i) => (plan.je_participe && n === etat.prenom && i === plan.participants.indexOf(etat.prenom) ? "toi" : n));
+  if (noms.length <= 2) return `Avec ${noms.join(" et ")}`;
+  return `Avec ${noms.slice(0, 2).join(", ")} et ${noms.length - 2} autre${noms.length > 3 ? "s" : ""}`;
+}
+
+/** Ligne collaborative d'une carte : remplace l'ancien compteur. */
+function ligneCollab(o, { compacte = false } = {}) {
+  const plan = (o.plans || [])[0];
+  const id = esc(o.id);
+  if (!plan) {
+    return `<div class="collab ${compacte ? "compacte" : ""}">
+        ${compacte ? "" : `<span class="collab-texte tres-muet">Personne encore. Lance le premier plan.</span>`}
+        <button class="bouton-ligne" data-action="ouvrir-plans" data-id="${id}">${icone("plus", 14)}${compacte ? "Organiser" : "Proposer un créneau"}</button>
+      </div>`;
+  }
+  const quand = libelleInstant(new Date(plan.debut));
+  const autres = o.plans.length > 1 ? ` · +${o.plans.length - 1} créneau${o.plans.length > 2 ? "x" : ""}` : "";
+  const bouton = plan.je_participe
+    ? `<button class="bouton-ligne" aria-pressed="true" data-action="ouvrir-plans" data-id="${id}">${icone("check", 14)}Inscrit</button>`
+    : `<button class="bouton-ligne bouton-accent" data-action="rejoindre" data-plan="${plan.id}" data-id="${id}">${icone("users", 14)}Rejoindre</button>`;
+  return `<div class="collab ${compacte ? "compacte" : ""}">
+      <button class="collab-texte" data-action="ouvrir-plans" data-id="${id}">
+        <span class="collab-quand">${esc(quand)}${esc(autres)}</span>
+        <span class="tres-muet">${esc(avecQui(plan))}</span>
+      </button>
+      ${bouton}
+    </div>`;
 }
 
 function carteOeuvre(o, i = 0) {
@@ -161,18 +239,11 @@ function carteOeuvre(o, i = 0) {
       <h3>${esc(o.titre)}</h3>
       <div class="meta">${esc(meta)}</div>
       ${lignePlateformes(o)}
+      ${ligneCollab(o, { compacte: true })}
       <div class="carte-actions">
         <button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone("eye", 14)}Déjà vu</button>
       </div>
     </article>`;
-}
-
-function boutonInteret(o) {
-  const actif = etat.interesses.includes(o.id);
-  const n = o.interesses;
-  return `<button class="bouton-ligne" data-action="interet" data-id="${esc(o.id)}" aria-pressed="${actif}">
-      ${icone(actif ? "check" : "users", 14)}Intéressé · ${n} étudiant${n > 1 ? "s" : ""}
-    </button>`;
 }
 
 function carteSortie(o, i = 0) {
@@ -189,15 +260,14 @@ function carteSortie(o, i = 0) {
         <div class="ligne-info date">${icone("calendar", 15)}<span>${esc(libelleDate(o))}</span></div>
         <div class="ligne-info">${icone("map-pin", 15)}<span>${esc(lieu)}</span></div>
         ${o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
-        <div class="carte-sortie-pied">
-          <span class="tarif">${esc(tarif(o))}</span>
-          ${boutonInteret(o)}
-        </div>
+        <div class="ligne-info">${icone("ticket", 15)}<span class="tarif">${esc(tarif(o))}</span></div>
+        <div class="carte-sortie-pied">${ligneCollab(o)}</div>
       </div>
     </article>`;
 }
 
-const valeurCurseur = (n) => n === 0 ? "Valeurs sûres uniquement" : `<b>${n}</b> pépite${n > 1 ? "s" : ""} sur 10`;
+const valeurCurseur = (n) => n === 0 ? "Valeurs sûres uniquement"
+  : n === 10 ? "<b>Découverte totale</b> · hors de tes genres" : `<b>${n}</b> découverte${n > 1 ? "s" : ""} sur 10`;
 
 function instrument() {
   const n = nbPepites();
@@ -212,16 +282,15 @@ function instrument() {
         <div class="piste-remplie" id="piste-remplie" style="width:calc((100% - 18px) * ${pct / 100})"></div>
         <div class="piste-graduations">${"<i></i>".repeat(11)}</div>
         <input class="curseur" id="curseur" type="range" min="0" max="100" step="1" value="${Math.round(pct)}"
-               aria-label="Zone de confort ou découverte" aria-valuetext="${n} pépites sur 10">
+               aria-label="Zone de confort ou découverte" aria-valuetext="${n} découvertes sur 10">
       </div>
       <div class="instrument-pied"><span>Zone de confort</span><span>Découverte</span></div>
     </div>`;
 }
 
-/** Ville (autocomplétion API Adresse) + rayon. `compact` : version de l'onglet Sorties. */
-function localisation({ compact = false } = {}) {
+function localisation() {
   const v = etat.prefs.ville;
-  return `<div class="localisation ${compact ? "compacte" : ""}">
+  return `<div class="localisation">
       <div class="champ-ville">
         ${icone("map-pin", 16, "tres-muet")}
         <input id="champ-ville" class="champ-nu" type="search" autocomplete="off" spellcheck="false"
@@ -237,9 +306,24 @@ function localisation({ compact = false } = {}) {
     </div>`;
 }
 
-function selecteurHorizon() {
-  return `<div class="segment segment-3" role="group" aria-label="Quand ?">
-      ${CONFIG.horizons.map((h) => `<button data-action="horizon" data-valeur="${h.id}" aria-pressed="${etat.horizon === h.id}">${esc(h.nom)}</button>`).join("")}
+const selecteurHorizon = () => `<div class="segment segment-3" role="group" aria-label="Quand ?">
+    ${CONFIG.horizons.map((h) => `<button data-action="horizon" data-valeur="${h.id}" aria-pressed="${etat.horizon === h.id}">${esc(h.nom)}</button>`).join("")}
+  </div>`;
+
+const selecteurBudget = () => `<div class="puces defilement" role="group" aria-label="Budget">
+    ${CONFIG.budgets.map((b) => `<button class="puce puce-s" data-action="budget" data-valeur="${b.id}" aria-pressed="${etat.prefs.budget === b.id}">
+      ${b.id === "tous" ? "" : icone("ticket", 14)}${esc(b.nom)}</button>`).join("")}
+  </div>`;
+
+function statutAgenda() {
+  if (!agenda) return "";
+  const texte = agenda.en_cours ? "Synchronisation de l'agenda…"
+    : agenda.statut === "erreur" ? `Agenda hors ligne · synchronisé ${ilYa(agenda.derniere_sync)}`
+      : `Agenda synchronisé ${ilYa(agenda.derniere_sync)}`;
+  return `<div class="statut-agenda" id="statut-agenda">
+      <span>${esc(texte)}</span>
+      <button class="lien-discret" data-action="synchroniser" ${agenda.en_cours ? "disabled" : ""}>
+        ${icone("rotate-ccw", 14, agenda.en_cours ? "tourne" : "")}Mettre à jour</button>
     </div>`;
 }
 
@@ -261,8 +345,16 @@ function videSorties() {
   const suggestion = c && etat.prefs.ville && c.ville !== etat.prefs.ville.nom
     ? `<button class="bouton-ligne" style="margin-top:14px" data-action="aller-ville" data-ville="${esc(JSON.stringify(c))}">
         ${icone("compass", 14)}Voir ${esc(c.ville)} · à ${km(c.distance_km)}</button>` : "";
-  const conseil = etat.prefs.ville && etat.prefs.rayon < 50 ? "Élargis le rayon ou l'horizon." : "Essaie un autre horizon.";
-  return `<div class="vide">Aucune sortie à venir avec ces filtres. ${conseil}<br>${suggestion}</div>`;
+  const budget = etat.prefs.budget !== "tous" ? " Le filtre budget écarte aussi les sorties sans tarif publié." : "";
+  return `<div class="vide">Aucune sortie à venir avec ces filtres. Élargis le rayon, l'horizon ou le budget.${budget}<br>${suggestion}</div>`;
+}
+
+function videEcrans() {
+  if (etat.prefs.budget !== "tous" && !CONFIG.plateformes_verifiees) {
+    return `<div class="vide">Impossible de garantir « ${esc(CONFIG.budgets.find((b) => b.id === etat.prefs.budget).nom)} » :
+      les disponibilités sur tes abonnements ne sont pas encore vérifiées. Repasse sur « Tous les prix ».</div>`;
+  }
+  return `<div class="vide">Rien ne correspond. Ajoute un abonnement dans le profil ou élargis le budget.</div>`;
 }
 
 // ------------------------------------------------------------------ //
@@ -286,15 +378,24 @@ function preferences() {
 }
 
 function ecranAccueil() {
+  const connus = comptes();
   return `<div class="apparition">
       <span class="marque">ennui<span>.</span></span>
-      <p class="surtitre" style="margin:44px 0 0">${esc(dateDuJour())}</p>
-      <h1 class="titre-1" style="font-size:36px">Qu'est-ce qu'on fait aujourd'hui&nbsp;?</h1>
-      <p class="muet" style="margin:12px 0 0">Quelques préférences, et on te prépare une sélection de films, de séries et de sorties près de chez toi.</p>
+      <h1 class="titre-1" style="font-size:34px;margin-top:48px">Seul chez soi ne veut pas dire isolé.</h1>
+      <p class="muet" style="margin:14px 0 0">Choisis ton prénom et ta ville pour découvrir quoi faire aujourd'hui — et voir qui est partant autour de toi.</p>
+      ${connus.length ? `<div class="reprendre">
+          <span class="tres-muet petit">Déjà venu sur cet appareil ?</span>
+          <div class="puces" style="margin-top:8px">${connus.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">
+            ${icone("user", 14)}${esc(c.prenom)}</button>`).join("")}</div>
+        </div>` : ""}
+      <section class="groupe">
+        <span class="surtitre">Ton prénom</span>
+        <input class="champ" id="champ-prenom" maxlength="30" autocomplete="given-name" placeholder="Ex. Chloé" value="${esc(etat.prenom)}">
+      </section>
       ${preferences()}
     </div>
     <div class="barre-action">
-      <button class="bouton-principal" data-action="commencer">Découvrir ma sélection ${icone("arrow-right", 18)}</button>
+      <button class="bouton-principal" data-action="commencer" ${etat.prenom.trim() ? "" : "disabled"}>Découvrir ma sélection ${icone("arrow-right", 18)}</button>
     </div>`;
 }
 
@@ -304,13 +405,14 @@ function ecranPourVous() {
   const autres = (d.sorties || []).filter((o) => o !== une);
   const ecrans = d.ecrans || [];
   const rayon = etat.prefs.ville ? ` · ${etat.prefs.rayon} km` : "";
-  return `${entete(dateDuJour(), "Qu'est-ce qu'on fait aujourd'hui ?")}
+  return `${entete(dateDuJour(), `Salut ${etat.prenom}, qu'est-ce qu'on fait aujourd'hui ?`)}
     ${instrument()}
+    <div style="margin-top:12px">${selecteurBudget()}</div>
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
       <div class="titre-section"><h2 class="titre-2">À l'écran ce soir</h2>
         <button class="lien-discret" data-action="onglet" data-onglet="ecrans">Tout voir ${icone("chevron-right", 16)}</button></div>
       ${ecrans.length ? `<div class="carrousel">${ecrans.map(carteOeuvre).join("")}</div>`
-        : d.chargement ? squelettesAffiches(2) : `<div class="vide">Rien sur tes plateformes pour l'instant.</div>`}
+        : d.chargement ? squelettesAffiches(2) : videEcrans()}
       <div class="titre-section"><h2 class="titre-2">Sortir · ${esc(nomVille())}${esc(rayon)}</h2>
         <button class="lien-discret" data-action="onglet" data-onglet="sorties">Tout voir ${icone("chevron-right", 16)}</button></div>
       ${selecteurHorizon()}
@@ -320,7 +422,7 @@ function ecranPourVous() {
             <span class="categorie">${icone(ICONES_CATEGORIE[une.categorie] || "compass", 14)}${esc(une.categorie_libelle || "")} · ${esc(une.ville || "")}${une.distance_km != null ? ` · à ${km(une.distance_km)}` : ""}</span>
             <h2>${esc(une.titre)}</h2>
             <div class="muet petit">${esc(libelleDate(une))} · ${esc(tarif(une))}</div>
-            <div style="margin-top:12px">${boutonInteret(une)}</div>
+            <div style="margin-top:12px">${ligneCollab(une)}</div>
           </div>
         </article>` : ""}
       <div style="margin-top:14px">${autres.length ? autres.map(carteSortie).join("")
@@ -338,10 +440,11 @@ function ecranEcrans() {
       <button data-action="segment" data-valeur="film" aria-pressed="${etat.ecrans === "film"}">${icone("film", 16)}Films</button>
       <button data-action="segment" data-valeur="serie" aria-pressed="${etat.ecrans === "serie"}">${icone("tv", 16)}Séries</button>
     </div>
+    <div style="margin-top:12px">${selecteurBudget()}</div>
     ${instrument()}
     <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:26px">
       ${liste.length ? `<div class="grille-affiches">${liste.map(carteOeuvre).join("")}</div>`
-        : d.chargement ? squelettesAffiches(4) : `<div class="vide">Rien sur tes plateformes. Ajoute un abonnement dans le profil.</div>`}
+        : d.chargement ? squelettesAffiches(4) : videEcrans()}
     </div>`;
 }
 
@@ -349,9 +452,11 @@ function ecranSorties() {
   const d = donnees;
   const liste = d.grille || [];
   return `${entete("Sorties", "Sortir près de chez toi")}
-    <div style="margin-top:20px">${localisation({ compact: true })}</div>
+    ${statutAgenda()}
+    <div style="margin-top:16px">${localisation()}</div>
     <div style="margin-top:14px">${selecteurHorizon()}</div>
-    <div class="puces defilement" style="margin-top:12px">${CONFIG.categories.map((c) => `<button class="puce" data-action="pref"
+    <div style="margin-top:12px">${selecteurBudget()}</div>
+    <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.map((c) => `<button class="puce" data-action="pref"
         data-groupe="categories" data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.categories.includes(c.id)}">
         ${icone(ICONES_CATEGORIE[c.id], 15)}${esc(c.nom)}</button>`).join("")}</div>
     ${instrument()}
@@ -362,8 +467,29 @@ function ecranSorties() {
 
 function ecranProfil() {
   const vus = etat.dejaVus;
-  return `${entete("Profil", "Tes préférences")}
-    <p class="muet" style="margin:10px 0 0">Elles orientent toutes tes recommandations. Modifie-les quand tu veux.</p>
+  const mesPlans = donnees.mesPlans;
+  const autres = comptes().filter((c) => c.id !== etat.uid);
+  return `${entete("Profil", etat.prenom)}
+    <div class="compte">
+      <span class="muet">Connecté sur cet appareil</span>
+      <div class="puces" style="margin-top:10px">
+        ${autres.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">${icone("user", 14)}${esc(c.prenom)}</button>`).join("")}
+        <button class="puce" data-action="nouveau-compte">${icone("plus", 14)}Nouveau compte</button>
+      </div>
+    </div>
+    <section class="groupe">
+      <span class="surtitre">Mes plans</span>
+      ${mesPlans === undefined ? `<div class="squelette" style="height:64px"></div>`
+        : mesPlans.length ? `<div class="liste-vus"><ul>${mesPlans.map((p) => `<li>
+            ${icone(p.oeuvre_type === "sortie" ? "ticket" : p.oeuvre_type === "serie" ? "tv" : "film", 16, "tres-muet")}
+            <button class="titre plan-ligne" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">
+              <span>${esc(p.oeuvre_titre)}</span>
+              <span class="tres-muet petit">${esc(libelleInstant(new Date(p.debut)))} · ${esc(avecQui(p))}${p.est_auteur ? " · organisé par toi" : ""}</span>
+            </button>
+            ${icone("chevron-right", 16, "tres-muet")}
+          </li>`).join("")}</ul></div>`
+        : `<div class="liste-vus"><div class="vide">Aucun plan pour l'instant. Touche « Proposer un créneau » ou « Rejoindre » sur une carte.</div></div>`}
+    </section>
     ${preferences()}
     <section class="groupe">
       <span class="surtitre">Déjà vus · ${vus.length}</span>
@@ -375,20 +501,103 @@ function ecranProfil() {
       <input class="champ" id="recherche-vu" type="search" placeholder="Ajouter un film ou une série déjà vu…" autocomplete="off" style="margin-top:12px">
       <ul class="suggestions" id="suggestions-vu" hidden></ul>
     </section>
+    <section class="groupe">${statutAgenda()}</section>
     <section class="groupe">
-      <button class="bouton-ligne" data-action="reinitialiser">${icone("rotate-ccw", 14)}Tout réinitialiser</button>
+      <button class="bouton-ligne" data-action="oublier-compte">${icone("x", 14)}Oublier ce compte sur cet appareil</button>
     </section>
     <p class="sources">
-      Sources : sorties <a href="https://openagenda.com" target="_blank" rel="noopener">OpenAgenda</a> (via Opendatasoft) ;
+      Sources : sorties <a href="https://openagenda.com" target="_blank" rel="noopener">OpenAgenda</a> (via Opendatasoft, synchronisé toutes les 6 h) ;
       communes <a href="https://adresse.data.gouv.fr" target="_blank" rel="noopener">API Adresse</a> ;
       séries <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA) ;
       affiches et plateformes <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a> (abonnements en France uniquement) ;
-      films MovieLens (GroupLens).<br>
-      Démo : les compteurs « Intéressé » partent d'une valeur simulée.
+      films MovieLens (GroupLens).
     </p>`;
 }
 
 const ECRANS = { "pour-vous": ecranPourVous, ecrans: ecranEcrans, sorties: ecranSorties, profil: ecranProfil };
+
+// ------------------------------------------------------------------ //
+// Feuille collaborative (créneaux, participants, messages)             //
+// ------------------------------------------------------------------ //
+function creneauParDefaut(o) {
+  if (o.type === "sortie" && o.prochaine && new Date(o.prochaine.debut) > new Date()) return new Date(o.prochaine.debut);
+  const d = new Date();
+  const ce_soir = new Date(`${jourParis(d)}T21:00:00`);
+  // 21h heure de Paris ≈ 21h locale pour un public en France ; sinon demain
+  return ce_soir > d ? ce_soir : new Date(ce_soir.getTime() + 864e5);
+}
+
+function rendreFeuille() {
+  const racine = $("#feuille");
+  if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
+  const { oeuvre: o, plans } = feuille;
+  const estSortie = o.type === "sortie";
+  const plansHtml = plans === null ? `<div class="squelette" style="height:90px"></div>`
+    : plans.length ? plans.map((p) => `<div class="plan">
+        <div class="plan-tete">
+          <div>
+            <div class="plan-quand">${esc(libelleInstant(new Date(p.debut)))}</div>
+            <div class="tres-muet petit">${esc(avecQui(p))} · proposé par ${esc(p.auteur)}</div>
+          </div>
+          <button class="bouton-ligne ${p.je_participe ? "" : "bouton-accent"}" data-action="${p.je_participe ? "quitter" : "rejoindre"}" data-plan="${p.id}" data-id="${esc(o.id)}"
+            ${p.je_participe ? 'aria-pressed="true"' : ""}>${icone(p.je_participe ? "check" : "users", 14)}${p.je_participe ? "Inscrit" : "Rejoindre"}</button>
+        </div>
+        ${p.rendez_vous ? `<div class="ligne-info">${icone(estSortie ? "map-pin" : "tv", 15)}${lienSur(p.rendez_vous)
+          ? `<a href="${esc(p.rendez_vous)}" target="_blank" rel="noopener noreferrer">${esc(p.rendez_vous)}</a>` : `<span>${esc(p.rendez_vous)}</span>`}</div>` : ""}
+        ${p.message ? `<p class="plan-message">« ${esc(p.message)} » <span class="tres-muet">— ${esc(p.auteur)}</span></p>` : ""}
+        ${(p.messages || []).length ? `<ul class="fil">${p.messages.map((m) => `<li><b>${esc(m.prenom)}</b> ${esc(m.texte)}</li>`).join("")}</ul>` : ""}
+        ${p.je_participe ? `<form class="ecrire" data-plan="${p.id}">
+            <input class="champ" name="texte" maxlength="280" placeholder="Un mot pour le groupe…" autocomplete="off">
+            <button class="bouton-icone" aria-label="Envoyer">${icone("arrow-right", 16)}</button>
+          </form>` : ""}
+      </div>`).join("")
+      : `<p class="tres-muet">Aucun créneau pour l'instant. Propose le premier.</p>`;
+  racine.hidden = false;
+  racine.innerHTML = `<div class="feuille-fond" data-action="fermer-feuille"></div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Organiser ${esc(o.titre)}">
+      <div class="feuille-tete">
+        <div style="min-width:0">
+          <span class="surtitre">${estSortie ? "Sortie à plusieurs" : "Watch-party"}</span>
+          <h2 class="titre-2" style="margin-top:4px">${esc(o.titre)}</h2>
+        </div>
+        <button class="bouton-icone" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+      </div>
+      <div class="feuille-corps">
+        ${plansHtml}
+        <form class="proposer" id="form-plan">
+          <span class="surtitre">Proposer un créneau</span>
+          <label class="petit muet">Quand
+            <input class="champ" type="datetime-local" name="debut" required value="${esc(valeurLocale(creneauParDefaut(o)))}" min="${esc(valeurLocale(new Date()))}">
+          </label>
+          <label class="petit muet">${estSortie ? "Point de rendez-vous" : "Lien de la watch-party"}
+            <input class="champ" name="rendez_vous" maxlength="200"
+              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : "Lien Discord, Teleparty… (https://)"}">
+          </label>
+          <label class="petit muet">Un mot (facultatif)
+            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : "On lance l'épisode à 21h ?"}">
+          </label>
+          <button class="bouton-principal" type="submit">${icone("plus", 18)}Proposer ce créneau</button>
+        </form>
+      </div>
+    </section>`;
+}
+
+async function ouvrirFeuille(oeuvre) {
+  feuille = { oeuvre, plans: null };
+  rendreFeuille();
+  try {
+    feuille.plans = await api(`/api/plans?oeuvre_id=${encodeURIComponent(oeuvre.id)}`);
+  } catch (_) { feuille.plans = []; toast("Impossible de charger les créneaux."); }
+  if (feuille) rendreFeuille();
+}
+
+async function rafraichirApresPlan() {
+  if (feuille) {
+    feuille.plans = await api(`/api/plans?oeuvre_id=${encodeURIComponent(feuille.oeuvre.id)}`).catch(() => feuille.plans);
+    rendreFeuille();
+  }
+  if (etat.onglet === "profil") chargerMesPlans(); else charger({ partiel: true });
+}
 
 // ------------------------------------------------------------------ //
 // Rendu et chargement                                                  //
@@ -396,7 +605,7 @@ const ECRANS = { "pour-vous": ecranPourVous, ecrans: ecranEcrans, sorties: ecran
 function rendre() {
   const ecran = $("#ecran");
   const nav = $("#onglets");
-  if (!etat.onboarde) {
+  if (!etat.uid) {
     nav.hidden = true;
     ecran.className = "ecran sans-onglets";
     ecran.innerHTML = ecranAccueil();
@@ -409,7 +618,6 @@ function rendre() {
   ecran.innerHTML = ECRANS[etat.onglet]();
 }
 
-/** Ne re-rend que la zone de résultats (évite de casser un curseur pendant un glissement). */
 function rendreContenu() {
   const zone = $("#contenu");
   if (!zone) return rendre();
@@ -431,6 +639,7 @@ function corps(type, k) {
     lon: v?.lon ?? null,
     rayon_km: etat.prefs.rayon,
     horizon: etat.horizon,
+    budget: etat.prefs.budget,
     categories: etat.prefs.categories,
   };
 }
@@ -442,7 +651,8 @@ async function couvertureSiVide(sorties, signal) {
 }
 
 async function charger({ partiel = false } = {}) {
-  if (!etat.onboarde || etat.onglet === "profil") return;
+  if (!etat.uid) return;
+  if (etat.onglet === "profil") { rendre(); chargerMesPlans(); return; }
   controleur?.abort();
   controleur = new AbortController();
   const signal = controleur.signal;
@@ -470,6 +680,11 @@ async function charger({ partiel = false } = {}) {
   partiel ? rendreContenu() : rendre();
 }
 
+async function chargerMesPlans() {
+  try { donnees = { ...donnees, mesPlans: await api("/api/mes-plans") }; } catch (_) { donnees = { ...donnees, mesPlans: [] }; }
+  if (etat.onglet === "profil" && !feuille) rendre();
+}
+
 const chargerSiQuotaChange = debounce(() => {
   if (`${etat.onglet}:${etat.ecrans}:${nbPepites()}` !== cleQuota) charger({ partiel: true });
 }, 60);
@@ -485,11 +700,59 @@ function trouver(id) {
   return null;
 }
 
-/** Après un changement de préférence : recharge si on est dans le flux, sinon met à jour l'écran. */
 function apresPreference() {
   sauvegarder();
-  if (etat.onboarde && etat.onglet !== "profil") charger();
+  if (etat.uid && etat.onglet !== "profil") charger();
   else rendre();
+}
+
+async function rafraichirAgenda() {
+  try { agenda = await api("/api/agenda"); } catch (_) { return; }
+  const zone = $("#statut-agenda");
+  if (zone) zone.outerHTML = statutAgenda();
+}
+
+// ------------------------------------------------------------------ //
+// Comptes                                                              //
+// ------------------------------------------------------------------ //
+function memoriserCompte(id, prenom) {
+  const liste = comptes().filter((c) => c.id !== id);
+  stock.ecrire("comptes", [{ id, prenom }, ...liste].slice(0, 8));
+}
+
+async function changerCompte(uid) {
+  const local = stock.lire(`etat.${uid}`, null);
+  let u = null;
+  try {
+    etat.uid = uid;  // pour l'en-tête X-Utilisateur
+    u = await api("/api/utilisateurs/moi");
+  } catch (_) {
+    if (!local) {
+      stock.ecrire("comptes", comptes().filter((c) => c.id !== uid));
+      etat = ETAT_INITIAL();
+      toast("Ce compte n'existe plus sur le serveur.");
+      return rendre();
+    }
+  }
+  const prefsServeur = u?.prefs || {};
+  etat = {
+    ...ETAT_INITIAL(),
+    ...(local || {}),
+    uid,
+    prenom: u?.prenom || local?.prenom || "",
+    prefs: { ...PREFS_INITIALES(), ...(local?.prefs || {}), ...(local ? {} : prefsServeur), ville: u?.ville ?? local?.prefs?.ville ?? null },
+    dejaVus: local?.dejaVus || prefsServeur.dejaVus || [],
+    horizon: local?.horizon || prefsServeur.horizon || "semaine",
+  };
+  delete etat.prefs.dejaVus;
+  delete etat.prefs.horizon;
+  memoriserCompte(uid, etat.prenom);
+  stock.ecrire("actif", uid);
+  sauvegarder();
+  donnees = {};
+  haut();
+  toast(`Bonjour ${etat.prenom}`);
+  charger();
 }
 
 // ------------------------------------------------------------------ //
@@ -502,11 +765,14 @@ const actions = {
     const liste = etat.prefs[groupe];
     etat.prefs[groupe] = liste.includes(valeur) ? liste.filter((v) => v !== valeur) : [...liste, valeur];
     sauvegarder();
-    if (!etat.onboarde || etat.onglet === "profil") {
-      b.setAttribute("aria-pressed", etat.prefs[groupe].includes(valeur)); // en place, sans re-rendu
-    } else {
-      charger();
-    }
+    if (!etat.uid || etat.onglet === "profil") b.setAttribute("aria-pressed", etat.prefs[groupe].includes(valeur));
+    else charger();
+  },
+  budget(b) {
+    if (etat.prefs.budget === b.dataset.valeur) return;
+    etat.prefs.budget = b.dataset.valeur;
+    sauvegarder();
+    charger();
   },
   horizon(b) {
     if (etat.horizon === b.dataset.valeur) return;
@@ -528,19 +794,44 @@ const actions = {
     etat.prefs.ville = null;
     apresPreference();
   },
-  commencer() {
-    etat.onboarde = true;
-    etat.onglet = "pour-vous";
-    sauvegarder();
+  async commencer(b) {
+    const prenom = etat.prenom.trim();
+    if (!prenom) return;
+    b.disabled = true;
+    try {
+      const { ville, ...prefs } = etat.prefs;
+      const u = await api("/api/utilisateurs", { prenom, ville, prefs: { ...prefs, horizon: etat.horizon } });
+      etat.uid = u.id;
+      etat.prenom = u.prenom;
+      etat.onglet = "pour-vous";
+      memoriserCompte(u.id, u.prenom);
+      sauvegarder();
+      haut();
+      charger();
+    } catch (e) {
+      b.disabled = false;
+      toast(`Connexion impossible : ${e.message}`);
+    }
+  },
+  "changer-compte"(b) { changerCompte(b.dataset.uid); },
+  "nouveau-compte"() {
+    etat = ETAT_INITIAL();
+    stock.retirer("actif");
+    donnees = {};
     haut();
-    charger();
+    rendre();
+  },
+  "oublier-compte"() {
+    stock.ecrire("comptes", comptes().filter((c) => c.id !== etat.uid));
+    stock.retirer(`etat.${etat.uid}`);
+    actions["nouveau-compte"]();
   },
   onglet(b) {
     etat.onglet = b.dataset.onglet;
     sauvegarder();
     donnees = {};
     haut();
-    etat.onglet === "profil" ? rendre() : charger();
+    charger();
   },
   segment(b) {
     if (etat.ecrans === b.dataset.valeur) return;
@@ -559,20 +850,36 @@ const actions = {
     toast(`« ${o.titre} » ajouté à tes déjà vus · sélection ajustée`);
     setTimeout(() => charger({ partiel: true }), 260);
   },
-  async interet(b) {
-    const id = b.dataset.id;
-    const actif = !etat.interesses.includes(id);
-    etat.interesses = actif ? [...etat.interesses, id] : etat.interesses.filter((x) => x !== id);
-    sauvegarder();
-    const o = trouver(id);
-    const majBoutons = () => document.querySelectorAll(`[data-action="interet"][data-id="${CSS.escape(id)}"]`)
-      .forEach((el) => { el.outerHTML = boutonInteret(o); });
-    if (o) { o.interesses = Math.max(0, o.interesses + (actif ? 1 : -1)); majBoutons(); }
-    if (actif) toast("Noté. Les étudiants intéressés pourront se retrouver.");
+  "ouvrir-plans"(b) {
+    const o = trouver(b.dataset.id) || { id: b.dataset.id, titre: b.dataset.titre, type: b.dataset.type };
+    ouvrirFeuille(o);
+  },
+  "fermer-feuille"() { feuille = null; rendreFeuille(); },
+  async rejoindre(b) {
     try {
-      const r = await api("/api/interets", { id, actif });
-      if (o) { o.interesses = r.interesses; majBoutons(); }
-    } catch (_) { /* le compteur local reste affiché */ }
+      await api(`/api/plans/${b.dataset.plan}/participation`, { actif: true });
+      toast("C'est noté, tu fais partie du plan.");
+      rafraichirApresPlan();
+    } catch (e) { toast(e.message); }
+  },
+  async quitter(b) {
+    try {
+      await api(`/api/plans/${b.dataset.plan}/participation`, { actif: false });
+      toast("Tu as quitté ce créneau.");
+      rafraichirApresPlan();
+    } catch (e) { toast(e.message); }
+  },
+  async synchroniser() {
+    try { agenda = await api("/api/agenda/synchroniser", {}); } catch (_) { return toast("Synchronisation impossible."); }
+    rafraichirAgenda();
+    const suivre = setInterval(async () => {
+      await rafraichirAgenda();
+      if (agenda && !agenda.en_cours) {
+        clearInterval(suivre);
+        toast(agenda.statut === "ok" ? "Agenda à jour" : "Agenda injoignable, sorties existantes conservées");
+        if (etat.onglet !== "profil") charger({ partiel: true });
+      }
+    }, 3000);
   },
   "retirer-vu"(b) {
     etat.dejaVus = etat.dejaVus.filter((o) => o.id !== b.dataset.id);
@@ -587,13 +894,6 @@ const actions = {
     }
     rendre();
     if (o) toast(`« ${o.titre} » ajouté à tes déjà vus`);
-  },
-  reinitialiser() {
-    try { localStorage.removeItem(CLE_STOCKAGE); } catch (_) { /* rien */ }
-    Object.assign(etat, ETAT_INITIAL());
-    donnees = {};
-    haut();
-    rendre();
   },
 };
 
@@ -633,9 +933,31 @@ const rechercherVu = debounce(async (q) => {
 // ------------------------------------------------------------------ //
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-action]");
-  if (b && actions[b.dataset.action]) actions[b.dataset.action](b);
+  if (b && !b.disabled && actions[b.dataset.action]) { e.preventDefault(); actions[b.dataset.action](b); }
   if (!e.target.closest("#champ-ville, #suggestions-ville")) { const l = $("#suggestions-ville"); if (l) l.hidden = true; }
 });
+
+document.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === "form-plan" && feuille) {
+    const donneesForm = Object.fromEntries(new FormData(f));
+    try {
+      await api("/api/plans", { oeuvre_id: feuille.oeuvre.id, ...donneesForm });
+      toast("Créneau proposé. Les autres peuvent te rejoindre.");
+      rafraichirApresPlan();
+    } catch (err) { toast(err.message); }
+  } else if (f.classList.contains("ecrire")) {
+    const texte = f.texte.value.trim();
+    if (!texte) return;
+    try {
+      await api(`/api/plans/${f.dataset.plan}/messages`, { texte });
+      rafraichirApresPlan();
+    } catch (err) { toast(err.message); }
+  }
+});
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && feuille) actions["fermer-feuille"](); });
 
 document.addEventListener("input", (e) => {
   const id = e.target.id;
@@ -644,12 +966,16 @@ document.addEventListener("input", (e) => {
     const n = nbPepites();
     $("#valeur-curseur").innerHTML = valeurCurseur(n);
     $("#piste-remplie").style.width = `calc((100% - 18px) * ${etat.decouverte})`;
-    e.target.setAttribute("aria-valuetext", `${n} pépites sur 10`);
+    e.target.setAttribute("aria-valuetext", `${n} découvertes sur 10`);
     chargerSiQuotaChange();
   } else if (id === "rayon") {
     etat.prefs.rayon = Number(e.target.value);
     $("#valeur-rayon").textContent = `${etat.prefs.rayon} km`;
-    if (etat.onboarde && etat.onglet !== "profil") chargerApresRayon();
+    if (etat.uid && etat.onglet !== "profil") chargerApresRayon();
+  } else if (id === "champ-prenom") {
+    etat.prenom = e.target.value;
+    const b = document.querySelector('[data-action="commencer"]');
+    if (b) b.disabled = !etat.prenom.trim();
   } else if (id === "champ-ville") {
     rechercherVille(e.target.value.trim());
   } else if (id === "recherche-vu") {
@@ -664,11 +990,16 @@ document.addEventListener("change", (e) => { if (["curseur", "rayon"].includes(e
 (async function demarrer() {
   restaurer();
   try {
-    CONFIG = await api("/api/config");
+    [CONFIG, agenda] = await Promise.all([api("/api/config"), api("/api/agenda")]);
   } catch (_) {
     $("#ecran").innerHTML = `<div class="vide" style="margin-top:40vh">Serveur injoignable. Lance <code>uvicorn backend.main:app</code>.</div>`;
     return;
   }
   if (!ONGLETS.some((o) => o.id === etat.onglet)) etat.onglet = "pour-vous";
-  if (etat.onboarde && etat.onglet !== "profil") charger(); else rendre();
+  if (etat.uid) {
+    // le compte existe-t-il encore côté serveur (base réinitialisée) ?
+    try { await api("/api/utilisateurs/moi"); } catch (_) { etat = { ...etat, uid: null }; }
+  }
+  if (etat.uid) charger(); else rendre();
+  setInterval(rafraichirAgenda, 60000);  // « il y a X min » reste juste
 })();

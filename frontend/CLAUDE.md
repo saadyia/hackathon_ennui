@@ -28,7 +28,12 @@ Via le backend : `uvicorn backend.main:app --reload` puis http://127.0.0.1:8000
 - Rendu par chaînes de gabarits + `esc()` sur **toute** donnée venant de l'API. Les événements passent par la délégation `data-action`.
 - Le curseur ne recharge que si le quota `round(s·10)` change. `rendreContenu()` ne remplace que `#contenu` (ne pas casser le glissement).
 - Images distantes (TVmaze, OpenAgenda) : toujours au-dessus d'un visuel de repli, avec `onerror="this.remove()"`.
-- État dans `localStorage` (`ennui.v3`), accès protégés par try/catch. `prefs.ville` = `{nom, contexte, lat, lon}` ou `null`.
+- État par compte dans `localStorage` : `ennui.v4.etat.<uid>`, plus `ennui.v4.comptes` (comptes connus) et `ennui.v4.actif`.
+  Accès protégés par try/catch. Les préférences sont aussi poussées sur le serveur (`PUT /api/utilisateurs/moi`, debounce).
+  `prefs.ville` = `{nom, contexte, lat, lon}` ou `null`.
+- Toute requête porte l'en-tête `X-Utilisateur` (fonction `api()`).
+- Feuille collaborative : `#feuille` (bottom sheet), état `feuille = {oeuvre, plans}`, rendu par `rendreFeuille()`.
+  Les liens de rendez-vous ne sont cliquables que s'ils commencent par `https://` (`lienSur()`).
 - Dates des sorties : uniquement via `libelleDate()` à partir de `prochaine` (fuseau Europe/Paris, jamais l'heure locale du navigateur).
 - Plateformes : afficher seulement si `plateformes_verifiees`, sinon « Disponibilité non vérifiée ». Jamais de badge supposé.
 - Captures headless : utiliser `--force-prefers-reduced-motion` (sinon les animations restent à opacité 0)

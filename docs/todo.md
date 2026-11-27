@@ -1,21 +1,21 @@
 # Tâches et avancement
 
 ## À faire
-- [ ] **Clé TMDB** dans `.env`, puis `enrich_tmdb.py` et `build_graph.py` : affiches des films et plateformes vérifiées (jamais testé contre la vraie API)
-- [ ] Relancer `fetch_france.py` la veille de la démo (les événements vieillissent)
+- [ ] **Clé TMDB** dans `.env`, puis `enrich_tmdb.py` et `build_graph.py` : affiches des films, plateformes vérifiées, budget « Gratuit » pour les écrans
+- [ ] Vraie authentification si l'application sort du cadre de la démo (aujourd'hui : jeton sans mot de passe)
+- [ ] Notifications quand quelqu'un rejoint un plan
 - [ ] Étendre la couverture des sorties (plus de villes, ou collecte à la demande autour de la ville choisie)
-- [ ] Mettre en cache local les images si la démo doit tourner sans réseau
-- [ ] Choisir et répéter le parcours de démo (docs/specs.md)
-- [ ] Persister les « Intéressé » (SQLite) ; covoiturage / watch-party (P2)
+- [ ] Choisir et répéter le parcours de démo (docs/specs.md), avec 2 ou 3 comptes
 
 ## Fait
-- [x] Moteur : PageRank personnalisé + restart biaisé, curseur par quota, < 20 ms (float32, itérations adaptatives)
-- [x] Design mobile sobre, zéro émoji, 100 % local, 4 onglets
-- [x] Ville libre (API Adresse) + rayon 5–50 km + filtre Haversine + distance sur chaque carte
-- [x] 1 123 événements à venir dans 40 villes (OpenAgenda), occurrences réelles, horizons court / semaine / mois
-- [x] Films et séries (Tout / Films / Séries), badge Film / Série
-- [x] Plateformes strictement FR.flatrate via TMDB, aucune simulation ; « Disponibilité non vérifiée » sinon
-- [x] « Déjà vu » qui affine en direct ; « Intéressé · X étudiants »
+- [x] Moteur : PageRank personnalisé + restart biaisé, curseur par quota, < 20 ms
+- [x] Découverte = niche + dépaysement (malus progressif jusqu'à -90 % sur les genres cochés), étiquettes Pépite / Hors piste
+- [x] Budget : Tous, Gratuit, < 10 €, < 25 € (sorties : tarif publié ; écrans : inclus sans surcoût, vérifié TMDB)
+- [x] Connexion express (prénom + ville), comptes SQLite, changement de compte en 1 clic
+- [x] Plans collaboratifs : rejoindre, proposer un créneau, rendez-vous ou lien, messages, « Mes plans »
+- [x] Synchronisation OpenAgenda toutes les 6 h + bouton manuel, graphe reconstruit à chaud sans coupure
+- [x] Ville libre + rayon + Haversine, horizons temporels, films et séries, plateformes strictement FR.flatrate
+- [x] Plus aucune donnée simulée (compteurs remplacés par de vrais participants)
 
 ## Bloquants / questions ouvertes
 - Clé TMDB à fournir (gratuite sur themoviedb.org).

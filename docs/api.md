@@ -1,7 +1,8 @@
 # Contrat d'API
 
 - **URL de base :** même origine que le frontend
-- **Format d'erreur :** `{"detail": "..."}` ; 422 si la validation échoue
+- **Format d'erreur :** `{"detail": "..."}` ; 422 si la validation échoue ; 401 si une route exige un compte
+- **Compte :** en-tête `X-Utilisateur: <id>` (jeton renvoyé par `POST /api/utilisateurs`)
 - **Doc interactive :** `/docs` · **Statiques :** `/assets/*`
 
 ## `GET /api/sante`
@@ -33,13 +34,27 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
 - `plateformes` : présence confirmée par TMDB (FR.flatrate) ; ignoré si `plateformes_verifiees` est faux
 - `lat` / `lon` (optionnels) + `rayon_km` (5–50) : filtre Haversine des sorties
 - `horizon` : `court` (aujourd'hui + week-end) | `semaine` | `mois`
+- `budget` : `tous` | `gratuit` | `moins10` | `moins25` (sorties : tarif connu ≤ plafond ; écrans : inclus sans surcoût)
 
 Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `plateformes`, `plateformes_verifiees`,
-`interesses`, `score`, `origine` (`confort` | `decouverte`), plus :
+`score`, `origine` (`confort` | `decouverte`), `etiquette` (`pepite` | `hors-piste` | `null`), `plans` (créneaux à venir), plus :
 - **film / serie** : `annee` (+ `annee_fin`, `note`, `chaine`, `affiche_mini` pour les séries)
 - **sortie** : `categorie`, `categorie_libelle`, `ville`, `lieu`, `adresse`, `lat`, `lon`, `acces`, `prix`, `tarif`,
   `date_debut` / `date_fin` (`YYYY-MM-DD`), `prochaine` (`{"debut", "fin"}` ISO Paris, dans la fenêtre demandée),
   `distance_km` (si `lat` / `lon`), `credit_image`, `url`
 
-## `POST /api/interets`
-`{"id": "sortie:oa-123", "actif": true}` → `{"id", "interesses"}`
+## Comptes
+- `POST /api/utilisateurs` `{prenom, ville, prefs}` → `{id, prenom, ville, prefs, cree_le}`
+- `GET /api/utilisateurs/moi` · `PUT /api/utilisateurs/moi` `{prenom, ville, prefs}` (compte requis)
+
+## Plans collaboratifs
+Objet plan : `{id, oeuvre_id, oeuvre_titre, oeuvre_type, debut, rendez_vous, message, auteur, est_auteur, participants: [prénoms], je_participe, messages?}`
+- `GET /api/plans?oeuvre_id=…` → plans à venir de l'œuvre, avec `messages: [{prenom, texte, cree_le}]`
+- `POST /api/plans` `{oeuvre_id, debut, rendez_vous, message}` (compte requis ; `debut` sans fuseau = heure de Paris ; futur, ≤ 60 jours)
+- `POST /api/plans/{id}/participation` `{actif: true|false}` (rejoindre / quitter)
+- `POST /api/plans/{id}/messages` `{texte}` (≤ 280 caractères)
+- `GET /api/mes-plans` → plans rejoints ou créés
+
+## Agenda
+- `GET /api/agenda` → `{derniere_sync, prochaine_sync, en_cours, statut: ok|erreur|jamais, message, automatique}`
+- `POST /api/agenda/synchroniser` → lance une synchro en arrière-plan (ignoré si une synchro tourne ou date de moins de 2 min)

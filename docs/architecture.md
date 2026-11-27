@@ -9,7 +9,9 @@ flowchart LR
   TMDB[(TMDB, clé)] --> ET[enrich_tmdb.py] --> TJ[(data/tmdb.json)] --> B
   B --> D[(data/processed : P.npz, pi_star.npy, noeuds.json)]
   D --> M[moteur.py] --> A[main.py FastAPI] --> F[frontend]
-  AD[(API Adresse)] -. autocomplétion ville, seul appel à l'exécution .-> A
+  AD[(API Adresse)] -. autocomplétion ville .-> A
+  SC[scheduler.py : toutes les 6 h] -->|fetch_france.collecter + reconstruire_externes| D
+  A <--> DB[(SQLite : comptes, plans, messages)]
 ```
 
 ## Composants
@@ -20,7 +22,9 @@ flowchart LR
 | `backend/enrich_tmdb.py` | Films (`/movie/{id}`) et séries (`/find` puis `/tv/{id}`) avec `append_to_response=watch/providers`. Lit **uniquement** `results.FR.flatrate`. Récupère aussi l'affiche, le titre FR et le résumé. Clé lue dans `TMDB_API_KEY` ou dans `.env`. |
 | `backend/build_graph.py` | P (films + séries + sorties), π\*, `noeuds.json`. `plateformes_verifiees` vaut `true` seulement pour les titres présents dans `tmdb.json`. |
 | `backend/moteur.py` | Vecteur de départ, marches, affinité, quota, masques (plateformes vérifiées, Haversine, fenêtres temporelles). |
-| `backend/main.py` | Routes, proxy API Adresse, couverture la plus proche, service du frontend. |
+| `backend/main.py` | Routes, proxy API Adresse, couverture, comptes, plans, agenda, service du frontend. Le moteur courant est dans `Catalogue.moteur` (remplacé d'un bloc après une synchro). |
+| `backend/database.py` | SQLite (stdlib) : `utilisateurs`, `plans`, `participants`, `messages`, `meta`. Une connexion par opération, WAL. |
+| `backend/scheduler.py` | `Synchroniseur` : boucle asyncio (6 h) + déclenchement manuel. Collecte OpenAgenda dans un thread, retire le passé, reconstruit le graphe, recharge le moteur. |
 
 ## Sorties (`france.json`)
 - Requête OpenAgenda par ville : `within_distance(location_coordinates, POINT(lon lat), 15km)`, `lastdate_end >= now()`, `firstdate_begin <= now(days=35)`.
@@ -36,6 +40,37 @@ flowchart LR
   - `court` : reste d'aujourd'hui + samedi 0h → lundi 0h (le week-end en cours si l'on est samedi ou dimanche)
   - `semaine` : maintenant → +7 jours ; `mois` : maintenant → +30 jours
 - `prochaine_occurrence` : la première occurrence non terminée **dans la fenêtre**, avec ses vraies heures de début et de fin, ce qui permet d'afficher « En cours ».
+
+## Découverte : niche et dépaysement
+```
+confort    = π_confort × aff                      aff = 0.15 + cos(genres, profil)
+découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
+```
+- `π_découverte / π*` : lift, ce qui est sur-représenté autour de l'utilisateur (**niche**).
+- `m` = part des genres de l'œuvre qui sont des genres **cochés** (à défaut : genres des « Déjà vu »).
+  `s` = position du curseur : à 10/10, une œuvre 100 % dans les genres cochés perd 90 % (**dépaysement**).
+- `q` : plancher de qualité (films aimés par au moins 5 personnes) ; la marche garantit la cohérence avec les goûts.
+- L'affinité ne s'applique **pas** à la découverte (elle annulerait le dépaysement).
+- Étiquette : `pepite` si `m ≥ 0.5` (niche dans ses genres), sinon `hors-piste`.
+- Mesuré (SF + Thriller) : à 0/10 Matrix et Star Wars ; à 10/10 Quest for Fire, Shadowlands, Forget Paris, tous « hors piste ».
+
+## Budget
+- Sorties : tarif publié inférieur ou égal au plafond (0, 10, 25 €). **Prix inconnu : exclu** (527 sorties sur 1 123 ont un tarif publié).
+- Films et séries : un abonnement ne coûte rien de plus, donc tout budget autre que « Tous les prix » = inclus **sans surcoût**,
+  c'est-à-dire confirmé par TMDB sur un abonnement coché ou sur Arte. Sans données TMDB : aucun résultat, et l'interface explique pourquoi.
+
+## Espace collaboratif
+- Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre. Le créateur est inscrit d'office.
+- Le titre et le type de l'œuvre sont copiés dans le plan : il reste lisible si l'événement sort du catalogue.
+- Plans visibles jusqu'à 6 h après leur début. Un plan sans plus aucun participant est supprimé.
+- Chaque recommandation inclut `plans` (une requête SQL par lot) : « Ce soir · 22h00 · Avec Malo et toi ».
+- Validation : créneau dans le futur (≤ 60 jours), rendez-vous ≤ 200 caractères, message ≤ 280. Un lien n'est cliquable que s'il commence par `https://`.
+
+## Synchronisation de l'agenda
+- Démarrage : tâche asyncio. Prochaine synchro = dernière + 6 h (date en SQLite `meta`, ou `genere_le` de `france.json`).
+- Synchro : `collecter()` (~40 s), puis `retirer_passes()`, `ecrire()` (atomique), `reconstruire_externes()` (< 1 s, à partir de `S_films.npz`, sans MovieLens),
+  puis `Catalogue.charger()`. Si le réseau échoue : nettoyage du passé et rechargement quand même ; le statut passe à « erreur ».
+- Mesuré : 43 s au total, 0 coupure, 69 ms de latence au pire pendant la reconstruction. Bouton manuel limité à un clic toutes les 2 minutes.
 
 ## Graphe et moteur
 - Films : co-occurrences MovieLens, élagage hybride (25 voisins par comptage + 25 par cosinus).
@@ -57,4 +92,5 @@ flowchart LR
 - **Sans clé TMDB** : affiches typographiques pour les films, affiches TVmaze pour les séries, « Disponibilité non vérifiée » partout.
 - **Couverture des sorties** : 40 villes. Ailleurs, l'application propose la ville couverte la plus proche (ex. Bourges → Orléans, 95 km).
 - **Plafond de collecte** : 300 événements bruts par ville (Paris en a davantage). Le rayon de 50 km ne voit que ce qui a été collecté à 15 km des villes.
-- **Compteurs « Intéressé »** : en mémoire, avec une valeur de départ simulée.
+- **Comptes sans mot de passe** : n'importe qui connaissant un jeton peut agir en son nom. Acceptable pour une démo, pas pour une mise en production.
+- **Découverte des séries et sorties à 10/10** : les résultats « hors piste » se ressemblent d'un profil à l'autre (petit catalogue).

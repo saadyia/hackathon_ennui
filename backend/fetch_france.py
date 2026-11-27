@@ -20,6 +20,7 @@ Usage :
 
 import argparse
 import json
+import math
 import re
 import sys
 import time
@@ -59,11 +60,12 @@ VILLES = {
 }
 
 CATEGORIES = {
+    "soirees": "Soirées & Concerts",
     "cinema": "Cinéma",
     "expo": "Expositions & Musées",
-    "scene": "Concerts & Scène",
+    "scene": "Spectacles & Scène",
     "nature": "Nature & Balades",
-    "rencontres": "Rencontres & Soirées",
+    "rencontres": "Rencontres & Ateliers",
     "jeux": "Jeux vidéo (solo ou coop)",
     "cuisine": "Cuisine & pâtisserie",
     "creatif": "Créatif",
@@ -71,17 +73,22 @@ CATEGORIES = {
     "cafe": "Café & salon de thé",
     "sport": "Sport chill",
 }
+QUOTA_SOIREES = 25  # soirées & concerts supplémentaires par ville (requête nocturne dédiée)
+MOTS_NOCTURNES = ["concert", "soirée", "DJ", "festival", "club", "fête", "live", "étudiant",
+                  "électro", "karaoké", "afterwork", "open mic", "blind test"]
 
 MOTS_CATEGORIE = {
+    "soirees": r"concert|soir[ée]e|\bdj\b|dj set|club|clubbing|[ée]lectro|festival|\blive\b|f[êe]te|karaok[ée]|"
+               r"afterwork|open mic|blind test|\bbal\b|jazz|rock|\brap\b|hip[- ]hop|chanson|musique",
     "cinema": r"cin[ée]ma|cin[ée]-|projection|court[- ]m[ée]trage|long[- ]m[ée]trage|\bfilms?\b|cin[ée]club",
-    "scene": r"concert|spectacle|th[ée][aâ]tre|danse|op[ée]ra|cirque|humour|stand[- ]up|musique|jazz|rock|"
-             r"chorale|r[ée]cital|orchestre|chanson|\brap\b|electro|festival",
+    "scene": r"spectacle|th[ée][aâ]tre|danse|op[ée]ra|cirque|humour|stand[- ]up|chorale|r[ée]cital|orchestre|"
+             r"marionnette|com[ée]die musicale|one[- ]man",
     "expo": r"exposition|\bexpo\b|mus[ée]e|vernissage|galerie|visite guid[ée]e|patrimoine|photograph|peinture|"
             r"sculpture|\bart\b|arts plastiques",
     "nature": r"balade|randonn[ée]e|\brando\b|nature|jardin|marais|for[êe]t|littoral|oiseaux|botanique|"
               r"\bv[ée]lo\b|sentier|plage|estran|\bparcs?\b",
-    "rencontres": r"conf[ée]rence|rencontre|d[ée]bat|atelier|soir[ée]e|quiz|\bjeux?\b|"
-                  r"\bclub\b|ap[ée]ro|\bbal\b|discussion|table ronde",
+    "rencontres": r"conf[ée]rence|rencontre|d[ée]bat|atelier|quiz|\bjeux?\b|"
+                  r"ap[ée]ro|discussion|table ronde",
     "jeux": r"jeux? vid[ée]o|gaming|gamers?\b|e-?sport|r[ée]tro-?gaming|\blan party\b|consoles?\b|"
             r"nintendo|playstation|\bxbox\b|minecraft|mario kart",
     "cuisine": r"cuisine|culinaire|p[âa]tisserie|p[âa]tissier|recettes?\b|d[ée]gustation|gastronom|"
@@ -140,9 +147,10 @@ AMBIANCES_CATEGORIE = {"nature": ["calme"], "lecture": ["calme"], "cafe": ["calm
                        "expo": ["artistique"], "creatif": ["artistique"]}
 
 GENRES_CATEGORIE = {
+    "soirees": ["Musical", "Comedy"],
     "cinema": ["Drama"],
     "expo": ["Documentary", "Drama"],
-    "scene": ["Musical", "Comedy"],
+    "scene": ["Drama", "Comedy"],
     "nature": ["Documentary", "Adventure"],
     "rencontres": ["Documentary", "Comedy"],
     "jeux": ["Action", "Adventure"],
@@ -263,16 +271,20 @@ CHAMPS = ("uid,title_fr,description_fr,conditions_fr,keywords_fr,image,imagecred
 
 
 def evenements_ville(ville, lat, lon, jours, maintenant):
-    where = (f"within_distance(location_coordinates, geom'POINT({lon} {lat})', {RAYON_KM}km) "
-             f"and lastdate_end>=now() and firstdate_begin<=now(days={jours})")
-    bruts = []
-    for page in range(PAGES_MAX):
-        params = urllib.parse.urlencode({"where": where, "select": CHAMPS, "limit": 100,
-                                         "offset": page * 100, "order_by": "lastdate_end"})
-        lot = http_json(f"{OPENAGENDA}?{params}")["results"]
-        bruts += lot
-        if len(lot) < 100:
-            break
+    base = (f"within_distance(location_coordinates, geom'POINT({lon} {lat})', {RAYON_KM}km) "
+            f"and lastdate_end>=now() and firstdate_begin<=now(days={jours})")
+    nocturne = " or ".join(f'search(title_fr, "{m}") or search(keywords_fr, "{m}")' for m in MOTS_NOCTURNES)
+    requetes = [(base, PAGES_MAX), (f"{base} and ({nocturne})", 1)]  # générale + soirées / concerts
+    bruts, uids = [], set()
+    for where, pages in requetes:
+        for page in range(pages):
+            params = urllib.parse.urlencode({"where": where, "select": CHAMPS, "limit": 100,
+                                             "offset": page * 100, "order_by": "lastdate_end"})
+            lot = http_json(f"{OPENAGENDA}?{params}")["results"]
+            bruts += [e for e in lot if e["uid"] not in uids]
+            uids.update(e["uid"] for e in lot)
+            if len(lot) < 100:
+                break
 
     limite = maintenant + timedelta(days=jours)
     retenus = []
@@ -320,27 +332,47 @@ def evenements_ville(ville, lat, lon, jours, maintenant):
 
 
 def selection(evenements, quota):
-    """Quota réparti à tour de rôle entre catégories ; photo et date proche d'abord ; sans doublon de titre."""
+    """Quota réparti à tour de rôle entre catégories ; photo et date proche d'abord ; sans doublon de titre.
+    Les soirées & concerts ont en plus leur propre quota (QUOTA_SOIREES)."""
     par_cat, titres = defaultdict(list), set()
     for ev in sorted(evenements, key=lambda x: (x["image"] is None, x["occurrences"][0][0])):
         cle = ev["titre"].lower()
         if cle not in titres:
             titres.add(cle)
             par_cat[ev["categorie"]].append(ev)
-    pris = []
-    while len(pris) < quota and any(par_cat.values()):
+    pris = par_cat["soirees"][:QUOTA_SOIREES]
+    par_cat["soirees"] = par_cat["soirees"][QUOTA_SOIREES:]
+    limite = quota + len(pris)
+    while len(pris) < limite and any(par_cat.values()):
         for cat in CATEGORIES:
-            if par_cat[cat] and len(pris) < quota:
+            if par_cat[cat] and len(pris) < limite:
                 pris.append(par_cat[cat].pop(0))
     return pris
 
 
-def collecter(jours: int = 35, journal=print) -> dict:
-    """Interroge OpenAgenda pour toutes les villes. Lève une exception réseau en cas d'échec."""
+def couverte(lat: float, lon: float, villes: dict, rayon_km: float = 20.0) -> bool:
+    """Vrai si un point est à moins de rayon_km d'une ville déjà collectée."""
+    p = math.pi / 180
+    for la, lo in villes.values():
+        a = math.sin((la - lat) * p / 2) ** 2 + math.cos(lat * p) * math.cos(la * p) * math.sin((lo - lon) * p / 2) ** 2
+        if 12742 * math.asin(math.sqrt(a)) <= rayon_km:
+            return True
+    return False
+
+
+def collecter(jours: int = 35, journal=print, villes_utilisateurs: dict = None, seulement: bool = False) -> dict:
+    """
+    Interroge OpenAgenda pour toutes les villes universitaires, plus les villes des utilisateurs
+    qui n'en sont pas proches (villes_utilisateurs : {nom: [lat, lon]}). Lève une exception réseau
+    en cas d'échec.
+    """
     maintenant = datetime.now(timezone.utc)
     tous, vus, villes = [], set(), {}
-    for ville, (lat0, lon0, quota) in VILLES.items():
-        lat, lon = geocoder(ville, (lat0, lon0))
+    cibles = {} if seulement else {v: (la, lo, q, True) for v, (la, lo, q) in VILLES.items()}
+    for v, (la, lo) in (villes_utilisateurs or {}).items():
+        cibles.setdefault(v, (la, lo, 40, False))
+    for ville, (lat0, lon0, quota, geocodable) in cibles.items():
+        lat, lon = geocoder(ville, (lat0, lon0)) if geocodable else (lat0, lon0)
         villes[ville] = [lat, lon]
         evs, n_bruts = evenements_ville(ville, lat, lon, jours, maintenant)
         evs = [e for e in evs if e["id"] not in vus]  # zones qui se chevauchent

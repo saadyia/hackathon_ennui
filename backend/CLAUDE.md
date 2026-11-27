@@ -11,6 +11,8 @@ pip install -r backend/requirements.txt
 python3 backend/fetch_france.py [--jours 35]        # réseau : OpenAgenda (40 villes)
 python3 backend/fetch_series.py [--nb 220]          # réseau : TVmaze
 python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB_API_KEY (env ou .env)
+python3 backend/import_books.py --csv ~/Downloads/GoodReadsData.csv   # livres (reprise possible)
+python3 backend/enrich_affiches.py --movielens /chemin/ml-latest-small  # affiches films (ENNUI_CONTACT conseillé)
 python3 backend/build_graph.py --movielens /chemin/ml-latest-small
 uvicorn backend.main:app --reload                   # ENNUI_SYNC=0 pour couper la synchro auto
 ```
@@ -21,6 +23,8 @@ backend/
 ├── fetch_france.py    # hors ligne : événements à venir -> data/france.json
 ├── fetch_series.py    # hors ligne : séries TVmaze -> data/series.json
 ├── enrich_tmdb.py     # hors ligne : TMDB (affiches, FR.flatrate) -> data/tmdb.json
+├── enrich_affiches.py # hors ligne : Wikidata + Wikipédia (affiches films, titres FR) -> data/affiches.json
+├── import_books.py    # hors ligne : CSV GoodReads + OpenLibrary -> data/livres.json
 ├── build_graph.py     # hors ligne : tout -> data/processed/
 ├── moteur.py          # classe Moteur (calcul pur, testable sans HTTP)
 ├── main.py            # FastAPI : routes, /assets, comptes, plans, agenda
@@ -29,6 +33,8 @@ backend/
 ├── plateformes.py     # IDs TMDB des plateformes
 └── data/
     ├── france.json    # versionné (repli hors ligne)
+    ├── livres.json    # versionné
+    ├── affiches.json  # versionné (cache, reprise)
     ├── tmdb.json      # créé par enrich_tmdb.py (à versionner une fois créé)
     ├── series.json    # versionné (repli hors ligne)
     ├── raw/           # dataset MovieLens (non versionné)

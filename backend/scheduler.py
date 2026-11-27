@@ -2,9 +2,10 @@
 Synchronisation automatique de l'agenda (tâche de fond asyncio lancée au démarrage de FastAPI).
 
 Toutes les INTERVALLE (6 h), ou à la demande :
-  1. interroge OpenAgenda (fetch_france.collecter) dans un thread, sans bloquer le serveur ;
-     si le réseau échoue, on garde les sorties existantes ;
-  2. retire les occurrences et événements terminés ;
+  1. interroge OpenAgenda (fetch_france.collecter) dans un thread, sans bloquer le serveur,
+     pour les villes universitaires ET les villes des utilisateurs qui n'en sont pas proches
+     (avec une requête dédiée aux soirées et concerts) ; si le réseau échoue, on garde l'existant ;
+  2. retire les occurrences et événements terminés (y compris les sorties publiées par les utilisateurs) ;
   3. reconstruit le graphe à chaud (build_graph.reconstruire_externes, < 1 s, sans MovieLens)
      puis remplace le moteur en mémoire : les requêtes en cours finissent sur l'ancien,
      les suivantes utilisent le nouveau. Aucune coupure.
@@ -59,11 +60,18 @@ class Synchroniseur:
             "automatique": os.environ.get("ENNUI_SYNC", "1") != "0",
         }
 
+    @staticmethod
+    def _reconstruire_bloquant():
+        database.purger_sorties_passees()
+        build_graph.reconstruire_externes(journal=log.info, sorties_supplementaires=database.sorties_communaute())
+
     def _synchroniser_bloquant(self) -> str:
         """Exécuté dans un thread : réseau + reconstruction du graphe."""
         t0 = time.perf_counter()
+        villes = {v: c for v, c in database.villes_utilisateurs().items()
+                  if not fetch_france.couverte(c[0], c[1], {k: v[:2] for k, v in fetch_france.VILLES.items()})}
         try:
-            donnees = fetch_france.collecter(journal=log.info)
+            donnees = fetch_france.collecter(journal=log.info, villes_utilisateurs=villes)
             source = "OpenAgenda"
         except Exception as e:  # réseau ou format : on nettoie simplement l'existant
             log.warning("OpenAgenda injoignable (%s) : sorties existantes conservées", e)
@@ -71,7 +79,7 @@ class Synchroniseur:
             source = None
         retires = fetch_france.retirer_passes(donnees)
         fetch_france.ecrire(donnees)
-        build_graph.reconstruire_externes(journal=log.info)
+        self._reconstruire_bloquant()
         n = len(donnees["sorties"])
         duree = time.perf_counter() - t0
         if source is None:
@@ -103,6 +111,39 @@ class Synchroniseur:
                 database.ecrire_meta("agenda_derniere_sync", self.derniere.isoformat())
                 self.en_cours = False
         return self.etat()
+
+    async def reconstruire(self):
+        """Après la publication d'une sortie : graphe reconstruit (< 1 s) et moteur rechargé."""
+        async with self.verrou:
+            await asyncio.to_thread(self._reconstruire_bloquant)
+            self.recharger()
+
+    @staticmethod
+    def _ajouter_ville_bloquant(nom: str, lat: float, lon: float) -> int:
+        actuel = build_graph.charger_json("france.json")
+        if fetch_france.couverte(lat, lon, actuel["villes"]):
+            return 0
+        nouveau = fetch_france.collecter(journal=log.info, villes_utilisateurs={nom: [lat, lon]}, seulement=True)
+        connus = {s["id"] for s in actuel["sorties"]}
+        ajouts = [s for s in nouveau["sorties"] if s["id"] not in connus]
+        actuel["sorties"] += ajouts
+        actuel["villes"][nom] = [lat, lon]
+        fetch_france.ecrire(actuel)
+        Synchroniseur._reconstruire_bloquant()
+        return len(ajouts)
+
+    async def ajouter_ville(self, nom: str, lat: float, lon: float):
+        """Ville d'un utilisateur hors couverture : collecte ciblée immédiate (en arrière-plan)."""
+        if os.environ.get("ENNUI_SYNC", "1") == "0":
+            return
+        async with self.verrou:
+            try:
+                n = await asyncio.to_thread(self._ajouter_ville_bloquant, nom, lat, lon)
+                if n:
+                    self.recharger()
+                    log.info("Ville ajoutée : %s (%d sorties)", nom, n)
+            except Exception as e:  # réseau : la prochaine synchro réessaiera
+                log.warning("Collecte autour de %s impossible : %s", nom, e)
 
     async def boucle(self):
         while True:

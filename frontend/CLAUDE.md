@@ -32,7 +32,8 @@ Via le backend : `uvicorn backend.main:app --reload` puis http://127.0.0.1:8000
   Accès protégés par try/catch. Les préférences sont aussi poussées sur le serveur (`PUT /api/utilisateurs/moi`, debounce).
   `prefs.ville` = `{nom, contexte, lat, lon}` ou `null`.
 - Toute requête porte l'en-tête `X-Utilisateur` (fonction `api()`).
-- Feuille collaborative : `#feuille` (bottom sheet), état `feuille = {oeuvre, plans}`, rendu par `rendreFeuille()`.
+- Types de contenus : table `TYPES` (libellé, icône, « Déjà vu » ou « Déjà lu », nom du plan collectif). Ne pas coder de cas par type ailleurs.
+- Feuille : `#feuille` (bottom sheet), état `feuille = {oeuvre, plans}` ou `{mode: "publier"}`, rendu par `rendreFeuille()`.
   Les liens de rendez-vous ne sont cliquables que s'ils commencent par `https://` (`lienSur()`).
 - Dates des sorties : uniquement via `libelleDate()` à partir de `prochaine` (fuseau Europe/Paris, jamais l'heure locale du navigateur).
 - Plateformes : afficher seulement si `plateformes_verifiees`, sinon « Disponibilité non vérifiée ». Jamais de badge supposé.

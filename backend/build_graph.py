@@ -4,6 +4,8 @@ Pré-calcul hors ligne du graphe de recommandation.
 Entrées :
     - dataset MovieLens ml-latest-small (ratings.csv, movies.csv, links.csv)
     - backend/data/series.json      séries TVmaze (fetch_series.py)
+    - backend/data/livres.json      livres GoodReads francisés (import_books.py)
+    - backend/data/affiches.json    affiches et titres FR des films via Wikidata/Wikipédia (enrich_affiches.py)
     - backend/data/france.json      événements à venir en France (fetch_france.py)
     - backend/data/tmdb.json        optionnel, produit par enrich_tmdb.py : affiches et
                                     plateformes FR.flatrate. Sans lui, AUCUNE plateforme n'est
@@ -14,7 +16,7 @@ Sorties : backend/data/processed/
     - P.npz          matrice de transition creuse (CSR, float32), lignes stochastiques
     - pi_star.npy    état stationnaire global (proxy de popularité, sert au restart biaisé)
     - noeuds.json    métadonnées par nœud, dans l'ordre des indices de P
-                     (films, puis séries, puis sorties)
+                     (films, puis séries, puis livres, puis sorties)
 
 Usage :
     python3 backend/build_graph.py --movielens /chemin/vers/ml-latest-small
@@ -26,7 +28,7 @@ Différences avec tipe_final.py (voir docs/architecture.md) :
       + les K_COSINUS plus fortes similarités cosinus (les voisins spécifiques, souvent
       moins populaires). Un élagage par comptage seul ne garde que des hubs et rend
       les œuvres de niche inatteignables par la marche. Les poids restent S_ij.
-    - séries et sorties ajoutées comme nœuds, reliées aux films par similarité de genres
+    - séries, livres et sorties ajoutés comme nœuds, reliés aux films par similarité de genres
     - pi_star calculé sur P téléportée (alpha=0.15) : garantit la convergence
 """
 
@@ -45,7 +47,7 @@ SEUIL = 3.5            # note minimale pour "aimé"
 K_COMPTAGE = 25        # voisins gardés par co-occurrence brute
 K_COSINUS = 25         # voisins gardés par similarité cosinus
 MIN_COOCCURRENCE = 2   # support minimal pour la sélection cosinus (évite le bruit)
-K_FILMS_EXTERNE = 30   # films reliés à chaque série / sortie
+K_FILMS_EXTERNE = 15   # films reliés à chaque série / livre / sortie (15 : garde la requête < 20 ms)
 PART_EXTERNE = 0.15    # part max. de la ligne d'un film envoyée vers séries / sorties
 ALPHA_PI_STAR = 0.15   # téléportation pour le calcul de pi_star
 TOL = 1e-10
@@ -139,16 +141,18 @@ def relier_externes(S_films: sparse.csr_matrix, genres_films, nb_likes, externes
         de sorties, enverraient l'essentiel de la marche hors du catalogue de films)
     """
     n_f, n_x = S_films.shape[0], len(externes)
-    # errstate : faux warnings du BLAS Accelerate (macOS) avec NumPy 2.0
-    with np.errstate(all="ignore"):
-        cos = vecteurs_genres([x["genres"] for x in externes]) @ vecteurs_genres(genres_films).T
-    assert np.isfinite(cos).all()
-    score = cos * np.log1p(nb_likes)[None, :]
-
+    vf = vecteurs_genres(genres_films).T
+    poids_films = np.log1p(nb_likes)[None, :]
     liens = []  # (x, f, score)
-    for x in range(n_x):
-        films = np.argsort(-score[x])[:K_FILMS_EXTERNE]
-        liens += [(x, int(f), float(score[x, f])) for f in films if score[x, f] > 0]
+    for debut in range(0, n_x, 500):  # par lots : la matrice complète ferait ~240 Mo
+        lot = externes[debut:debut + 500]
+        # errstate : faux warnings du BLAS Accelerate (macOS) avec NumPy 2.0
+        with np.errstate(all="ignore"):
+            score = (vecteurs_genres([x["genres"] for x in lot]) @ vf) * poids_films
+        assert np.isfinite(score).all()
+        top = np.argpartition(-score, K_FILMS_EXTERNE, axis=1)[:, :K_FILMS_EXTERNE]
+        for j in range(len(lot)):
+            liens += [(debut + j, int(f), float(score[j, f])) for f in top[j] if score[j, f] > 0]
 
     somme = np.asarray(S_films.sum(axis=1)).ravel()
     nb_externes = np.bincount([f for _, f, _ in liens], minlength=n_f)
@@ -216,7 +220,20 @@ def nettoyer_titre(brut: str):
     return titre, annee
 
 
-def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films):
+def appliquer_affiches(noeud: dict, info_tmdb: dict, info_wiki: dict) -> dict:
+    """Affiche et titre FR d'un film : TMDB d'abord, sinon Wikipédia/Wikidata (enrich_affiches.py)."""
+    info_tmdb, info_wiki = info_tmdb or {}, info_wiki or {}
+    if info_tmdb.get("poster_path"):
+        noeud["affiche"], noeud["source_affiche"] = URL_AFFICHE + info_tmdb["poster_path"], "TMDB"
+    elif info_wiki.get("affiche"):
+        noeud["affiche"], noeud["source_affiche"] = info_wiki["affiche"], "Wikipédia"
+    else:
+        noeud["affiche"], noeud["source_affiche"] = None, None
+    noeud["titre"] = info_tmdb.get("titre_fr") or info_wiki.get("titre_fr") or noeud.get("titre_original") or noeud["titre"]
+    return noeud
+
+
+def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films, affiches_films=None):
     films = films.set_index("movieId")
     liens = liens.set_index("movieId")
     noeuds = []
@@ -228,20 +245,21 @@ def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films):
         titre, annee = nettoyer_titre(brut)
         tmdb_id = liens.at[mid, "tmdbId"] if mid in liens.index else None
         info = tmdb_films.get(str(mid))
-        noeuds.append({
+        noeud = {
             "index": idx,
             "id": f"film:{mid}",
             "type": "film",
-            "titre": (info or {}).get("titre_fr") or titre,
+            "titre": titre,
+            "titre_original": titre,
             "annee": annee,
             "genres": genres,
             "nb_likes": int(nb_likes[idx]),
             "tmdbId": int(tmdb_id) if tmdb_id is not None and not pd.isna(tmdb_id) else None,
-            "affiche": URL_AFFICHE + info["poster_path"] if info and info.get("poster_path") else None,
             "resume": (info or {}).get("overview") or None,
             "plateformes": info["plateformes"] if info else [],
             "plateformes_verifiees": info is not None,
-        })
+        }
+        noeuds.append(appliquer_affiches(noeud, info, (affiches_films or {}).get(str(mid))))
     return noeuds
 
 
@@ -270,6 +288,25 @@ def metadonnees_series(series, decalage, tmdb_series):
     return noeuds
 
 
+def metadonnees_livres(livres, decalage):
+    return [{
+        "index": decalage + i,
+        "id": f"livre:{l['id']}",
+        "type": "livre",
+        "titre": l["titre"],
+        "titre_original": l["titre_original"],
+        "auteur": l["auteur"],
+        "annee": l["annee"],
+        "pages": l["pages"],
+        "note": l["note"],
+        "genres": l["genres"],
+        "affiche": l["couverture"],
+        "resume": l["resume"],          # uniquement s'il existe en français
+        "francais": l["francais"],      # édition française trouvée
+        "plateformes": [],
+    } for i, l in enumerate(livres)]
+
+
 def metadonnees_sorties(sorties, decalage):
     noeuds = []
     for i, s in enumerate(sorties):
@@ -296,6 +333,8 @@ def metadonnees_sorties(sorties, decalage):
             "credit_image": s.get("credit_image"),
             "resume": s.get("description"),
             "url": s.get("url"),
+            "source": s.get("source", "openagenda"),
+            "propose_par": s.get("propose_par"),
             "plateformes": [],
         })
     return noeuds
@@ -322,19 +361,21 @@ def ecrire_atomique(chemin: Path, ecrire):
     os.replace(tmp, chemin)
 
 
-def assembler(S_films, noeuds_films, series, sorties, tmdb_series, journal=print):
-    """Films + séries + sorties -> P, pi_star, noeuds.json (écritures atomiques)."""
+def assembler(S_films, noeuds_films, series, livres, sorties, tmdb_series, journal=print):
+    """Films + séries + livres + sorties -> P, pi_star, noeuds.json (écritures atomiques)."""
     genres_films = [nd["genres"] for nd in noeuds_films]
     nb_likes = np.array([nd["nb_likes"] for nd in noeuds_films])
-    S = relier_externes(S_films, genres_films, nb_likes, series + sorties)
-    journal(f"Externes : {len(series)} séries + {len(sorties)} sorties, {S.nnz:,} entrées au total")
+    S = relier_externes(S_films, genres_films, nb_likes, series + livres + sorties)
+    journal(f"Externes : {len(series)} séries + {len(livres)} livres + {len(sorties)} sorties, "
+            f"{S.nnz:,} entrées au total")
     P, n_isoles = normaliser_lignes(S)
     journal(f"P : {P.shape[0]} nœuds, {n_isoles} nœud(s) isolé(s)")
     pi = pi_star(P)
 
     noeuds = list(noeuds_films)
     noeuds += metadonnees_series(series, len(noeuds_films), tmdb_series)
-    noeuds += metadonnees_sorties(sorties, len(noeuds_films) + len(series))
+    noeuds += metadonnees_livres(livres, len(noeuds))
+    noeuds += metadonnees_sorties(sorties, len(noeuds))
 
     SORTIE.mkdir(parents=True, exist_ok=True)
     # format .npz explicite : np.save / save_npz ajouteraient une extension au fichier .tmp
@@ -345,17 +386,29 @@ def assembler(S_films, noeuds_films, series, sorties, tmdb_series, journal=print
     return len(noeuds)
 
 
-def reconstruire_externes(journal=print):
+def livres_et_sorties(sorties_supplementaires=()):
+    livres = charger_json("livres.json", {"livres": []})["livres"]
+    sorties = charger_json("france.json")["sorties"] + list(sorties_supplementaires)
+    return livres, sorties
+
+
+def reconstruire_externes(journal=print, sorties_supplementaires=()):
     """
-    Reconstruction à chaud après une mise à jour des sorties (scheduler.py) : réutilise les
-    co-occurrences des films déjà calculées (S_films.npz), sans relire MovieLens.
+    Reconstruction à chaud (scheduler.py, publication d'une sortie) : réutilise les co-occurrences
+    des films déjà calculées (S_films.npz), sans relire MovieLens. Réapplique aussi les affiches
+    (tmdb.json, affiches.json) : un enrichissement d'affiches ne demande pas de build complet.
     """
     S_films = sparse.load_npz(SORTIE / "S_films.npz").tocsr()
     noeuds = json.loads((SORTIE / "noeuds.json").read_text(encoding="utf-8"))
     noeuds_films = [nd for nd in noeuds if nd["type"] == "film"]
     assert len(noeuds_films) == S_films.shape[0], "S_films.npz et noeuds.json incohérents : relancer le build"
-    return assembler(S_films, noeuds_films, charger_json("series.json")["series"],
-                     charger_json("france.json")["sorties"], charger_tmdb()["series"], journal)
+    tmdb, wiki = charger_tmdb(), charger_json("affiches.json", {"films": {}})["films"]
+    for nd in noeuds_films:
+        mid = nd["id"].split(":")[1]
+        appliquer_affiches(nd, tmdb["films"].get(mid), wiki.get(mid))
+    livres, sorties = livres_et_sorties(sorties_supplementaires)
+    return assembler(S_films, noeuds_films, charger_json("series.json")["series"], livres, sorties,
+                     tmdb["series"], journal)
 
 
 def main():
@@ -377,12 +430,22 @@ def main():
     tmdb = charger_tmdb()
     print(f"TMDB : {len(tmdb['films'])} films et {len(tmdb['series'])} séries vérifiés"
           + ("" if tmdb["films"] else " (lancer enrich_tmdb.py : sans lui, aucune plateforme n'est affichée)"))
-    noeuds_films = metadonnees_films(movie_ids, films, liens, nb_likes, tmdb["films"])
+    affiches = charger_json("affiches.json", {"films": {}})["films"]
+    noeuds_films = metadonnees_films(movie_ids, films, liens, nb_likes, tmdb["films"], affiches)
+    print(f"Affiches de films : {sum(1 for n in noeuds_films if n['affiche'])}/{len(noeuds_films)}")
 
     SORTIE.mkdir(parents=True, exist_ok=True)
     ecrire_atomique(SORTIE / "S_films.npz", lambda t: sparse.save_npz(open(t, "wb"), S))
-    assembler(S, noeuds_films, charger_json("series.json")["series"],
-              charger_json("france.json")["sorties"], tmdb["series"])
+    try:  # sorties publiées par les utilisateurs (base locale), si elle existe
+        try:
+            from . import database
+        except ImportError:
+            import database
+        communaute = database.sorties_communaute() if database.CHEMIN.exists() else []
+    except Exception:
+        communaute = []
+    livres, sorties = livres_et_sorties(communaute)
+    assembler(S, noeuds_films, charger_json("series.json")["series"], livres, sorties, tmdb["series"])
     print(f"Écrit dans {SORTIE} en {time.perf_counter() - t0:.1f} s")
 
 

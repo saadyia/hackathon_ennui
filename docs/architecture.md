@@ -7,6 +7,9 @@ flowchart LR
   TV[(TVmaze)] --> FS[fetch_series.py] --> SJ[(data/series.json)] --> B
   OA[(OpenAgenda via Opendatasoft)] --> FF[fetch_france.py] --> FJ[(data/france.json)] --> B
   TMDB[(TMDB, clé)] --> ET[enrich_tmdb.py] --> TJ[(data/tmdb.json)] --> B
+  GR[(GoodReads CSV)] --> IB[import_books.py] --> LJ[(data/livres.json)] --> B
+  OL[(OpenLibrary)] --> IB
+  WM[(Wikidata + Wikipédia)] --> EA[enrich_affiches.py] --> AJ[(data/affiches.json)] --> B
   B --> D[(data/processed : P.npz, pi_star.npy, noeuds.json)]
   D --> M[moteur.py] --> A[main.py FastAPI] --> F[frontend]
   AD[(API Adresse)] -. autocomplétion ville .-> A
@@ -20,6 +23,8 @@ flowchart LR
 | `backend/fetch_france.py` | Événements **à venir** autour de 40 villes universitaires (rayon 15 km, 35 jours). Occurrences réelles `[début, fin]`, `date_debut` / `date_fin` en `YYYY-MM-DD` (Paris). Catégorisation, genres et tarif à partir des mots-clés du texte. |
 | `backend/fetch_series.py` | 220 séries populaires (TVmaze) avec leurs identifiants IMDb et TVDB, pour TMDB. Aucune plateforme déduite. |
 | `backend/enrich_tmdb.py` | Films (`/movie/{id}`) et séries (`/find` puis `/tv/{id}`) avec `append_to_response=watch/providers`. Lit **uniquement** `results.FR.flatrate`. Récupère aussi l'affiche, le titre FR et le résumé. Clé lue dans `TMDB_API_KEY` ou dans `.env`. |
+| `backend/import_books.py` | 2 500 livres les plus lus (note ≥ 3,7, une édition par titre) du CSV GoodReads. Genres traduits. Édition française cherchée sur OpenLibrary (titre FR + couverture), sinon couverture GoodReads. |
+| `backend/enrich_affiches.py` | Affiches de films sans clé : IMDb (MovieLens) → Wikidata (titre FR, article) → image principale Wikipédia (`pilicense=any`, ~250 px). |
 | `backend/build_graph.py` | P (films + séries + sorties), π\*, `noeuds.json`. `plateformes_verifiees` vaut `true` seulement pour les titres présents dans `tmdb.json`. |
 | `backend/moteur.py` | Vecteur de départ, marches, affinité, quota, masques (plateformes vérifiées, Haversine, fenêtres temporelles). |
 | `backend/main.py` | Routes, proxy API Adresse, couverture, comptes, plans, agenda, service du frontend. Le moteur courant est dans `Catalogue.moteur` (remplacé d'un bloc après une synchro). |
@@ -44,6 +49,30 @@ flowchart LR
   Colonnes de la matrice des genres (affinité) + bonus ×(1 + `BONUS_AMBIANCE`) ; exclues du malus de découverte (humeur, pas bulle).
 - **Genre « Historique »** : MovieLens n'a pas de genre Histoire, il est relié à `War`.
 - `prochaine_occurrence` : la première occurrence non terminée **dans la fenêtre**, avec ses vraies heures de début et de fin, ce qui permet d'afficher « En cours ».
+
+## Affiches : sources et garanties
+| Type | Source | Couverture |
+|---|---|---|
+| Films | TMDB w342 (clé) > Wikipédia (~250 px) | 1,3 % sans clé : **Wikimedia limite les scripts sans contact (429)**. iTunes Search renvoie 0 résultat pour les films (vérifié). |
+| Séries | TMDB > TVmaze (~680 px) | 100 % |
+| Livres | Édition FR OpenLibrary (L) > GoodReads | 100 % |
+| Sorties | Photo OpenAgenda, sinon visuel sobre avec icône | 99 % |
+
+Règle dans `Moteur` : si un type a au moins 90 % d'affiches, les œuvres sans affiche sont **exclues**. Sinon, leur score est ×0,3 (mise en avant des œuvres illustrées).
+Avec une clé TMDB, ou une fois `enrich_affiches.py` terminé, les films passeront automatiquement en mode strict.
+
+## Livres
+- 2 500 nœuds `livre`, reliés comme les séries (15 films les plus proches par genres). Lift en confort, comme pour les autres nœuds externes.
+- Genres GoodReads → genres de l'application (ex. « Science Fiction », « Dystopia » → SF ; « Nonfiction », « Biography » → Documentaire).
+- Budget : un livre n'a pas de prix connu, il est donc exclu dès qu'un budget est demandé.
+- Pas de traduction automatique : sans édition française trouvée, le titre reste en VO et aucun résumé n'est affiché.
+
+## Soirées & Concerts
+- Catégorie `soirees` (concert, soirée, DJ, club, électro, festival, live, fête, karaoké, afterwork, open mic, blind test, jazz, rock, rap…).
+  « Spectacles & Scène » regroupe désormais théâtre, danse, cirque et humour.
+- Collecte : pour chaque ville, en plus de la requête générale, une requête OpenAgenda dédiée (`search(title_fr | keywords_fr, …)`), avec un quota de 25 soirées.
+- Villes des utilisateurs hors couverture (> 20 km d'une ville connue) : collecte ciblée dès l'inscription, puis à chaque synchro.
+- Sorties publiées par les utilisateurs (SQLite `sorties_communaute`) : intégrées au graphe (genres déduits du titre et de la catégorie), reconstruction à chaud en ~1 s.
 
 ## Découverte : niche et dépaysement
 ```
@@ -79,7 +108,7 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
 ## Graphe et moteur
 - Films : co-occurrences MovieLens, élagage hybride (25 voisins par comptage + 25 par cosinus).
 - Séries et sorties : reliées aux 30 films les plus proches selon `cos(genres) · log(1 + likes)`. Chaque film consacre au plus 15 % de sa ligne aux nœuds externes.
-- 8 706 nœuds, environ 350 k arêtes.
+- 11 367 nœuds (7 363 films, 220 séries, 2 500 livres, ~1 280 sorties), environ 390 k arêtes. Latence ~19 ms.
 - `v_u` : 25 films de référence par genre favori, plus les « Déjà vu » (60 % de la masse).
 - Deux marches (Confort α = 0.10, Découverte α = 0.50 avec un restart biaisé π\*^-2 limité aux films du voisinage).
   Nombre d'itérations adaptatif, tel que (1-α)^n ≤ 4 %. Calcul en float32, comme P.

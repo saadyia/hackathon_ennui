@@ -54,6 +54,21 @@ CREATE TABLE IF NOT EXISTS messages (
     cree_le         TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS meta (cle TEXT PRIMARY KEY, valeur TEXT);
+CREATE TABLE IF NOT EXISTS sorties_communaute (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    auteur_id    TEXT NOT NULL REFERENCES utilisateurs(id),
+    titre        TEXT NOT NULL,
+    categorie    TEXT NOT NULL,
+    lieu         TEXT NOT NULL,
+    ville        TEXT NOT NULL,
+    lat          REAL NOT NULL,
+    lon          REAL NOT NULL,
+    debut        TEXT NOT NULL,     -- ISO 8601 avec fuseau
+    fin          TEXT NOT NULL,
+    prix         REAL,              -- euros ; 0 = gratuit ; NULL = non précisé
+    description  TEXT,
+    cree_le      TEXT NOT NULL
+);
 """
 
 
@@ -213,3 +228,61 @@ def ecrire_meta(cle: str, valeur: str):
     with connexion() as con:
         con.execute("INSERT INTO meta VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur",
                     (cle, valeur))
+
+
+# ------------------------------------------------------------------ #
+# Sorties publiées par les utilisateurs                                #
+# ------------------------------------------------------------------ #
+
+def creer_sortie(auteur_id: str, titre: str, categorie: str, lieu: str, ville: dict,
+                 debut: str, fin: str, prix: Optional[float], description: str) -> int:
+    with connexion() as con:
+        cur = con.execute(
+            "INSERT INTO sorties_communaute (auteur_id, titre, categorie, lieu, ville, lat, lon, debut, fin, prix,"
+            " description, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (auteur_id, titre, categorie, lieu, ville["nom"], ville["lat"], ville["lon"], debut, fin, prix,
+             description, maintenant_iso()))
+        return cur.lastrowid
+
+
+def sorties_communaute() -> List[dict]:
+    """Sorties publiées encore à venir, au format de france.json (pour le graphe)."""
+    try:  # mêmes règles de genres que les sorties OpenAgenda (mots-clés + catégorie)
+        from .fetch_france import genres_pour
+    except ImportError:
+        from fetch_france import genres_pour
+    maintenant = maintenant_iso()
+    with connexion() as con:
+        rows = con.execute("""SELECT s.*, u.prenom FROM sorties_communaute s JOIN utilisateurs u ON u.id = s.auteur_id
+                              WHERE s.fin >= ? ORDER BY s.debut""", (maintenant,)).fetchall()
+    out = []
+    for r in rows:
+        prix = r["prix"]
+        out.append({
+            "id": f"co-{r['id']}", "titre": r["titre"], "description": r["description"] or None,
+            "categorie": r["categorie"], "genres": genres_pour(r["categorie"], f"{r['titre']} {r['description'] or ''}"),
+            "ville": r["ville"], "ville_reference": r["ville"],
+            "lieu": r["lieu"], "adresse": None, "lat": r["lat"], "lon": r["lon"], "acces": None,
+            "prix": prix, "tarif": None if prix is None else ("Gratuit" if prix == 0 else f"{prix:g} €".replace(".", ",")),
+            "date_debut": r["debut"][:10], "date_fin": r["fin"][:10], "occurrences": [[r["debut"], r["fin"]]],
+            "image": None, "credit_image": None, "url": None,
+            "source": "communaute", "propose_par": r["prenom"],
+        })
+    return out
+
+
+def purger_sorties_passees() -> int:
+    with connexion() as con:
+        return con.execute("DELETE FROM sorties_communaute WHERE fin < ?", (maintenant_iso(),)).rowcount
+
+
+def villes_utilisateurs() -> Dict[str, List[float]]:
+    """{nom: [lat, lon]} des villes choisies par les utilisateurs."""
+    with connexion() as con:
+        rows = con.execute("SELECT ville FROM utilisateurs WHERE ville IS NOT NULL AND ville != 'null'").fetchall()
+    out = {}
+    for r in rows:
+        v = json.loads(r["ville"])
+        if v and v.get("nom"):
+            out[v["nom"]] = [v["lat"], v["lon"]]
+    return out

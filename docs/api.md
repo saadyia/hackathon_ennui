@@ -9,7 +9,7 @@
 `{"statut": "ok", "noeuds": 8706, "par_type": {...}, "plateformes_verifiees": false}`
 
 ## `GET /api/config`
-`categories`, `genres` (`id` = genre MovieLens), `plateformes` (abonnements uniquement : Netflix 8, Prime Video 119,
+`categories` (sorties, dont `soirees`), `envies` (catégories + `livres`), `genres` (`id` = genre MovieLens), `plateformes` (abonnements uniquement : Netflix 8, Prime Video 119,
 Disney+ 337, Canal+ 381, Arte 234, Apple TV+ 350), `plateformes_verifiees` (au moins un titre vérifié par TMDB),
 `horizons` (`maintenant`, `aujourdhui`, `weekend`, `semaine`, `mois`), `ambiances` (`festif`, `calme`, `drole`, `insolite`, `competitif`, `artistique`), `categories[].sorties` (faux pour `series` : envie d'écran, ignorée par le filtre des sorties), `rayon` (`min` 5, `max` 50, `defaut` 15), `villes_couvertes`.
 
@@ -30,7 +30,8 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
   "plateformes": [8, 119], "lat": 45.7772, "lon": 3.087, "rayon_km": 15,
   "horizon": "semaine", "categories": ["scene"], "k": 10 }
 ```
-- `type` : `film` | `serie` | `tout` (2 films pour 1 série) | `sortie`
+- `type` : `film` | `serie` | `livre` | `tout` | `sortie`
+- `ecrans` (type `tout`) : composition, par défaut `["film", "serie"]` ; ajouter `"livre"` (2 films, 1 série, 1 livre…)
 - `plateformes` : présence confirmée par TMDB (FR.flatrate) ; ignoré si `plateformes_verifiees` est faux
 - `lat` / `lon` (optionnels) + `rayon_km` (5–50) : filtre Haversine des sorties
 - `horizon` : `maintenant` (+3 h) | `aujourdhui` | `weekend` | `semaine` | `mois` | `court` (aujourd'hui + week-end, anciens profils)
@@ -39,7 +40,8 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
 
 Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `plateformes`, `plateformes_verifiees`,
 `score`, `origine` (`confort` | `decouverte`), `etiquette` (`pepite` | `hors-piste` | `null`), `plans` (créneaux à venir), plus :
-- **film / serie** : `annee` (+ `annee_fin`, `note`, `chaine`, `affiche_mini` pour les séries)
+- **film / serie** : `annee` (+ `annee_fin`, `note`, `chaine`, `affiche_mini` pour les séries ; `source_affiche` pour les films)
+- **livre** : `auteur`, `annee`, `pages`, `note`, `titre_original`, `francais` (édition française trouvée)
 - **sortie** : `categorie`, `categorie_libelle`, `ville`, `lieu`, `adresse`, `lat`, `lon`, `acces`, `prix`, `tarif`,
   `date_debut` / `date_fin` (`YYYY-MM-DD`), `prochaine` (`{"debut", "fin"}` ISO Paris, dans la fenêtre demandée),
   `distance_km` (si `lat` / `lon`), `credit_image`, `url`
@@ -55,6 +57,11 @@ Objet plan : `{id, oeuvre_id, oeuvre_titre, oeuvre_type, debut, rendez_vous, mes
 - `POST /api/plans/{id}/participation` `{actif: true|false}` (rejoindre / quitter)
 - `POST /api/plans/{id}/messages` `{texte}` (≤ 280 caractères)
 - `GET /api/mes-plans` → plans rejoints ou créés
+
+## Sorties publiées par les utilisateurs
+`POST /api/sorties` (compte requis) `{titre, categorie, lieu, ville: {nom, lat, lon}, debut, duree_h, prix, description}`
+→ `{"id": "sortie:co-<id>"}`. `prix` : euros, 0 = gratuit, `null` = non précisé. Date dans les 60 jours.
+La sortie apparaît dans les recommandations avec `source: "communaute"` et `propose_par` (prénom).
 
 ## Agenda
 - `GET /api/agenda` → `{derniere_sync, prochaine_sync, en_cours, statut: ok|erreur|jamais, message, automatique}`

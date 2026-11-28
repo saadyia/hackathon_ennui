@@ -195,7 +195,9 @@ class Moteur:
         self.ecran = self.masque_type.get("film", vide) | self.masque_type.get("serie", vide)
         # jeux vidéo : consoles possédées et modes de jeu
         self.masque_console: Dict[str, np.ndarray] = {}
-        self.jeu_multi = vide.copy()   # co-op ou multijoueur
+        self.jeu_multi = vide.copy()   # co-op ou multijoueur (badge « Co-op / Multi »)
+        self.jeu_coop = vide.copy()
+        self.jeu_multijoueur = vide.copy()
         self.jeu_solo = vide.copy()
         for nd in self.noeuds:
             if nd["type"] != "jeu":
@@ -204,7 +206,16 @@ class Moteur:
                 self.masque_console.setdefault(c, vide.copy())[nd["index"]] = True
             modes = set(nd.get("modes", []))
             self.jeu_multi[nd["index"]] = bool(modes & {"coop", "multi"})
+            self.jeu_coop[nd["index"]] = "coop" in modes
+            self.jeu_multijoueur[nd["index"]] = "multi" in modes
             self.jeu_solo[nd["index"]] = "solo" in modes
+        # thèmes littéraires des livres (onglet Lecture), en matrice binaire pour le calcul de m_theme
+        self.themes = sorted({t for nd in self.noeuds for t in nd.get("themes", [])})
+        pos_t = {t: j for j, t in enumerate(self.themes)}
+        lignes = [nd["index"] for nd in self.noeuds for t in nd.get("themes", [])]
+        colonnes = [pos_t[t] for nd in self.noeuds for t in nd.get("themes", [])]
+        self.T = sparse.csr_matrix((np.ones(len(lignes)), (lignes, colonnes)), shape=(self.n, max(1, len(self.themes))))
+        self.nb_themes = np.maximum(1.0, np.asarray(self.T.sum(axis=1)).ravel())
 
         # coordonnées des sorties (NaN ailleurs), pour le filtre de Haversine
         self.lat = np.array([nd.get("lat") if nd.get("lat") is not None else np.nan for nd in self.noeuds])
@@ -294,6 +305,14 @@ class Moteur:
         u = np.array([1.0 if g in choisis else 0.0 for g in self.genres])
         return (self.G_binaire @ u) / self.nb_genres
 
+    def part_themes_choisis(self, themes: Sequence[str]) -> Optional[np.ndarray]:
+        """Part des thèmes de chaque livre qui font partie des thèmes choisis (None si aucun thème)."""
+        choisis = [t for t in themes if t in self.themes]
+        if not choisis:
+            return None
+        u = np.array([1.0 if t in choisis else 0.0 for t in self.themes])
+        return (self.T @ u) / self.nb_themes
+
     def autorises(self, types: Iterable[str], plateformes: Iterable[int] = (),
                   centre: Optional[Tuple[float, float]] = None, rayon_km: float = 15.0,
                   categories: Iterable[str] = (), horizon: str = "mois", budget: str = "tous",
@@ -305,7 +324,7 @@ class Moteur:
           - centre + rayon (sorties) : distance de Haversine <= rayon
           - horizon (sorties) : au moins une occurrence dans la fenêtre ; jamais rien de passé
           - consoles (jeux) : jouable sur au moins une console de l'utilisateur ;
-            mode_jeu (jeux) : "solo" | "multi" (co-op ou multijoueur) | "tous"
+            mode_jeu (jeux) : "solo" | "coop" | "multi" | "tous"
           - budget : sorties -> tarif connu <= plafond (prix inconnu exclu) ;
                      films/séries -> seulement ce qui est inclus SANS SURCOÛT : confirmé par TMDB
                      sur un abonnement de l'utilisateur ou sur Arte. Sans données TMDB, rien
@@ -339,7 +358,9 @@ class Moteur:
                 jouable |= self.masque_console[c]
             masque &= jouable | ~jeu
         if mode_jeu == "multi":
-            masque &= self.jeu_multi | ~jeu
+            masque &= self.jeu_multijoueur | ~jeu
+        elif mode_jeu == "coop":
+            masque &= self.jeu_coop | ~jeu
         elif mode_jeu == "solo":
             masque &= self.jeu_solo | ~jeu
 
@@ -424,6 +445,7 @@ class Moteur:
         autorises: Optional[np.ndarray] = None,
         lift_confort: bool = False,
         cache: Optional[dict] = None,
+        themes: Sequence[str] = (),
     ) -> List[Recommandation]:
         """cache : dict partagé entre plusieurs appels d'une même requête (mêmes goûts)
         pour ne calculer chaque marche qu'une fois (ex. films puis séries)."""
@@ -436,6 +458,11 @@ class Moteur:
         masque = np.zeros(self.n, dtype=bool) if autorises is None else ~autorises
         masque[vus] = True  # jamais recommander ce qui est déjà vu
         aff = self.affinite(vus, genres)
+        # Lecture : les thèmes choisis jouent pour les livres le rôle des genres (confort ↔ découverte)
+        m_themes = self.part_themes_choisis(themes)
+        livres = self.masque_type.get("livre", np.zeros(self.n, dtype=bool))
+        if m_themes is not None:
+            aff = np.where(livres, aff * (EPS_AFFINITE + m_themes), aff)
         # ambiances choisies (sorties) : préférence explicite, plus forte que la seule affinité
         choisies = [self.masque_ambiance[g] for g in genres if g in self.masque_ambiance]
         bonus = 1.0 + BONUS_AMBIANCE * np.logical_or.reduce(choisies) if choisies else 1.0
@@ -453,6 +480,8 @@ class Moteur:
             if "decouverte" not in cache:
                 cache["decouverte"] = self.marche(v_u, DECOUVERTE)
             dans_mes_genres = self.part_genres_choisis(vus, genres)
+            if m_themes is not None:
+                dans_mes_genres = np.where(livres, m_themes, dans_mes_genres)
             d = (cache["decouverte"] / self.pi_star * self.qualite * self.bonus_affiche
                  * (1 - MALUS_MAX * s * dans_mes_genres) * bonus)
             d[masque] = -np.inf

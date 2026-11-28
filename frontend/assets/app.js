@@ -1,5 +1,21 @@
 // ennui. — application (JavaScript vanilla, module ES, aucune dépendance externe).
-import { icone } from "./icones.js";
+// Librairies locales (frontend/vendor) chargées par index.html : lucide, noUiSlider, Swiper, gsap.
+const { lucide, noUiSlider, Swiper, gsap } = window;
+const MOUVEMENT = !window.matchMedia("(prefers-reduced-motion: reduce)").matches && Boolean(gsap);
+
+/** Icône Lucide en SVG (stroke 1.5), générée depuis les données de lucide.min.js : pas de passe DOM. */
+const cacheIcones = {};
+function icone(nom, taille = 20, classe = "") {
+  if (!(nom in cacheIcones)) {
+    const pascal = nom.replace(/(^|-)([a-z0-9])/g, (_, __, c) => c.toUpperCase());
+    let noeud = lucide?.icons?.[pascal];
+    if (noeud && noeud[0] === "svg") noeud = noeud[2];  // format ["svg", attributs, enfants] selon la version
+    cacheIcones[nom] = Array.isArray(noeud) ? noeud.map(([balise, attrs]) =>
+      `<${balise} ${Object.entries(attrs || {}).map(([k, v]) => `${k}="${v}"`).join(" ")}/>`).join("") : "";
+  }
+  return `<svg class="icone ${classe}" width="${taille}" height="${taille}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${cacheIcones[nom]}</svg>`;
+}
 
 // ------------------------------------------------------------------ //
 // Constantes                                                           //
@@ -19,6 +35,7 @@ const TEINTES = {
   Musical: 300, War: 80, Western: 35,
 };
 const ICONES_CATEGORIE = {
+  culture: "landmark", ecrans: "clapperboard",
   soirees: "disc-3", cinema: "clapperboard", expo: "landmark", scene: "drama", nature: "trees", rencontres: "messages-square",
   livres: "book-open", series: "tv", jeux: "gamepad-2", cuisine: "chef-hat", creatif: "palette", lecture: "book-open",
   cafe: "coffee", sport: "bike",
@@ -52,7 +69,9 @@ const ONGLETS = [
 // ------------------------------------------------------------------ //
 // État, comptes et persistance                                         //
 // ------------------------------------------------------------------ //
-const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [], consoles: [], modeJeu: "tous" });
+const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [], consoles: [], modeJeu: "tous", themes: [] });
+// Anciennes envies -> nouvelles (Films & Séries, Lecture, Jeux vidéo, Sorties culturelles, Soirées & Concerts, Balades & Nature)
+const MIGRATION_ENVIES = { series: "ecrans", livres: "lecture", cinema: "culture", expo: "culture", scene: "culture" };
 const ETAT_INITIAL = () => ({
   uid: null, prenom: "",
   prefs: PREFS_INITIALES(),
@@ -89,6 +108,8 @@ function restaurer() {
   const uid = stock.lire("actif", null);
   const local = uid ? stock.lire(`etat.${uid}`, null) : null;
   if (local) etat = { ...ETAT_INITIAL(), ...local, prefs: { ...PREFS_INITIALES(), ...(local.prefs || {}) } };
+  etat.prefs.categories = [...new Set(etat.prefs.categories.map((c) => MIGRATION_ENVIES[c] || c))];
+  if (!["tout", "ecrans", "livre", "jeu"].includes(etat.ecrans)) etat.ecrans = "tout";
 }
 
 /** Profil côté serveur (SQLite) : prénom, ville et préférences, pour changer d'appareil ou de compte. */
@@ -134,6 +155,7 @@ const genresFr = (o, n = 2) => (o.genres_fr || (o.genres || []).map((g) => GENRE
 const estMulti = (o) => (o.modes || []).some((m) => m === "coop" || m === "multi");
 const nbPepites = () => Math.round(etat.decouverte * 10);
 const km = (x) => `${x < 10 ? x.toFixed(1) : Math.round(x)} km`.replace(".", ",");
+const chiffre = (t) => `<span class="chiffre">${esc(t)}</span>`;
 const nomVille = () => etat.prefs.ville?.nom || "Partout en France";
 const lienSur = (t) => /^https:\/\/[^\s"'<>]+$/.test(t || "");
 
@@ -207,15 +229,16 @@ function affiche(o) {
     </div>`;
   const srcset = o.affiche_mini ? ` srcset="${esc(o.affiche_mini)} 210w, ${esc(o.affiche)} 680w" sizes="180px"` : "";
   const img = o.affiche ? `<img src="${esc(o.affiche_mini || o.affiche)}"${srcset} alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
-  return `<div class="visuel affiche">${typo}${img}${tagDecouverte(o)}</div>`;
+  const format = o.type === "jeu" ? "paysage" : "affiche";  // affiches et livres 2/3, jeux 16/10
+  return `<div class="visuel ${format}" data-action="ouvrir-plans" data-id="${esc(o.id)}">${typo}${img}<span class="voile"></span>${tagDecouverte(o)}</div>`;
 }
 
 function visuelSortie(o, format = "paysage") {
   const fond = `background: radial-gradient(120% 90% at 20% 0%, #26262C 0%, #141417 70%)`;
   const img = o.affiche ? `<img src="${esc(o.affiche)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
   const credit = o.affiche && o.credit_image ? `<span class="credit">© ${esc(o.credit_image)}</span>` : "";
-  return `<div class="visuel ${format}" style="${fond}">
-      <div class="visuel-icone">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 40)}</div>${img}${credit}${tagDecouverte(o)}
+  return `<div class="visuel ${format}" style="${fond}" data-action="ouvrir-plans" data-id="${esc(o.id)}">
+      <div class="visuel-icone">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 40)}</div>${img}<span class="voile"></span>${credit}${tagDecouverte(o)}
     </div>`;
 }
 
@@ -260,22 +283,26 @@ function ligneCollab(o, { compacte = false } = {}) {
 function ligneJeu(o) {
   const consoles = (o.consoles || []).map((c) =>
     `<span class="plateforme ${etat.prefs.consoles.includes(c) ? "possedee" : ""}">${esc(NOMS_CONSOLES[c] || c)}</span>`).join("");
-  const mode = estMulti(o) ? "Co-op / Multi" : "Solo";
+  const modes = o.modes || [];
+  const mode = modes.includes("coop") && modes.includes("multi") ? "Co-op · Multi" : modes.includes("coop") ? "Co-op"
+    : modes.includes("multi") ? "Multijoueur" : "Solo";
   return `<div class="plateformes"><span class="tag tag-discret tag-mode">${mode}</span>${consoles}</div>`;
 }
+
+const nomTheme = (id) => (CONFIG.themes.find((t) => t.id === id) || {}).nom || id;
 
 function carteOeuvre(o, i = 0) {
   const livre = o.type === "livre";
   const jeu = o.type === "jeu";
-  const meta = livre ? [o.auteur, o.annee].filter(Boolean).join(" · ")
-    : jeu ? [o.studio, o.annee].filter(Boolean).join(" · ")
-      : [o.annee, genresFr(o)].filter(Boolean).join(" · ");
+  const annee = o.annee ? ` · ${chiffre(o.annee)}` : "";
+  const meta = livre ? `${esc(o.auteur || "")}${annee}` : jeu ? `${esc(o.studio || "")}${annee}`
+    : `${o.annee ? chiffre(o.annee) : ""}${o.annee && genresFr(o) ? " · " : ""}${esc(genresFr(o))}`;
   return `<article class="carte-oeuvre apparition" data-carte="${esc(o.id)}" style="animation-delay:${i * 25}ms">
       ${affiche(o)}
       <span class="type-oeuvre">${TYPES[o.type].nom}${livre && !o.francais ? " · VO" : ""}</span>
-      <h3>${esc(o.titre)}</h3>
-      <div class="meta">${esc(meta)}</div>
-      ${livre ? `<div class="plateformes"><span class="non-verifie">${esc(genresFr(o))}</span></div>`
+      <h3 data-action="ouvrir-plans" data-id="${esc(o.id)}">${esc(o.titre)}</h3>
+      <div class="meta">${meta}</div>
+      ${livre ? `<div class="plateformes">${(o.themes || []).map((t) => `<span class="plateforme">${esc(nomTheme(t))}</span>`).join("")}</div>`
         : jeu ? `${genresFr(o) ? `<div class="meta">${esc(genresFr(o))}</div>` : ""}${ligneJeu(o)}` : lignePlateformes(o)}
       ${ligneCollab(o, { compacte: true })}
       <div class="carte-actions">
@@ -286,7 +313,7 @@ function carteOeuvre(o, i = 0) {
 
 function carteSortie(o, i = 0) {
   const lieu = [o.lieu && o.lieu !== o.titre ? o.lieu : null, o.ville].filter(Boolean).join(", ");
-  const distance = o.distance_km != null ? `<span class="distance">à ${km(o.distance_km)}</span>` : "";
+  const distance = o.distance_km != null ? `<span class="distance">à ${chiffre(km(o.distance_km))}</span>` : "";
   return `<article class="carte-sortie apparition" data-carte="${esc(o.id)}" style="animation-delay:${i * 30}ms">
       ${visuelSortie(o)}
       <div class="carte-sortie-corps">
@@ -294,12 +321,12 @@ function carteSortie(o, i = 0) {
           <span class="categorie">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 14)}${esc(o.categorie_libelle || "")}</span>
           ${distance}
         </div>
-        <h3>${esc(o.titre)}</h3>
+        <h3 data-action="ouvrir-plans" data-id="${esc(o.id)}">${esc(o.titre)}</h3>
         <div class="ligne-info date">${icone("calendar", 15)}<span>${esc(libelleDate(o))}</span></div>
         <div class="ligne-info">${icone("map-pin", 15)}<span>${esc(lieu)}</span></div>
         ${o.propose_par ? `<div class="ligne-info">${icone("user", 15)}<span>Proposée par ${esc(o.propose_par)}</span></div>` : ""}
         ${o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
-        <div class="ligne-info">${icone("ticket", 15)}<span class="tarif">${esc(tarif(o))}</span></div>
+        <div class="ligne-info">${icone("ticket", 15)}<span class="tarif chiffre">${esc(tarif(o))}</span></div>
         <div class="carte-sortie-pied">${ligneCollab(o)}</div>
       </div>
     </article>`;
@@ -310,20 +337,14 @@ const valeurCurseur = (n) => n === 0 ? "Valeurs sûres uniquement"
 
 function instrument() {
   const n = nbPepites();
-  const pct = etat.decouverte * 100;
-  return `<div class="instrument">
+  const sujet = etat.onglet === "ecrans" && etat.ecrans === "livre" ? "tes thèmes" : "tes genres";
+  return `<div class="instrument verre">
       <div class="instrument-tete">
-        <span class="surtitre">Réglage</span>
+        <span class="surtitre">Confort ↔ Découverte</span>
         <span class="instrument-valeur" id="valeur-curseur">${valeurCurseur(n)}</span>
       </div>
-      <div class="piste">
-        <div class="piste-ligne"></div>
-        <div class="piste-remplie" id="piste-remplie" style="width:calc((100% - 18px) * ${pct / 100})"></div>
-        <div class="piste-graduations">${"<i></i>".repeat(11)}</div>
-        <input class="curseur" id="curseur" type="range" min="0" max="100" step="1" value="${Math.round(pct)}"
-               aria-label="Zone de confort ou découverte" aria-valuetext="${n} découvertes sur 10">
-      </div>
-      <div class="instrument-pied"><span>Zone de confort</span><span>Découverte</span></div>
+      <div class="slider-ui" id="curseur-ui" aria-label="Zone de confort ou découverte"></div>
+      <p class="instrument-aide tres-muet">À gauche, ${sujet} ; à droite, d'autres univers et des pépites moins connues.</p>
     </div>`;
 }
 
@@ -338,9 +359,8 @@ function localisation() {
       </div>
       <ul class="suggestions" id="suggestions-ville" hidden></ul>
       ${v ? `<div class="rayon">
-          <div class="rayon-tete"><span class="surtitre">Rayon</span><span class="instrument-valeur" id="valeur-rayon">${etat.prefs.rayon} km</span></div>
-          <input class="reglette" id="rayon" type="range" min="5" max="50" step="5" value="${etat.prefs.rayon}" aria-label="Rayon de recherche en kilomètres">
-          <div class="instrument-pied"><span>5 km</span><span>50 km</span></div>
+          <div class="rayon-tete"><span class="surtitre">Périmètre</span><span class="instrument-valeur chiffre" id="valeur-rayon">${etat.prefs.rayon} km</span></div>
+          <div class="slider-ui slider-rayon" id="rayon-ui" aria-label="Rayon de recherche en kilomètres"></div>
         </div>` : `<p class="tres-muet petit" style="margin:8px 2px 0">Sans ville, on te montre les sorties partout en France.</p>`}
     </div>`;
 }
@@ -421,7 +441,11 @@ function preferences({ ville = true } = {}) {
   const noteTmdb = CONFIG.plateformes_verifiees ? "" :
     `<p class="tres-muet petit" style="margin:10px 2px 0">Disponibilités en cours de vérification : le filtre s'appliquera dès que les plateformes seront confirmées.</p>`;
   return (ville ? sectionVille() : "")
-    + groupePuces("Envie de…", "categories", CONFIG.envies)
+    + `<section class="groupe"><span class="surtitre">Envie de…</span>
+        <p class="sous-titre-groupe">Chez soi</p>${puces("categories", CONFIG.envies.filter((e) => e.univers === "chez-soi"))}
+        <p class="sous-titre-groupe">Sortir</p>${puces("categories", CONFIG.envies.filter((e) => e.univers === "sorties"))}
+      </section>`
+    + groupePuces("Tes thèmes de lecture", "themes", CONFIG.themes)
     + sectionGenres()
     + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb
     + groupePuces("Tes consoles et appareils", "consoles", CONFIG.consoles);
@@ -476,50 +500,83 @@ function ecranAccueil() {
     </div>`;
 }
 
+const rangee = (cartes, classe = "") => `<div class="swiper rangee ${classe}"><div class="swiper-wrapper">
+    ${cartes.map((c) => `<div class="swiper-slide">${c}</div>`).join("")}</div></div>`;
+
+function carteSession(p) {
+  const vignette = p.affiche
+    ? `<img src="${esc(p.affiche)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`
+    : `<span class="vignette-icone">${icone(TYPES[p.oeuvre_type]?.icone || "users", 22)}</span>`;
+  return `<article class="carte-session verre" data-carte="${esc(p.oeuvre_id)}">
+      <button class="vignette" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">${vignette}</button>
+      <div class="carte-session-corps">
+        <span class="surtitre">${esc(TYPES[p.oeuvre_type]?.collectif || "Sortie à plusieurs")}</span>
+        <h3>${esc(p.oeuvre_titre)}</h3>
+        <div class="petit"><span class="chiffre">${esc(libelleInstant(new Date(p.debut)))}</span></div>
+        <div class="tres-muet petit">${esc(avecQui(p))}</div>
+        ${p.je_participe
+          ? `<button class="bouton-ligne" aria-pressed="true" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">${icone("check", 14)}Inscrit</button>`
+          : `<button class="bouton-ligne bouton-accent" data-action="rejoindre" data-plan="${p.id}" data-id="${esc(p.oeuvre_id)}">${icone("users", 14)}Rejoindre</button>`}
+      </div>
+    </article>`;
+}
+
 function ecranPourVous() {
   const d = donnees;
-  const une = d.sorties?.find((o) => o.affiche) || null;
-  const autres = (d.sorties || []).filter((o) => o !== une);
   const ecrans = d.ecrans || [];
+  const sorties = d.sorties || [];
+  const sessions = d.sessions || [];
   const rayon = etat.prefs.ville ? ` · ${etat.prefs.rayon} km` : "";
+  const titre = (t, onglet) => `<div class="titre-section"><h2 class="titre-2">${t}</h2>
+      ${onglet ? `<button class="lien-discret" data-action="onglet" data-onglet="${onglet}">Tout voir ${icone("chevron-right", 16)}</button>` : ""}</div>`;
   return `${entete(dateDuJour(), `Salut ${etat.prenom}, qu'est-ce qu'on fait aujourd'hui ?`)}
     ${instrument()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
-      <div class="titre-section"><h2 class="titre-2">Ce soir, au chaud</h2>
-        <button class="lien-discret" data-action="onglet" data-onglet="ecrans">Tout voir ${icone("chevron-right", 16)}</button></div>
-      ${ecrans.length ? `<div class="carrousel">${ecrans.map(carteOeuvre).join("")}</div>`
-        : d.chargement ? squelettesAffiches(2) : videEcrans()}
-      <div class="titre-section"><h2 class="titre-2">Sortir · ${esc(nomVille())}${esc(rayon)}</h2>
-        <button class="lien-discret" data-action="onglet" data-onglet="sorties">Tout voir ${icone("chevron-right", 16)}</button></div>
+      ${titre("Pépites du moment", "ecrans")}
+      ${ecrans.length ? rangee(ecrans.map(carteOeuvre), "rangee-affiches")
+        : d.chargement ? squelettesRangee() : videEcrans()}
+      ${titre(`Sorties proches · ${esc(nomVille())}${esc(rayon)}`, "sorties")}
       ${selecteurHorizon()}
-      ${une ? `<article class="une apparition" data-carte="${esc(une.id)}">
-          ${visuelSortie(une, "")}
-          <div class="une-texte">
-            <span class="categorie">${icone(ICONES_CATEGORIE[une.categorie] || "compass", 14)}${esc(une.categorie_libelle || "")} · ${esc(une.ville || "")}${une.distance_km != null ? ` · à ${km(une.distance_km)}` : ""}</span>
-            <h2>${esc(une.titre)}</h2>
-            <div class="muet petit">${esc(libelleDate(une))} · ${esc(tarif(une))}</div>
-            <div style="margin-top:12px">${ligneCollab(une)}</div>
-          </div>
-        </article>` : ""}
-      <div style="margin-top:14px">${autres.length ? autres.map(carteSortie).join("")
-        : une ? "" : d.chargement ? squelettesSorties(1) : videSorties()}</div>
+      <div style="margin-top:14px">${sorties.length ? rangee(sorties.map(carteSortie), "rangee-sorties")
+        : d.chargement ? squelettesRangee("sorties") : videSorties()}</div>
+      ${titre("Watch-parties & sessions en cours")}
+      ${sessions.length ? rangee(sessions.map(carteSession), "rangee-sessions")
+        : `<div class="vide verre">Aucune session prévue pour l'instant. Lance la première depuis une carte : « Organiser », « Lancer une session » ou « Club de lecture ».</div>`}
     </div>`;
+}
+
+const squelettesRangee = (type = "affiches") => `<div class="rangee-squelette">${(type === "sorties"
+  ? '<div class="squelette" style="width:280px;height:330px;border-radius:18px"></div>'
+  : '<div><div class="visuel affiche squelette" style="width:148px"></div></div>').repeat(3)}</div>`;
+
+function filtresChezSoi() {
+  if (etat.ecrans === "livre") {
+    return `<div class="filtres"><span class="surtitre">Thèmes</span>${puces("themes", CONFIG.themes)}</div>`;
+  }
+  if (etat.ecrans === "jeu") {
+    return `<div class="filtres">
+        <span class="surtitre">Ma machine</span>
+        <div class="puces">${CONFIG.consoles.map((c) => `<button class="puce" data-action="pref" data-groupe="consoles"
+          data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.consoles.includes(c.id)}">${icone(c.id === "mobile" ? "smartphone" : c.id === "pc" || c.id === "mac" ? "monitor" : "gamepad-2", 14)}${esc(c.nom)}</button>`).join("")}</div>
+        <span class="surtitre" style="margin-top:14px">Mode</span>
+        <div class="puces">${CONFIG.modes_jeu.map((m) => `<button class="puce puce-s" data-action="mode-jeu" data-valeur="${m.id}"
+          aria-pressed="${etat.prefs.modeJeu === m.id}">${m.id === "tous" ? "" : icone(m.id === "solo" ? "user" : "users", 14)}${esc(m.nom)}</button>`).join("")}</div>
+      </div>`;
+  }
+  return "";
 }
 
 function ecranEcrans() {
   const d = donnees;
   const liste = d.grille || [];
-  const surtitre = { tout: "Chez soi", film: "Films", serie: "Séries", livre: "Livres", jeu: "Jeux vidéo" }[etat.ecrans];
-  return `${entete(surtitre, "Ce soir, au chaud")}
-    <div class="segment segment-5" role="group" aria-label="Type de contenu">
-      ${[["tout", "Tout"], ["film", "Films"], ["serie", "Séries"], ["livre", "Livres"], ["jeu", "Jeux"]].map(([v, nom]) =>
-        `<button data-action="segment" data-valeur="${v}" aria-pressed="${etat.ecrans === v}">${nom}</button>`).join("")}
+  const segments = [["tout", "Tout"], ["ecrans", "Films & Séries"], ["livre", "Lecture"], ["jeu", "Jeux vidéo"]];
+  const surtitre = Object.fromEntries(segments)[etat.ecrans];
+  return `${entete(surtitre === "Tout" ? "Chez soi" : surtitre, "Ce soir, au chaud")}
+    <div class="segment segment-4" role="group" aria-label="Univers chez soi">
+      ${segments.map(([v, nom]) => `<button data-action="segment" data-valeur="${v}" aria-pressed="${etat.ecrans === v}">${nom}</button>`).join("")}
     </div>
-    ${["tout", "jeu"].includes(etat.ecrans) ? `<div class="puces defilement" style="margin-top:12px" role="group" aria-label="Mode de jeu">
-      ${CONFIG.modes_jeu.map((m) => `<button class="puce puce-s" data-action="mode-jeu" data-valeur="${m.id}" aria-pressed="${etat.prefs.modeJeu === m.id}">
-        ${m.id === "tous" ? "" : icone(m.id === "solo" ? "user" : "users", 14)}${esc(m.id === "tous" ? "Jeux : tous les modes" : m.nom)}</button>`).join("")}
-    </div>` : ""}
+    ${filtresChezSoi()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
     ${instrument()}
     <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:26px">
@@ -537,7 +594,7 @@ function ecranSorties() {
     <div style="margin-top:16px">${localisation()}</div>
     <div style="margin-top:14px">${selecteurHorizon()}</div>
     <div style="margin-top:12px">${selecteurBudget()}</div>
-    <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.filter((c) => c.sorties).map((c) => `<button class="puce" data-action="pref"
+    <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.map((c) => `<button class="puce" data-action="pref"
         data-groupe="categories" data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.categories.includes(c.id)}">
         ${icone(ICONES_CATEGORIE[c.id], 15)}${esc(c.nom)}</button>`).join("")}</div>
     ${instrument()}
@@ -624,7 +681,7 @@ function formulairePublication() {
         <label class="petit muet">Titre
           <input class="champ" name="titre" required minlength="3" maxlength="100" placeholder="Soirée jeux, concert, expo…"></label>
         <label class="petit muet">Catégorie
-          <select class="champ" name="categorie">${CONFIG.categories.filter((c) => c.sorties).map((c) => `<option value="${c.id}">${esc(c.nom)}</option>`).join("")}</select></label>
+          <select class="champ" name="categorie">${CONFIG.categories.map((c) => `<option value="${c.id}">${esc(c.nom)}</option>`).join("")}</select></label>
         <label class="petit muet">Lieu
           <input class="champ" name="lieu" required minlength="2" maxlength="120" placeholder="Nom du bar, de la salle, adresse…"></label>
         <div class="petit muet">Ville
@@ -650,12 +707,40 @@ function formulairePublication() {
     </section>`;
 }
 
+/** En-tête de la fiche : visuel, informations, résumé, action « Déjà vu / lu / joué ». */
+function detailOeuvre(o) {
+  const sortie = o.type === "sortie";
+  const img = o.affiche ? `<img src="${esc(o.affiche)}" alt="" decoding="async" onerror="this.remove()">` : "";
+  const infos = sortie
+    ? [libelleDate(o), [o.lieu, o.ville].filter(Boolean).join(", "), o.distance_km != null ? `à ${km(o.distance_km)}` : "", tarif(o)]
+    : o.type === "livre" ? [o.auteur, o.annee, (o.themes || []).map(nomTheme).join(", ")]
+      : o.type === "jeu" ? [o.studio, o.annee, (o.consoles || []).map((c) => NOMS_CONSOLES[c]).join(" · ")]
+        : [o.annee, genresFr(o, 3)];
+  // police mono seulement pour les chiffres (années, distances, tarifs)
+  const lignes = infos.filter(Boolean).map((t) => /^(\d{4}|à [\d,]+ km|Dès .*€|Gratuit.*|[\d,]+ €.*)$/.test(String(t))
+    ? `<span class="chiffre">${esc(t)}</span>` : `<span>${esc(t)}</span>`).join("");
+  return `<div class="detail ${sortie || o.type === "jeu" ? "detail-paysage" : ""}">
+      ${o.affiche || o.annee || o.ville ? `<div class="detail-visuel">${img}<span class="voile"></span></div>` : ""}
+      <div class="detail-texte">
+        <span class="surtitre">${esc(sortie ? o.categorie_libelle || "Sortie" : TYPES[o.type]?.nom || "")}</span>
+        <h2 class="titre-detail">${esc(o.titre)}</h2>
+        ${lignes ? `<div class="detail-infos">${lignes}</div>` : ""}
+        ${o.resume ? `<p class="detail-resume">${esc(o.resume)}</p>` : ""}
+        ${!sortie && TYPES[o.type] && o.annee !== undefined ? `<button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(o.type === "livre" ? "book-open" : o.type === "jeu" ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>` : ""}
+        ${o.url && lienSur(o.url) ? `<a class="lien-discret" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${icone("external-link", 14)}Voir la source</a>` : ""}
+      </div>
+    </div>`;
+}
+
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
   if (feuille.mode === "publier") {
+    const ouverture = racine.hidden;
     racine.hidden = false;
     racine.innerHTML = formulairePublication();
+    monterComposants(racine);
+    if (ouverture) animerOuvertureFeuille(racine);
     return;
   }
   const { oeuvre: o, plans } = feuille;
@@ -680,17 +765,15 @@ function rendreFeuille() {
           </form>` : ""}
       </div>`).join("")
       : `<p class="tres-muet">Aucun créneau pour l'instant. Propose le premier.</p>`;
+  const ouverture = racine.hidden;
   racine.hidden = false;
   racine.innerHTML = `<div class="feuille-fond" data-action="fermer-feuille"></div>
-    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Organiser ${esc(o.titre)}">
-      <div class="feuille-tete">
-        <div style="min-width:0">
-          <span class="surtitre">${esc(TYPES[o.type]?.collectif || "Sortie à plusieurs")}</span>
-          <h2 class="titre-2" style="margin-top:4px">${esc(o.titre)}</h2>
-        </div>
-        <button class="bouton-icone" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
-      </div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="${esc(o.titre)}">
+      <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
+      <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
       <div class="feuille-corps">
+        ${detailOeuvre(o)}
+        <div class="titre-section" style="margin:8px 0 0"><h3 class="titre-2">${esc(TYPES[o.type]?.collectif || "Sortie à plusieurs")}</h3></div>
         ${plansHtml}
         <form class="proposer" id="form-plan">
           <span class="surtitre">Proposer un créneau</span>
@@ -708,6 +791,25 @@ function rendreFeuille() {
         </form>
       </div>
     </section>`;
+  if (ouverture) animerOuvertureFeuille(racine);
+}
+
+function animerOuvertureFeuille(racine) {
+  if (!MOUVEMENT) return;
+  gsap.fromTo(racine.querySelector(".feuille-fond"), { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" });
+  gsap.fromTo(racine.querySelector(".feuille-panneau"), { yPercent: 100 }, { yPercent: 0, duration: 0.55, ease: "expo.out" });
+}
+
+async function fermerFeuille() {
+  const racine = $("#feuille");
+  if (MOUVEMENT && !racine.hidden) {
+    await Promise.all([
+      gsap.to(racine.querySelector(".feuille-fond"), { opacity: 0, duration: 0.22 }),
+      gsap.to(racine.querySelector(".feuille-panneau"), { yPercent: 100, duration: 0.3, ease: "power2.in" }),
+    ]);
+  }
+  feuille = null;
+  rendreFeuille();
 }
 
 async function ouvrirFeuille(oeuvre) {
@@ -745,6 +847,7 @@ function rendre() {
   nav.innerHTML = ONGLETS.map((o) => `<button class="onglet" data-action="onglet" data-onglet="${o.id}"
       ${etat.onglet === o.id ? 'aria-current="page"' : ""}>${icone(o.icone, 22)}<span>${o.nom}</span></button>`).join("");
   ecran.innerHTML = ECRANS[etat.onglet]();
+  monterComposants(ecran);
 }
 
 function rendreContenu() {
@@ -753,7 +856,52 @@ function rendreContenu() {
   const tmp = document.createElement("div");
   tmp.innerHTML = ECRANS[etat.onglet]();
   const nouvelle = tmp.querySelector("#contenu");
-  if (nouvelle) zone.replaceWith(nouvelle);
+  if (nouvelle) { zone.replaceWith(nouvelle); monterComposants(nouvelle); }
+}
+
+/** Après chaque rendu : curseurs noUiSlider, carrousels Swiper, apparition des cartes en cascade (GSAP). */
+function monterComposants(racine) {
+  const curseur = racine.querySelector?.("#curseur-ui") || (racine.id === "curseur-ui" ? racine : null);
+  if (curseur && !curseur.noUiSlider && noUiSlider) {
+    noUiSlider.create(curseur, {
+      start: Math.round(etat.decouverte * 100), connect: [true, false], step: 1, range: { min: 0, max: 100 },
+      pips: { mode: "values", values: [0, 50, 100], density: 10,
+        format: { to: (v) => ({ 0: "Confort", 50: "Équilibré", 100: "Découverte" })[Math.round(v)] || "" } },
+    });
+    curseur.noUiSlider.on("slide", ([v]) => {
+      etat.decouverte = Number(v) / 100;
+      $("#valeur-curseur").innerHTML = valeurCurseur(nbPepites());
+      chargerSiQuotaChange();
+    });
+    curseur.noUiSlider.on("change", sauvegarder);
+  }
+  const rayon = racine.querySelector?.("#rayon-ui");
+  if (rayon && !rayon.noUiSlider && noUiSlider) {
+    noUiSlider.create(rayon, {
+      start: etat.prefs.rayon, connect: [true, false], step: 5, range: { min: 5, max: 50 },
+      pips: { mode: "values", values: [5, 15, 30, 50], density: 12, format: { to: (v) => `${Math.round(v)} km` } },
+    });
+    rayon.noUiSlider.on("slide", ([v]) => {
+      etat.prefs.rayon = Math.round(Number(v));
+      $("#valeur-rayon").textContent = `${etat.prefs.rayon} km`;
+      if (etat.uid && etape !== "bienvenue" && etat.onglet !== "profil") chargerApresRayon();
+    });
+    rayon.noUiSlider.on("change", sauvegarder);
+  }
+  if (Swiper) {
+    racine.querySelectorAll?.(".swiper.rangee:not(.swiper-initialized)").forEach((el) => new Swiper(el, {
+      slidesPerView: "auto", spaceBetween: 12, freeMode: { enabled: true, momentum: true, sticky: false },
+      grabCursor: true, slidesOffsetBefore: 0, slidesOffsetAfter: 0, watchSlidesProgress: true,
+    }));
+  }
+  if (MOUVEMENT) {
+    const cartes = [...(racine.querySelectorAll?.("[data-carte]") || [])].slice(0, 16);
+    if (cartes.length) gsap.from(cartes, { opacity: 0, y: 16, duration: 0.5, stagger: 0.04, ease: "power3.out", clearProps: "opacity,transform" });
+  }
+}
+
+function transitionEcran() {
+  if (MOUVEMENT) gsap.fromTo("#ecran", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32, ease: "power2.out", clearProps: "transform" });
 }
 
 function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
@@ -769,6 +917,7 @@ function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
     rayon_km: etat.prefs.rayon,
     horizon: etat.horizon,
     budget: etat.prefs.budget,
+    themes: etat.prefs.themes,
     categories: etat.prefs.categories,
     consoles: etat.prefs.consoles,
     mode_jeu: etat.prefs.modeJeu,
@@ -792,15 +941,20 @@ async function charger({ partiel = false } = {}) {
   partiel ? $("#contenu")?.classList.add("chargement") : rendre();
   try {
     if (etat.onglet === "pour-vous") {
-      const [ecrans, sorties] = await Promise.all([
-        api("/api/recommandations", corps("tout", 9, ["film", "serie",
-          ...(etat.prefs.categories.some((c) => c === "livres" || c === "lecture") ? ["livre"] : []),
-          ...(etat.prefs.categories.includes("jeux") ? ["jeu"] : [])]), signal),
-        api("/api/recommandations", corps("sortie", 6), signal),
+      // univers Chez soi choisis à l'accueil ; aucun -> films et séries
+      const env = etat.prefs.categories;
+      const ecransChoisis = [...(env.includes("ecrans") || !env.some((c) => ["lecture", "jeux"].includes(c)) ? ["film", "serie"] : []),
+        ...(env.includes("lecture") ? ["livre"] : []), ...(env.includes("jeux") ? ["jeu"] : [])];
+      const [ecrans, sorties, sessions] = await Promise.all([
+        api("/api/recommandations", corps("tout", 10, ecransChoisis), signal),
+        api("/api/recommandations", corps("sortie", 8), signal),
+        api("/api/plans/a-venir?limite=10", undefined, signal).catch(() => []),
       ]);
-      donnees = { ecrans, sorties, couverture: await couvertureSiVide(sorties, signal) };
+      donnees = { ecrans, sorties, sessions, couverture: await couvertureSiVide(sorties, signal) };
     } else if (etat.onglet === "ecrans") {
-      donnees = { grille: await api("/api/recommandations", corps(etat.ecrans, 20), signal) };
+      const types = { tout: ["film", "serie", "livre", "jeu"], ecrans: ["film", "serie"], livre: ["livre"], jeu: ["jeu"] }[etat.ecrans];
+      donnees = { grille: await api("/api/recommandations",
+        types.length === 1 ? corps(types[0], 20) : corps("tout", 20, types), signal) };
     } else if (etat.onglet === "sorties") {
       const grille = await api("/api/recommandations", corps("sortie", 20), signal);
       donnees = { grille, couverture: await couvertureSiVide(grille, signal) };
@@ -992,11 +1146,13 @@ const actions = {
     actions["nouveau-compte"]();
   },
   onglet(b) {
+    if (etat.onglet === b.dataset.onglet && b.closest("#onglets")) return haut();
     etat.onglet = b.dataset.onglet;
     sauvegarder();
     donnees = {};
     haut();
     charger();
+    transitionEcran();
   },
   segment(b) {
     if (etat.ecrans === b.dataset.valeur) return;
@@ -1019,7 +1175,7 @@ const actions = {
     const o = trouver(b.dataset.id) || { id: b.dataset.id, titre: b.dataset.titre, type: b.dataset.type };
     ouvrirFeuille(o);
   },
-  "fermer-feuille"() { feuille = null; rendreFeuille(); },
+  "fermer-feuille"() { fermerFeuille(); },
   "ouvrir-publication"() {
     feuille = { mode: "publier", ville: etat.prefs.ville };
     rendreFeuille();
@@ -1145,22 +1301,11 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && feuille) actions["fermer-feuille"](); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && feuille) fermerFeuille(); });
 
 document.addEventListener("input", (e) => {
   const id = e.target.id;
-  if (id === "curseur") {
-    etat.decouverte = Number(e.target.value) / 100;
-    const n = nbPepites();
-    $("#valeur-curseur").innerHTML = valeurCurseur(n);
-    $("#piste-remplie").style.width = `calc((100% - 18px) * ${etat.decouverte})`;
-    e.target.setAttribute("aria-valuetext", `${n} découvertes sur 10`);
-    chargerSiQuotaChange();
-  } else if (id === "rayon") {
-    etat.prefs.rayon = Number(e.target.value);
-    $("#valeur-rayon").textContent = `${etat.prefs.rayon} km`;
-    if (etat.uid && etat.onglet !== "profil") chargerApresRayon();
-  } else if (id === "champ-prenom") {
+  if (id === "champ-prenom") {
     etat.prenom = e.target.value;
     const b = document.querySelector('[data-action="commencer"]');
     if (b) b.disabled = !etat.prenom.trim();
@@ -1172,7 +1317,8 @@ document.addEventListener("input", (e) => {
     rechercherVu(e.target.value.trim());
   }
 });
-document.addEventListener("change", (e) => { if (["curseur", "rayon"].includes(e.target.id)) sauvegarder(); });
+// curseurs noUiSlider : voir monterComposants()
+document.documentElement.classList.toggle("anime", MOUVEMENT);
 
 // ------------------------------------------------------------------ //
 // Démarrage                                                            //

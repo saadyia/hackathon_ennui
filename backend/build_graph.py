@@ -313,6 +313,7 @@ def metadonnees_livres(livres, decalage):
         "pages": l["pages"],
         "note": l["note"],
         "genres": l["genres"],
+        "themes": l.get("themes", []),  # roman, polar, sff, essais, bd, bio (filtre de l'onglet Lecture)
         "affiche": l["couverture"],
         "resume": l["resume"],          # uniquement s'il existe en français
         "francais": l["francais"],      # édition française trouvée

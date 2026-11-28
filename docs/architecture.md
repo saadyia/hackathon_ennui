@@ -69,6 +69,18 @@ Avec une clé TMDB, ou une fois `enrich_affiches.py` terminé, les films passero
 - Budget : un livre n'a pas de prix connu, il est donc exclu dès qu'un budget est demandé.
 - Pas de traduction automatique : sans édition française trouvée, le titre reste en VO et aucun résumé n'est affiché.
 
+## Catégories et univers
+- Envies (accueil, profil) : `ecrans`, `lecture`, `jeux` (univers Chez soi) ; `culture`, `soirees`, `nature` (univers Sorties).
+- `GROUPES_SORTIES` (main.py) : culture = cinéma + expo + scène + rencontres littéraires (+ `culture` pour les sorties publiées) ;
+  soirées ; nature. Sans filtre, seules ces catégories sont autorisées : les catégories hors sujet sont exclues des recommandations.
+
+## Thèmes de lecture
+- 6 thèmes (Roman & Fiction, Thriller & Polar, Science-Fiction & Fantasy, Développement & Essais, BD & Manga, Biographie & Histoire),
+  calculés depuis les genres GoodReads d'origine (`import_books.py --themes-seulement`, sans réseau). « Roman » seulement à défaut
+  d'un thème plus précis (« fiction » est partout).
+- Moteur : les thèmes choisis jouent pour les livres le rôle des genres. Confort = affinité × (0,15 + part de thèmes choisis) ;
+  découverte = malus progressif (jusqu'à -90 %) sur ces thèmes → autres thèmes, étiquette « Hors piste ».
+
 ## Jeux vidéo
 - Filtre : `Type == "video game"`, sortie en 2015 ou après, fiche complète (plateformes, genres, studio, éditeur, URL) ;
   16 jeux à contenu adulte (eroge, bishōjo) exclus, soit **3 279 jeux**.
@@ -77,7 +89,8 @@ Avec une clé TMDB, ou une fois `enrich_affiches.py` terminé, les films passero
 - Genres : 309 genres anglais, traduits par environ 60 règles ordonnées vers une quarantaine de libellés français (RPG, Action-RPG,
   Tir à la première personne, Stratégie au tour par tour, Réflexion, Roman visuel…). Un genre non couvert est **ignoré**
   (119 jeux n'ont aucun genre affiché). Les termes d'usage dans la presse française sont conservés (RPG, Metroidvania, Roguelike, Battle royale).
-- Modes : `solo` / `coop` / `multi` → badge « Solo » ou « Co-op / Multi » ; filtre `mode_jeu`.
+- Modes : `solo` / `coop` / `multi` → badge (« Solo », « Co-op », « Multijoueur », « Co-op · Multi ») ; filtre `mode_jeu`
+  (tous, solo, coop, multi) et filtre par machine dans l'onglet Jeux vidéo.
 - Données françaises, par lots : Wikidata `wbgetentities` (libellé FR, articles), extrait d'introduction de fr.wikipedia
   (2 phrases), jaquette = image principale de l'article anglais (`pilicense=any`).
 - Graphe : chaque genre français est aussi associé à des genres de l'application (ex. RPG → Fantasy + Adventure) pour relier les jeux aux films.

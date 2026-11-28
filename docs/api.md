@@ -31,7 +31,9 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
   "horizon": "semaine", "categories": ["scene"], "k": 10 }
 ```
 - `type` : `film` | `serie` | `livre` | `jeu` | `tout` | `sortie`
-- `consoles` (jeux) : `pc`, `mac`, `playstation`, `xbox`, `switch`, `mobile` ; `mode_jeu` : `tous` | `solo` | `multi`
+- `consoles` (jeux) : `pc`, `mac`, `playstation`, `xbox`, `switch`, `mobile` ; `mode_jeu` : `tous` | `solo` | `coop` | `multi`
+- `themes` (livres) : `roman`, `polar`, `sff`, `essais`, `bd`, `bio`
+- `categories` : envies de sorties `culture` | `soirees` | `nature` (les envies Chez soi sont ignorées pour les sorties)
 - `ecrans` (type `tout`) : composition, par défaut `["film", "serie"]` ; ajouter `"livre"` (2 films, 1 série, 1 livre…)
 - `plateformes` : présence confirmée par TMDB (FR.flatrate) ; ignoré si `plateformes_verifiees` est faux
 - `lat` / `lon` (optionnels) + `rayon_km` (5–50) : filtre Haversine des sorties
@@ -64,6 +66,9 @@ Objet plan : `{id, oeuvre_id, oeuvre_titre, oeuvre_type, debut, rendez_vous, mes
 `POST /api/sorties` (compte requis) `{titre, categorie, lieu, ville: {nom, lat, lon}, debut, duree_h, prix, description}`
 → `{"id": "sortie:co-<id>"}`. `prix` : euros, 0 = gratuit, `null` = non précisé. Date dans les 60 jours.
 La sortie apparaît dans les recommandations avec `source: "communaute"` et `propose_par` (prénom).
+
+## `GET /api/plans/a-venir?limite=12`
+Watch-parties, sessions et sorties à plusieurs à venir (toutes œuvres), avec `affiche` de l'œuvre : rangée « Watch-parties & sessions » de Pour vous.
 
 ## Agenda
 - `GET /api/agenda` → `{derniere_sync, prochaine_sync, en_cours, statut: ok|erreur|jamais, message, automatique}`

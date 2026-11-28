@@ -481,3 +481,148 @@ select.champ { appearance: none; -webkit-appearance: none; color-scheme: dark; c
 .segment.segment-5 { grid-template-columns: repeat(5, 1fr); }
 .segment.segment-5 button { font-size: 12px; padding: 0 2px; }
 .tag-mode { height: 20px; font-size: 9.5px; letter-spacing: 0.06em; }
+
+/* ================================================================== */
+/* Refonte visuelle : typographie, profondeur, composants UI          */
+/* ================================================================== */
+@font-face { font-family: "Inter"; src: url("/assets/fonts/inter-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; src: url("/assets/fonts/inter-latin-ext.woff2") format("woff2"); font-weight: 100 900; font-display: swap;
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "JetBrains Mono"; src: url("/assets/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+:root {
+  --police-titres: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --police-texte: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --police-chiffres: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --verre: rgba(20, 20, 23, 0.72);
+}
+body { font-family: var(--police-texte); font-feature-settings: "cv11", "ss01"; }
+.marque, .titre-1, .titre-2, .titre-detail, .carte-oeuvre h3, .carte-sortie h3, .une-texte h2, .segment button, .bouton-principal,
+.visuel-typo strong, .carte-session h3 { font-family: var(--police-titres); }
+.chiffre, .instrument-valeur b, .distance, .tarif, .slider-rayon .noUi-value {
+  font-family: var(--police-chiffres); font-variant-numeric: tabular-nums; font-feature-settings: "tnum", "zero" 0; letter-spacing: -0.01em;
+}
+.chiffre { font-size: 0.92em; }
+
+/* Halo lumineux diffus en haut de l'écran */
+.app { isolation: isolate; }
+.app::before {
+  content: ""; position: absolute; z-index: -1; inset: -120px 0 auto 0; height: 420px; pointer-events: none;
+  background:
+    radial-gradient(60% 55% at 30% 30%, rgba(232, 217, 181, 0.10), transparent 70%),
+    radial-gradient(55% 50% at 80% 20%, rgba(140, 150, 255, 0.08), transparent 70%);
+  filter: blur(10px);
+}
+
+/* Verre dépoli léger */
+.verre, .instrument, .carte-sortie, .plan, .liste-vus, .rayon, .champ-ville, .segment, .reprendre {
+  background: var(--verre);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+}
+
+/* Ratios stricts et dégradé de lisibilité */
+.visuel.affiche { aspect-ratio: 2 / 3; }
+.visuel.paysage { aspect-ratio: 16 / 10; }
+.visuel img { object-position: center 30%; }
+.visuel .voile { position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(to top, rgba(10, 10, 12, 0.55) 0%, rgba(10, 10, 12, 0) 38%); }
+.visuel[data-action] { cursor: pointer; }
+.visuel .tag { z-index: 2; }
+.carte-oeuvre h3[data-action], .carte-sortie h3[data-action] { cursor: pointer; }
+
+/* Squelettes plus doux */
+.squelette { background: linear-gradient(100deg, rgba(255,255,255,0.035) 30%, rgba(255,255,255,0.075) 50%, rgba(255,255,255,0.035) 70%);
+  background-size: 220% 100%; animation: reflet 1.4s ease-in-out infinite; border: 1px solid var(--trait); }
+.rangee-squelette { display: flex; gap: 12px; overflow: hidden; }
+
+/* Animations : GSAP prend le relais des animations CSS */
+.anime .apparition { animation: none; }
+
+/* Envies groupées par univers */
+.sous-titre-groupe { margin: 6px 0 8px; font-size: 12px; color: var(--texte-3); }
+.sous-titre-groupe + .puces + .sous-titre-groupe { margin-top: 14px; }
+.filtres { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Segments de l'univers Chez soi */
+.segment.segment-4 button { font-size: 12px; line-height: 1.15; padding: 0 4px; }
+
+/* ---------------------------- noUiSlider ---------------------------- */
+.instrument { padding: 16px 18px 18px; }
+.instrument-aide { margin: 34px 0 0; font-size: 12px; line-height: 1.45; }
+.slider-ui { margin: 22px 9px 0; }
+.slider-ui.noUi-target { height: 4px; border: 0; border-radius: 999px; box-shadow: none; background: rgba(255, 255, 255, 0.10); }
+.slider-ui .noUi-connects { border-radius: 999px; }
+.slider-ui .noUi-connect { background: linear-gradient(90deg, rgba(232, 217, 181, 0.35), var(--accent)); }
+.slider-ui .noUi-handle {
+  width: 22px !important; height: 22px !important; right: -11px !important; top: -9px !important;
+  border: 0; border-radius: 50%; background: var(--texte); cursor: grab;
+  box-shadow: 0 0 0 5px rgba(232, 217, 181, 0.16), 0 6px 18px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.slider-ui .noUi-handle:active { cursor: grabbing; transform: scale(1.08); box-shadow: 0 0 0 8px rgba(232, 217, 181, 0.22), 0 6px 18px rgba(0, 0, 0, 0.5); }
+.slider-ui .noUi-handle::before, .slider-ui .noUi-handle::after { display: none; }
+.slider-ui .noUi-handle:focus-visible { outline: 1.5px solid var(--texte); outline-offset: 4px; }
+.slider-ui .noUi-pips { color: var(--texte-3); padding: 0; height: 30px; top: 100%; }
+.slider-ui .noUi-marker { background: rgba(255, 255, 255, 0.10); }
+.slider-ui .noUi-marker-horizontal.noUi-marker { height: 4px; width: 1px; }
+.slider-ui .noUi-marker-horizontal.noUi-marker-large { height: 9px; background: rgba(255, 255, 255, 0.28); }
+.slider-ui .noUi-value { font-size: 10.5px; letter-spacing: 0.04em; color: var(--texte-2); margin-top: 6px; }
+.slider-ui .noUi-value-horizontal { transform: translate(-50%, 50%); }
+.slider-ui .noUi-value:first-child, .slider-ui .noUi-pips .noUi-value:nth-of-type(1) { transform: translate(-10%, 50%); }
+.slider-rayon { margin: 18px 9px 30px; }
+.rayon { padding: 14px 16px 6px; }
+
+/* ----------------------------- Swiper ----------------------------- */
+.rangee { margin: 0 -20px; padding: 0 20px 6px; overflow: hidden; }
+.rangee .swiper-slide { width: auto; height: auto; }
+.rangee-affiches .swiper-slide { width: 148px; }
+.rangee-affiches .carte-oeuvre .visuel.paysage { width: 236px; }
+.rangee-affiches .swiper-slide:has(.visuel.paysage) { width: 236px; }
+.rangee-sorties .swiper-slide { width: 286px; }
+.rangee-sorties .carte-sortie { height: 100%; display: flex; flex-direction: column; margin: 0; }
+.rangee-sorties .carte-sortie-corps { flex: 1; display: flex; flex-direction: column; }
+.rangee-sorties .carte-sortie-pied { margin-top: auto; }
+.rangee-sessions .swiper-slide { width: 300px; }
+.carte-session { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--trait); border-radius: 18px; height: 100%; }
+.carte-session .vignette { flex: none; width: 78px; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; position: relative;
+  background: var(--carte-2); border: 1px solid var(--trait); display: grid; place-items: center; color: var(--texte-3); }
+.carte-session .vignette img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.carte-session-corps { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.carte-session h3 { margin: 2px 0 2px; font-size: 14.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.carte-session .bouton-ligne { margin-top: auto; align-self: flex-start; }
+
+/* ------------------------- Bottom sheet détaillé ------------------------- */
+.feuille-panneau { left: 0; right: 0; margin: 0 auto; transform: none; max-height: 92dvh; background: rgba(14, 14, 17, 0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%); }
+@keyframes monte { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anime .feuille-panneau, .anime .feuille-fond { animation: none; }
+.poignee { width: 38px; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.22); margin: 10px auto 0; cursor: pointer; flex: none; }
+.feuille-fermer { position: absolute; top: 14px; right: 14px; z-index: 3; background: rgba(10, 10, 12, 0.6); }
+.feuille-corps { padding-top: 14px; }
+.detail { display: grid; grid-template-columns: 112px 1fr; gap: 16px; align-items: start; }
+.detail-visuel { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: var(--carte-2); border: 1px solid var(--trait); }
+.detail-visuel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.detail-paysage { grid-template-columns: 1fr; }
+.detail-paysage .detail-visuel { aspect-ratio: 16 / 10; }
+.detail-texte { min-width: 0; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.titre-detail { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+.detail-infos { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--texte-2); }
+.detail-resume { margin: 2px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--texte-2); }
+
+/* Barre de navigation : transition de l'onglet actif */
+.onglet { position: relative; transition: color 0.2s ease; }
+.onglet[aria-current="page"]::after { content: ""; position: absolute; top: 0; left: 30%; right: 30%; height: 2px; border-radius: 0 0 2px 2px;
+  background: var(--accent); }
+.onglet .icone { transition: transform 0.2s ease; }
+.onglet[aria-current="page"] .icone { transform: translateY(-1px); }
+
+/* Repères des curseurs : texte en Inter (chiffres en mono pour le périmètre), extrémités alignées sur les bords */
+.slider-ui .noUi-value { font-family: var(--police-texte); font-size: 11px; font-weight: 500; letter-spacing: 0.01em; white-space: nowrap; }
+.slider-ui .noUi-value[data-value="0"], .slider-rayon .noUi-value[data-value="5"] { transform: translate(-9px, 50%); }
+.slider-ui .noUi-value[data-value="100"], .slider-rayon .noUi-value[data-value="50"] { transform: translate(calc(-100% + 9px), 50%); }
+.slider-rayon .noUi-value { font-family: var(--police-chiffres); font-size: 10.5px; }
+/* Carrousel des sorties : action collaborative compacte */
+.rangee-sorties .collab > span.collab-texte { display: none; }
+.rangee-sorties .collab { justify-content: flex-start; }

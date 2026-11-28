@@ -9,6 +9,8 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Refonte design : Lucide, noUiSlider, Swiper, GSAP en local ; Inter / Plus Jakarta Sans / JetBrains Mono ; verre dépoli, halo, ratios stricts, bottom sheet détaillé
+- [x] Catégories nettoyées (2 univers, 6 envies), thèmes de lecture avec curseur Confort ↔ Découverte, filtre machine et mode de jeu
 - [x] Jeux vidéo : 3 279 jeux (2015+), consoles, genres et modes traduits, titres FR, résumés FR et jaquettes (Wikimedia), « Déjà joué », « Lancer une session », filtre Solo / Co-op & Multi
 - [x] Livres : 2 500 livres GoodReads, genres traduits, éditions françaises (OpenLibrary), 100 % de couvertures, onglet Chez soi, « Déjà lu », club de lecture
 - [x] Soirées & Concerts : catégorie dédiée, collecte nocturne par ville, villes des utilisateurs collectées à la demande

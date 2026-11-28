@@ -208,6 +208,11 @@ def plans_detail(oeuvre_id: str, uid: Optional[str]) -> List[dict]:
         return _plans(con, "p.oeuvre_id = ?", (oeuvre_id,), uid, avec_messages=True)
 
 
+def plans_a_venir(limite: int, uid: Optional[str]) -> List[dict]:
+    with connexion() as con:
+        return _plans(con, "p.debut >= ? AND 1 = 1", (maintenant_iso(),), uid, avec_messages=False)[:limite]
+
+
 def mes_plans(uid: str) -> List[dict]:
     with connexion() as con:
         return _plans(con, "p.id IN (SELECT plan_id FROM participants WHERE utilisateur_id = ?)",

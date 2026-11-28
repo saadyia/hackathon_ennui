@@ -17,7 +17,8 @@
    prénom, ville (toute la France, API Adresse) + rayon, énergie (cocon → Chez soi, sortir → Sorties, les deux → Pour vous),
    horizon, curiosité (curseur 0.1 / 0.3 / 0.7), envies, genres, ambiances, plateformes.
    Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
-2. **Pour vous** (sélection mixte), **Chez soi** (Tout / Films / Séries / Livres / Jeux, filtre Solo / Co-op & Multi), **Sorties** (ville, rayon, horizon, type,
+2. **Pour vous** (rangées : Pépites du moment, Sorties proches, Watch-parties & sessions), **Chez soi** (Tout / Films & Séries /
+   Lecture [thèmes] / Jeux vidéo [machine, mode]), **Sorties** (Sorties culturelles, Soirées & Concerts, Balades & Nature ; ville, rayon, horizon,
    budget, « Proposer une sortie »), **Profil**.
    Horizons : Maintenant (3 h), Aujourd'hui, Ce week-end, Dans la semaine, Dans le mois.
    Envies : 12 catégories de sorties + « Séries & binge-watch » et « Livres » (chez soi).
@@ -39,7 +40,7 @@
 |-------------|-------------|
 | Backend     | Python 3.9+, FastAPI, NumPy, SciPy, Pandas |
 | Données     | Pré-calculées en local : `P.npz` (creux), `pi_star.npy`, `noeuds.json` |
-| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main, police et icônes Lucide en local |
+| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main ; librairies locales `frontend/vendor/` : Lucide, noUiSlider, Swiper, GSAP ; polices Plus Jakarta Sans, Inter, JetBrains Mono |
 | Sources     | MovieLens (films), TVmaze (séries), GoodReads CSV + OpenLibrary (livres), OpenAgenda (sorties France), API Adresse (communes), Wikidata + Wikipédia (affiches de films), TMDB (affiches + plateformes FR.flatrate) |
 
 ### Commandes (depuis la racine)
@@ -75,7 +76,11 @@ uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 :
   (pas de résumé plutôt qu'un résumé anglais). Un genre sans traduction est ignoré, jamais affiché en anglais.
 - **Dates :** jamais d'événement passé. La prochaine occurrence est recalculée à chaque requête (fuseau Europe/Paris).
 - **Plateformes :** uniquement TMDB `results.FR.flatrate`. **Aucune simulation.** Une donnée non vérifiée s'affiche « Disponibilité non vérifiée ».
-- **Design :** zéro émoji ; icônes Lucide (`stroke-width 1.5`) ; pas de CDN ; couleurs définies uniquement par les variables de `app.css`.
+- **Design :** zéro émoji ; icônes Lucide (`stroke-width 1.5`) ; pas de CDN (tout dans `frontend/vendor/`) ; couleurs définies
+  uniquement par les variables de `app.css`. Détails dans `frontend/CLAUDE.md`.
+- **Catégories :** deux univers et six envies seulement. Chez soi : Films & Séries, Lecture, Jeux vidéo. Sorties : Sorties culturelles
+  (cinéma, expos, spectacles, rencontres littéraires), Soirées & Concerts, Balades & Nature. Les autres catégories OpenAgenda
+  (ateliers, cuisine, sport, café, créatif) ne sont jamais recommandées.
 - **Honnêteté des données :** ne jamais inventer de prix, d'horaires, de dates, de plateformes ni de participants. Plus aucune donnée simulée.
 - **Langue :** code, commentaires et interface en français.
 - **Python 3.9 :** pas de syntaxe `X | None` ; utiliser `typing.Optional` / `List`.

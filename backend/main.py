@@ -72,23 +72,30 @@ async def cycle_de_vie(_app):
 
 app = FastAPI(title="hackathon_ennui", lifespan=cycle_de_vie)
 app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
+app.mount("/vendor", StaticFiles(directory=FRONTEND / "vendor"), name="vendor")  # librairies UI locales
 
-CATEGORIES = {
+# Deux univers, six envies. Les catégories fines d'OpenAgenda (fetch_france.py) sont regroupées ;
+# celles qui sont hors sujet (ateliers, cuisine, sport, café, créatif…) ne sont plus proposées.
+UNIVERS_CHEZ_SOI = {"ecrans": "Films & Séries", "lecture": "Lecture", "jeux": "Jeux vidéo"}
+CATEGORIES = {  # univers Sorties : groupe -> libellé
+    "culture": "Sorties culturelles",
     "soirees": "Soirées & Concerts",
-    "cinema": "Cinéma",
-    "expo": "Expositions & Musées",
-    "scene": "Spectacles & Scène",
-    "nature": "Nature & Balades",
-    "rencontres": "Rencontres & Ateliers",
-    "series": "Séries & binge-watch",
-    "jeux": "Jeux vidéo (solo ou coop)",
-    "cuisine": "Cuisine & pâtisserie",
-    "creatif": "Créatif",
-    "lecture": "Lecture",
-    "cafe": "Café & salon de thé",
-    "sport": "Sport chill",
+    "nature": "Balades & Nature",
 }
-CATEGORIES_ECRANS = {"series"}  # envies d'écran : ne filtrent pas les sorties (aucun événement associé)
+GROUPES_SORTIES = {  # groupe -> catégories fines OpenAgenda
+    "culture": ["culture", "cinema", "expo", "scene", "lecture"],
+    "soirees": ["soirees"],
+    "nature": ["nature"],
+}
+SORTIES_AUTORISEES = [c for fines in GROUPES_SORTIES.values() for c in fines]
+LIBELLES_FINS = {  # étiquette affichée sur les cartes de sorties
+    "culture": "Sortie culturelle", "cinema": "Cinéma", "expo": "Expositions & Musées",
+    "scene": "Spectacles & Scène", "lecture": "Rencontre littéraire",
+    "soirees": "Soirées & Concerts", "nature": "Balades & Nature",
+}
+THEMES_LIVRES = {"roman": "Roman & Fiction", "polar": "Thriller & Polar", "sff": "Science-Fiction & Fantasy",
+                 "essais": "Développement & Essais", "bd": "BD & Manga", "bio": "Biographie & Histoire"}
+MODES_JEU = {"tous": "Tous les modes", "solo": "Solo", "coop": "Co-op", "multi": "Multijoueur"}
 GENRES = {  # libellé affiché -> genre MovieLens
     "Science-Fiction": "Sci-Fi", "Thriller": "Thriller", "Drame": "Drama", "Comédie": "Comedy",
     "Animation": "Animation", "Documentaire": "Documentary", "Horreur": "Horror", "Action": "Action",
@@ -158,7 +165,8 @@ class DemandeRecommandation(BaseModel):
     budget: Literal["tous", "gratuit", "moins10", "moins25"] = "tous"
     categories: List[str] = Field(default_factory=list)
     consoles: List[str] = Field(default_factory=list, description="jeux : pc, mac, playstation, xbox, switch, mobile")
-    mode_jeu: Literal["tous", "solo", "multi"] = "tous"
+    mode_jeu: Literal["tous", "solo", "coop", "multi"] = "tous"
+    themes: List[str] = Field(default_factory=list, description="livres : roman, polar, sff, essais, bd, bio")
     k: int = Field(10, ge=1, le=40)
 
 
@@ -198,7 +206,7 @@ CHAMPS_INTERNES = {"index", "occurrences"}
 def exposer(noeud: dict) -> dict:
     public = {k: v for k, v in noeud.items() if k not in CHAMPS_INTERNES}
     if noeud.get("categorie"):
-        public["categorie_libelle"] = CATEGORIES.get(noeud["categorie"])
+        public["categorie_libelle"] = LIBELLES_FINS.get(noeud["categorie"])
     return public
 
 
@@ -236,13 +244,14 @@ def sante():
 @app.get("/api/config")
 def config():
     return {
-        "categories": [{"id": k, "nom": v, "sorties": k not in CATEGORIES_ECRANS} for k, v in CATEGORIES.items()],
+        "categories": [{"id": k, "nom": v, "sorties": True} for k, v in CATEGORIES.items()],
         # « jeux » est à la fois une catégorie de sorties (événements gaming) et l'envie qui ajoute
         # les jeux vidéo « Chez soi » dans Pour vous : une seule envie, les deux sens
-        "envies": [{"id": k, "nom": v} for k, v in CATEGORIES.items()] + [{"id": "livres", "nom": "Livres"}],
+        "envies": [{"id": k, "nom": v, "univers": "chez-soi"} for k, v in UNIVERS_CHEZ_SOI.items()]
+                  + [{"id": k, "nom": v, "univers": "sorties"} for k, v in CATEGORIES.items()],
+        "themes": [{"id": k, "nom": v} for k, v in THEMES_LIVRES.items()],
         "consoles": [{"id": k, "nom": v} for k, v in CONSOLES.items()],
-        "modes_jeu": [{"id": "tous", "nom": "Tous les modes"}, {"id": "solo", "nom": "Solo"},
-                      {"id": "multi", "nom": "Co-op & Multi"}],
+        "modes_jeu": [{"id": k, "nom": v} for k, v in MODES_JEU.items()],
         "genres": [{"id": v, "nom": k} for k, v in GENRES.items()],
         "ambiances": [{"id": k, "nom": v} for k, v in AMBIANCES.items()],
         "plateformes": [{"id": i, "nom": PLATEFORMES[i]} for i in PLATEFORMES_PROPOSEES],
@@ -322,7 +331,9 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
     m = Catalogue.moteur  # référence figée pour toute la requête (synchronisation à chaud)
     centre = (d.lat, d.lon) if d.lat is not None and d.lon is not None else None
     cache: dict = {}  # marches partagées entre films et séries
-    categories = [c for c in d.categories if c not in CATEGORIES_ECRANS]
+    # envies de sorties -> catégories fines ; aucune -> toutes les catégories autorisées (jamais les hors-sujet)
+    groupes = [c for c in d.categories if c in GROUPES_SORTIES]
+    categories = [f for g in groupes for f in GROUPES_SORTIES[g]] or SORTIES_AUTORISEES
     genres_ecrans = [g for g in d.genres if g not in AMBIANCES]  # les ambiances ne concernent que les sorties
 
     def classer(type_, k):
@@ -330,7 +341,8 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
                                 d.consoles, d.mode_jeu)
         genres = d.genres if type_ == "sortie" else genres_ecrans
         return m.recommander(d.deja_vus, genres, d.decouverte, k, autorises,
-                             lift_confort=type_ in ("serie", "livre", "jeu", "sortie"), cache=cache)
+                             lift_confort=type_ in ("serie", "livre", "jeu", "sortie"), cache=cache,
+                             themes=d.themes if type_ == "livre" else ())
 
     if d.type == "tout":
         types = list(dict.fromkeys(d.ecrans)) or ["film"]
@@ -420,6 +432,19 @@ def message(plan_id: int, msg: Message, x_utilisateur: Optional[str] = Header(No
     return {"ok": True}
 
 
+@app.get("/api/plans/a-venir")
+def plans_a_venir(limite: int = Query(12, ge=1, le=40), x_utilisateur: Optional[str] = Header(None)):
+    """Watch-parties, sessions et sorties à plusieurs à venir (toutes œuvres), avec le visuel de l'œuvre."""
+    m = Catalogue.moteur
+    out = []
+    for p in database.plans_a_venir(limite, x_utilisateur):
+        i = m.index_par_id.get(p["oeuvre_id"])
+        noeud = m.noeuds[i] if i is not None else {}
+        out.append({**p, "affiche": noeud.get("affiche"), "categorie": noeud.get("categorie"),
+                    "ville": noeud.get("ville")})
+    return out
+
+
 @app.get("/api/mes-plans")
 def mes_plans(x_utilisateur: Optional[str] = Header(None)):
     return database.mes_plans(utilisateur_requis(x_utilisateur)["id"])
@@ -433,7 +458,7 @@ def mes_plans(x_utilisateur: Optional[str] = Header(None)):
 async def publier_sortie(s: DemandeSortie, x_utilisateur: Optional[str] = Header(None)):
     """Publie une soirée / sortie étudiante : enregistrée en SQLite et ajoutée au graphe (~1 s)."""
     u = utilisateur_requis(x_utilisateur)
-    if s.categorie not in CATEGORIES:
+    if s.categorie not in GROUPES_SORTIES:
         raise HTTPException(status_code=422, detail="Catégorie inconnue")
     debut = lire_date(s.debut)
     maintenant = datetime.now(timezone.utc)

@@ -147,6 +147,7 @@ AMBIANCES_CATEGORIE = {"nature": ["calme"], "lecture": ["calme"], "cafe": ["calm
                        "expo": ["artistique"], "creatif": ["artistique"]}
 
 GENRES_CATEGORIE = {
+    "culture": ["Documentary", "Drama"],   # sorties publiées par les utilisateurs (catégorie regroupée)
     "soirees": ["Musical", "Comedy"],
     "cinema": ["Drama"],
     "expo": ["Documentary", "Drama"],

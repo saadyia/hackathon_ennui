@@ -1,0 +1,2 @@
+GSAP 3.12.5 — GreenSock Standard "No Charge" License : https://gsap.com/standard-license
+Usage gratuit, y compris commercial. Copie locale de gsap.min.js (en-tête de licence conservé).

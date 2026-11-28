@@ -66,6 +66,41 @@ GENRES = {
 }
 
 
+# Thèmes littéraires (filtre de l'onglet Lecture), déduits des genres GoodReads d'origine,
+# plus fins que les genres du graphe (« Biography » et « Self Help » donnent tous deux Documentaire).
+THEMES = {
+    "roman": "Roman & Fiction",
+    "polar": "Thriller & Polar",
+    "sff": "Science-Fiction & Fantasy",
+    "essais": "Développement & Essais",
+    "bd": "BD & Manga",
+    "bio": "Biographie & Histoire",
+}
+REGLES_THEMES = [
+    (r"^(graphic novels|comics|manga|graphic novels comics|comic book)$", "bd"),
+    (r"^(thriller|mystery|crime|suspense|detective|horror|mystery thriller|true crime|psychological thriller)$", "polar"),
+    (r"^(science fiction|fantasy|dystopia|paranormal|magic|urban fantasy|high fantasy|epic fantasy|"
+     r"science fiction fantasy|space|cyberpunk|time travel|mythology)$", "sff"),
+    (r"^(biography|memoir|history|autobiography|biography memoir|world war ii|military history)$", "bio"),
+    (r"^(nonfiction|self help|psychology|philosophy|business|economics|science|politics|essays|"
+     r"personal development|productivity|spirituality|health|sociology|education|leadership)$", "essais"),
+    (r"^(fiction|literary fiction|classics|contemporary|romance|novels|historical fiction|young adult|"
+     r"literature|chick lit|womens fiction|contemporary romance|adult fiction|humor)$", "roman"),
+]
+
+
+def themes(texte) -> list:
+    out = []
+    for g in str(texte or "").split(","):
+        g = g.strip().lower()
+        for motif, theme in REGLES_THEMES:
+            if re.search(motif, g) and theme not in out:
+                out.append(theme)
+                break
+    precis = [t for t in out if t != "roman"]  # « fiction » est partout : roman seulement à défaut
+    return precis[:2] or ["roman"]
+
+
 def nettoyer(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["num_ratings"] = pd.to_numeric(df["num_ratings"].astype(str).str.replace(",", ""), errors="coerce")
@@ -159,6 +194,8 @@ def main():
     parser = argparse.ArgumentParser(description="Import et francisation des livres GoodReads")
     parser.add_argument("--csv", type=Path, required=True)
     parser.add_argument("--google-books", action="store_true", help="essayer aussi Google Books (résumés FR)")
+    parser.add_argument("--themes-seulement", action="store_true",
+                        help="recalcule seulement les thèmes des livres déjà importés (sans réseau)")
     args = parser.parse_args()
 
     df = pd.read_csv(args.csv, on_bad_lines="skip", low_memory=False,
@@ -171,6 +208,16 @@ def main():
     cache = {}
     if SORTIE.exists():
         cache = {l["id"]: l for l in json.loads(SORTIE.read_text(encoding="utf-8"))["livres"]}
+
+    if args.themes_seulement:
+        donnees = json.loads(SORTIE.read_text(encoding="utf-8"))
+        par_id = {f"gr-{identifiant(r.url)}": r.genres for r in df.itertuples()}
+        for l in donnees["livres"]:
+            l["themes"] = themes(par_id.get(l["id"]))
+        SORTIE.write_text(json.dumps(donnees, ensure_ascii=False), encoding="utf-8")
+        from collections import Counter
+        print("Thèmes :", Counter(t for l in donnees["livres"] for t in l["themes"]))
+        return
 
     livres = []
     for r in df.itertuples():
@@ -185,6 +232,7 @@ def main():
             "note": float(r.rating),
             "nb_notes": int(r.num_ratings),
             "genres": traduire_genres(r.genres),
+            "themes": themes(r.genres),
             "couverture": r.image_url,
             "resume": None,
             "francais": False,

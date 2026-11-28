@@ -1,16 +1,25 @@
 """
-Persistance SQLite (bibliothèque standard) : utilisateurs, amis, plans collaboratifs, participants, messages.
+Persistance : utilisateurs, amis, humeurs, « Mes envies » (dans prefs), plans collaboratifs, participants, messages,
+sorties publiées.
+
+Deux moteurs, mêmes requêtes :
+  - PostgreSQL si la variable d'environnement DATABASE_URL est définie (ex. Neon sur Render) : données conservées
+    entre les redéploiements. Driver psycopg 3 + pool de connexions (évite une poignée de main TLS par requête).
+  - SQLite sinon (développement local) : backend/data/ennui.sqlite3.
+Les requêtes sont écrites avec des « ? » (traduits en %s pour PostgreSQL) et une syntaxe commune aux deux
+(ON CONFLICT … DO NOTHING / DO UPDATE, lower(code), RETURNING id).
 
 Connexion express : un utilisateur = un prénom + une ville + ses préférences, identifié par un
 jeton aléatoire stocké dans le navigateur. Pas de mot de passe : c'est un outil de démo pour
 organiser des sorties entre étudiants, pas un système d'authentification.
 
-Fichier : backend/data/ennui.sqlite3 (ignoré par git : données des utilisateurs).
-Une connexion par opération (thread-safe avec FastAPI), mode WAL pour les lectures concurrentes.
+SQLite : fichier ignoré par git ; une connexion par opération (thread-safe avec FastAPI), mode WAL.
 """
 
 import json
+import os
 import random
+import re
 import secrets
 import sqlite3
 import unicodedata
@@ -20,6 +29,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 CHEMIN = Path(__file__).resolve().parent / "data" / "ennui.sqlite3"
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+POSTGRES = DATABASE_URL.startswith(("postgres://", "postgresql://"))
 GRACE_PASSE = timedelta(hours=6)  # un plan reste visible 6 h après son début
 DUREE_DISPO = timedelta(hours=12)  # un statut « Dispo » expire au bout de 12 h (c'est un statut du moment)
 STATUTS_DISPO = ("indispo", "sortir", "distance")
@@ -33,7 +44,7 @@ CREATE TABLE IF NOT EXISTS utilisateurs (
     cree_le     TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS plans (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id            {CLE_AUTO},
     oeuvre_id     TEXT NOT NULL,     -- "film:…", "serie:…", "sortie:…"
     oeuvre_titre  TEXT NOT NULL,     -- copie : le plan reste lisible si l'événement sort du catalogue
     oeuvre_type   TEXT NOT NULL,
@@ -51,7 +62,7 @@ CREATE TABLE IF NOT EXISTS participants (
     PRIMARY KEY (plan_id, utilisateur_id)
 );
 CREATE TABLE IF NOT EXISTS messages (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              {CLE_AUTO},
     plan_id         INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
     utilisateur_id  TEXT NOT NULL REFERENCES utilisateurs(id),
     texte           TEXT NOT NULL,
@@ -66,17 +77,17 @@ CREATE TABLE IF NOT EXISTS amities (
     PRIMARY KEY (utilisateur_id, ami_id)
 );
 CREATE TABLE IF NOT EXISTS sorties_communaute (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           {CLE_AUTO},
     auteur_id    TEXT NOT NULL REFERENCES utilisateurs(id),
     titre        TEXT NOT NULL,
     categorie    TEXT NOT NULL,
     lieu         TEXT NOT NULL,
     ville        TEXT NOT NULL,
-    lat          REAL NOT NULL,
-    lon          REAL NOT NULL,
+    lat          {REEL} NOT NULL,
+    lon          {REEL} NOT NULL,
     debut        TEXT NOT NULL,     -- ISO 8601 avec fuseau
     fin          TEXT NOT NULL,
-    prix         REAL,              -- euros ; 0 = gratuit ; NULL = non précisé
+    prix         {REEL},              -- euros ; 0 = gratuit ; NULL = non précisé
     description  TEXT,
     cree_le      TEXT NOT NULL
 );
@@ -87,13 +98,58 @@ def maintenant_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def schema() -> List[str]:
+    """Instructions CREATE, dans l'ordre des dépendances, pour le moteur courant."""
+    sql = SCHEMA.replace("{CLE_AUTO}", "SERIAL PRIMARY KEY" if POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT")
+    sql = sql.replace("{REEL}", "DOUBLE PRECISION" if POSTGRES else "REAL")
+    sql = re.sub(r"--[^\n]*", "", sql)  # commentaires retirés avant le découpage (ils contiennent des « ; »)
+    return [i.strip() for i in sql.split(";") if i.strip()]
+
+
+class Connexion:
+    """Interface commune SQLite / PostgreSQL : execute(sql avec « ? », params) -> curseur (lignes accessibles par nom)."""
+
+    def __init__(self, brute):
+        self.brute = brute
+
+    def execute(self, sql: str, params: Iterable = ()):
+        if POSTGRES:
+            sql = sql.replace("%", "%%").replace("?", "%s")
+        return self.brute.execute(sql, tuple(params))
+
+    def inserer(self, sql: str, params: Iterable = ()) -> int:
+        """INSERT dans une table à clé automatique ; renvoie l'id créé (RETURNING id, SQLite ≥ 3.35 et PostgreSQL)."""
+        return self.execute(sql + " RETURNING id", params).fetchone()["id"]
+
+
+_pool = None
+
+
+def _pool_postgres():
+    global _pool
+    if _pool is None:
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
+        # Neon s'endort après quelques minutes : check_connection écarte les connexions coupées avant usage.
+        _pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=int(os.environ.get("ENNUI_PG_POOL", "5")),
+                               # prepare_threshold=None : pas de requêtes préparées (compatible avec l'URL « pooler » de Neon / PgBouncer)
+                               kwargs={"row_factory": dict_row, "autocommit": False, "prepare_threshold": None},
+                               check=ConnectionPool.check_connection, open=True, timeout=15)
+    return _pool
+
+
 @contextmanager
 def connexion(chemin: Path = None):
+    """Transaction : validée à la sortie du bloc, annulée en cas d'exception."""
+    if POSTGRES:
+        with _pool_postgres().connection() as con:  # commit si OK, rollback sinon (géré par psycopg)
+            yield Connexion(con)
+        return
     con = sqlite3.connect(chemin or CHEMIN, timeout=10)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     try:
-        yield con
+        yield Connexion(con)
         con.commit()
     finally:
         con.close()
@@ -124,17 +180,30 @@ DEMO_RETIRES = ("demo-yasmine",)  # anciens profils de démo (la liste en compte
 
 
 def initialiser(chemin: Path = None):
-    (chemin or CHEMIN).parent.mkdir(parents=True, exist_ok=True)
+    """Crée les tables, migre les colonnes, attribue les codes manquants, insère les profils de démo.
+    Idempotent : peut tourner à chaque démarrage (aucun doublon)."""
+    if not POSTGRES:
+        (chemin or CHEMIN).parent.mkdir(parents=True, exist_ok=True)
     with connexion(chemin) as con:
-        con.execute("PRAGMA journal_mode = WAL")
-        con.executescript(SCHEMA)
-        existantes = {r["name"] for r in con.execute("PRAGMA table_info(utilisateurs)")}
-        for nom, definition in COLONNES_UTILISATEURS.items():
-            if nom not in existantes:
-                con.execute(f"ALTER TABLE utilisateurs ADD COLUMN {nom} {definition}")
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs(code COLLATE NOCASE)")
-        for (uid, prenom) in con.execute("SELECT id, prenom FROM utilisateurs WHERE code IS NULL").fetchall():
-            con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, prenom), uid))
+        if POSTGRES:
+            # un seul démarrage à la fois initialise (plusieurs instances / redémarrage rapide)
+            con.execute("SELECT pg_advisory_xact_lock(4242001)")
+        else:
+            con.execute("PRAGMA journal_mode = WAL")
+        for instruction in schema():
+            con.execute(instruction)
+        if POSTGRES:
+            for nom, definition in COLONNES_UTILISATEURS.items():
+                con.execute(f"ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS {nom} {definition}")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs (lower(code))")
+        else:
+            existantes = {r["name"] for r in con.execute("PRAGMA table_info(utilisateurs)")}
+            for nom, definition in COLONNES_UTILISATEURS.items():
+                if nom not in existantes:
+                    con.execute(f"ALTER TABLE utilisateurs ADD COLUMN {nom} {definition}")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs(code COLLATE NOCASE)")
+        for r in con.execute("SELECT id, prenom FROM utilisateurs WHERE code IS NULL").fetchall():
+            con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, r["prenom"]), r["id"]))
         for uid, prenom, code, ville, lat, lon, dispo, avatar in PROFILS_DEMO:
             con.execute("""INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, dispo, dispo_le, demo, avatar)
                            VALUES (?, ?, ?, '{}', ?, ?, ?, NULL, 1, ?)
@@ -150,7 +219,7 @@ def _nouveau_code(con, prenom: str) -> str:
     base = "".join(prenom.split())[:20] or "Étudiant"
     for _ in range(200):
         code = f"{base}#{random.randint(100, 999)}"
-        if not con.execute("SELECT 1 FROM utilisateurs WHERE code = ? COLLATE NOCASE", (code,)).fetchone():
+        if not con.execute("SELECT 1 FROM utilisateurs WHERE lower(code) = lower(?)", (code,)).fetchone():
             return code
     return f"{base}#{secrets.randbelow(900000) + 100000}"
 
@@ -266,18 +335,18 @@ def rechercher_profils(uid: str, q: str, limite: int = 10) -> List[dict]:
 
 def ajouter_ami(uid: str, code: str) -> Optional[dict]:
     with connexion() as con:
-        row = con.execute("SELECT * FROM utilisateurs WHERE code = ? COLLATE NOCASE", (code.strip(),)).fetchone()
+        row = con.execute("SELECT * FROM utilisateurs WHERE lower(code) = lower(?)", (code.strip(),)).fetchone()
         if not row or row["id"] == uid:
             return None
         quand = maintenant_iso()
-        con.execute("INSERT OR IGNORE INTO amities VALUES (?, ?, ?)", (uid, row["id"], quand))
-        con.execute("INSERT OR IGNORE INTO amities VALUES (?, ?, ?)", (row["id"], uid, quand))
+        con.execute("INSERT INTO amities VALUES (?, ?, ?) ON CONFLICT DO NOTHING", (uid, row["id"], quand))
+        con.execute("INSERT INTO amities VALUES (?, ?, ?) ON CONFLICT DO NOTHING", (row["id"], uid, quand))
     return _public(row, ami=True)
 
 
 def retirer_ami(uid: str, code: str) -> bool:
     with connexion() as con:
-        row = con.execute("SELECT id FROM utilisateurs WHERE code = ? COLLATE NOCASE", (code.strip(),)).fetchone()
+        row = con.execute("SELECT id FROM utilisateurs WHERE lower(code) = lower(?)", (code.strip(),)).fetchone()
         if not row:
             return False
         con.execute("DELETE FROM amities WHERE (utilisateur_id = ? AND ami_id = ?) OR (utilisateur_id = ? AND ami_id = ?)",
@@ -295,11 +364,10 @@ def _limite_passe() -> str:
 
 def creer_plan(auteur_id: str, oeuvre: dict, debut: str, rendez_vous: str, message: str) -> int:
     with connexion() as con:
-        cur = con.execute(
+        plan_id = con.inserer(
             "INSERT INTO plans (oeuvre_id, oeuvre_titre, oeuvre_type, auteur_id, debut, rendez_vous, message, cree_le)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (oeuvre["id"], oeuvre["titre"], oeuvre["type"], auteur_id, debut, rendez_vous, message, maintenant_iso()))
-        plan_id = cur.lastrowid
         con.execute("INSERT INTO participants VALUES (?, ?, ?)", (plan_id, auteur_id, maintenant_iso()))
     return plan_id
 
@@ -309,7 +377,7 @@ def rejoindre(plan_id: int, uid: str, actif: bool = True) -> bool:
         if not con.execute("SELECT 1 FROM plans WHERE id = ?", (plan_id,)).fetchone():
             return False
         if actif:
-            con.execute("INSERT OR IGNORE INTO participants VALUES (?, ?, ?)", (plan_id, uid, maintenant_iso()))
+            con.execute("INSERT INTO participants VALUES (?, ?, ?) ON CONFLICT DO NOTHING", (plan_id, uid, maintenant_iso()))
         else:
             con.execute("DELETE FROM participants WHERE plan_id = ? AND utilisateur_id = ?", (plan_id, uid))
             # un plan sans plus aucun participant disparaît
@@ -334,7 +402,7 @@ def _plans(con, where: str, params: Iterable, uid: Optional[str], avec_messages:
     plans = []
     for r in rows:
         parts = con.execute("""SELECT u.id, u.prenom FROM participants pa JOIN utilisateurs u ON u.id = pa.utilisateur_id
-                               WHERE pa.plan_id = ? ORDER BY pa.rowid""", (r["id"],)).fetchall()
+                               WHERE pa.plan_id = ? ORDER BY pa.rejoint_le, pa.utilisateur_id""", (r["id"],)).fetchall()
         plan = {
             "id": r["id"], "oeuvre_id": r["oeuvre_id"], "oeuvre_titre": r["oeuvre_titre"],
             "oeuvre_type": r["oeuvre_type"], "debut": r["debut"], "rendez_vous": r["rendez_vous"],
@@ -402,12 +470,11 @@ def ecrire_meta(cle: str, valeur: str):
 def creer_sortie(auteur_id: str, titre: str, categorie: str, lieu: str, ville: dict,
                  debut: str, fin: str, prix: Optional[float], description: str) -> int:
     with connexion() as con:
-        cur = con.execute(
+        return con.inserer(
             "INSERT INTO sorties_communaute (auteur_id, titre, categorie, lieu, ville, lat, lon, debut, fin, prix,"
             " description, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (auteur_id, titre, categorie, lieu, ville["nom"], ville["lat"], ville["lon"], debut, fin, prix,
              description, maintenant_iso()))
-        return cur.lastrowid
 
 
 def sorties_communaute() -> List[dict]:

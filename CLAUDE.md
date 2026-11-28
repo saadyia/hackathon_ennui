@@ -75,7 +75,8 @@ docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render /
   → `moteur.py` (calcul pur) → `main.py` (HTTP uniquement) → frontend.
 - **Réseau à l'exécution :** `/api/communes` (API Adresse, timeout 3 s, repli local) et la synchro de l'agenda en tâche de fond
   (thread, jamais sur le chemin d'une requête). Les fichiers `backend/data/*.json` sont versionnés (repli). Le fichier `tmdb.json` aussi, une fois créé.
-- **Persistance :** SQLite `backend/data/ennui.sqlite3` (non versionné). Identifiant de compte = jeton aléatoire dans l'en-tête `X-Utilisateur`.
+- **Persistance :** PostgreSQL si `DATABASE_URL` est défini (Neon en production, psycopg 3 + pool), sinon SQLite
+  `backend/data/ennui.sqlite3` (local, non versionné). Mêmes requêtes (`?` traduits en `%s`, syntaxe commune). Identifiant de compte = jeton aléatoire dans l'en-tête `X-Utilisateur`.
   Ce n'est pas une authentification (pas de mot de passe) : c'est un outil de démo.
 - **Budget de latence :** < 20 ms de calcul par requête (~17 ms avec 14 646 nœuds). Aucune I/O par requête.
   Leviers si on ajoute des contenus : `K_FILMS_EXTERNE` (10), `K_COMPTAGE` / `K_COSINUS` (20) dans `build_graph.py`,

@@ -16,7 +16,7 @@ flowchart LR
   D --> M[moteur.py] --> A[main.py FastAPI] --> F[frontend]
   AD[(API Adresse)] -. autocomplétion ville .-> A
   SC[scheduler.py : toutes les 6 h] -->|fetch_france.collecter + reconstruire_externes| D
-  A <--> DB[(SQLite : comptes, plans, messages)]
+  A <--> DB[(PostgreSQL Neon ou SQLite : comptes, amis, plans, messages)]
 ```
 
 ## Composants
@@ -30,7 +30,7 @@ flowchart LR
 | `backend/build_graph.py` | P (films + séries + sorties), π\*, `noeuds.json`. `plateformes_verifiees` vaut `true` seulement pour les titres présents dans `tmdb.json`. |
 | `backend/moteur.py` | Vecteur de départ, marches, affinité, quota, masques (plateformes vérifiées, Haversine, fenêtres temporelles). |
 | `backend/main.py` | Routes, proxy API Adresse, couverture, comptes, plans, agenda, service du frontend. Le moteur courant est dans `Catalogue.moteur` (remplacé d'un bloc après une synchro). |
-| `backend/database.py` | SQLite (stdlib) : `utilisateurs` (+ `code`, `dispo`, `dispo_le`, `demo`, ajoutées par migration douce), `amities` (symétrique), `plans`, `participants`, `messages`, `meta`. Une connexion par opération, WAL. Profils de démo insérés à l'initialisation. |
+| `backend/database.py` | PostgreSQL (`DATABASE_URL`, psycopg 3 + pool) ou SQLite (stdlib), mêmes requêtes : `utilisateurs` (+ `code`, `dispo`, `dispo_le`, `demo`, ajoutées par migration douce), `amities` (symétrique), `plans`, `participants`, `messages`, `meta`. Une connexion par opération, WAL. Profils de démo insérés à l'initialisation. |
 | `backend/scheduler.py` | `Synchroniseur` : boucle asyncio (6 h) + déclenchement manuel. Collecte OpenAgenda dans un thread, retire le passé, reconstruit le graphe, recharge le moteur. |
 
 ## Sorties (`france.json`)

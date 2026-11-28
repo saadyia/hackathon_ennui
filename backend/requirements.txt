@@ -4,3 +4,4 @@ uvicorn[standard]>=0.29,<1
 numpy>=1.26,<3
 scipy>=1.11,<2
 tzdata>=2024.1          # fuseau Europe/Paris dans les images Linux minimales
+psycopg[binary,pool]>=3.1,<4   # PostgreSQL (Neon) si DATABASE_URL est défini ; libpq incluse, rien à installer dans l'image

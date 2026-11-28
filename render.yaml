@@ -12,8 +12,10 @@ services:
         value: "1"
       - key: ENNUI_ORIGINES      # CORS : origines autorisées, séparées par des virgules (« * » = toutes)
         value: "*"
+      - key: DATABASE_URL        # PostgreSQL Neon (postgresql://…?sslmode=require) : comptes, amis, plans conservés
+        sync: false              # à coller dans le tableau de bord Render, jamais dans le dépôt
       # - key: TMDB_API_KEY      # facultatif, à saisir dans le tableau de bord Render (jamais dans le dépôt)
       #   sync: false
     # Plan gratuit : le service s'endort après 15 min sans visite (réveil ~30 à 60 s) ; ouvrir le lien avant la démo.
-    # Le disque est éphémère : comptes, amis et plans (SQLite) repartent de zéro à chaque redéploiement.
-    # Pour les garder : disque persistant monté sur /app/backend/data (plan payant).
+    # Sans DATABASE_URL, SQLite sur disque éphémère : comptes, amis et plans repartent de zéro à chaque redéploiement.
+    # Avec DATABASE_URL (Neon, gratuit) : tout est conservé.

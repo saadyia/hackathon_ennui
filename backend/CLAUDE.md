@@ -46,6 +46,9 @@ backend/
 ```
 
 ## Conventions
+- **SQL portable SQLite / PostgreSQL** (`database.Connexion`) : placeholders `?` (traduits), `ON CONFLICT … DO NOTHING / DO UPDATE`,
+  `lower(code) = lower(?)`, `con.inserer(...)` (RETURNING id) ; jamais `rowid`, `INSERT OR IGNORE`, `COLLATE NOCASE`, `lastrowid`
+  ni `PRAGMA` hors de la branche SQLite de `initialiser()`. Tester les deux moteurs après une modification du schéma.
 - **pandas n'est jamais importé par le serveur** : seulement dans les fonctions du build complet (`build_graph.charger`, …).
   `requirements.txt` = exécution (image Docker légère) ; `requirements-build.txt` = scripts hors ligne.
 - Réglages du moteur : constantes en tête de `moteur.py` (`CONFORT`, `DECOUVERTE`, `FILMS_PAR_GENRE`, `PART_DEJA_VUS`, `EPS_AFFINITE`).

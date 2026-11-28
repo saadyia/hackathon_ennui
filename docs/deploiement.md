@@ -10,8 +10,18 @@ dépendances d'exécution sans pandas (`backend/requirements.txt`).
 2. Render > **New > Blueprint** > choisir le dépôt : `render.yaml` crée le service Docker.
 3. Attendre « Live », puis ouvrir `https://<nom>.onrender.com`. Vérification : `/api/sante`.
 - Plan gratuit : mise en veille après 15 min sans visite (réveil 30 à 60 s) ; ouvrir le lien juste avant la démo.
-- SQLite est sur un disque éphémère : comptes, amis et plans sont perdus à chaque redéploiement
-  (les 4 profils de démo sont recréés au démarrage). Disque persistant sur `/app/backend/data` si besoin.
+- Sans `DATABASE_URL`, SQLite est sur un disque éphémère : comptes, amis et plans sont perdus à chaque
+  redéploiement. Avec une base Neon (ci-dessous), tout est conservé.
+
+### Base PostgreSQL gratuite (Neon) : comptes, amis, humeurs, « Mes envies », plans et sorties conservés
+1. Neon > New project > copier la *connection string* (`postgresql://…@….neon.tech/neondb?sslmode=require`).
+   L'adresse « pooled » (`-pooler` dans l'hôte) convient aussi : les requêtes préparées sont désactivées.
+2. Render > le service > Environment > ajouter `DATABASE_URL` = cette adresse (jamais dans le dépôt), puis redéployer.
+3. Au démarrage, `database.initialiser()` crée les tables, ajoute les colonnes manquantes et insère les 4 profils
+   de démo (idempotent : aucun doublon, verrou consultatif PostgreSQL si deux instances démarrent ensemble).
+- Sans `DATABASE_URL`, l'application reste sur SQLite (`backend/data/ennui.sqlite3`), comme en local.
+- Neon s'endort après quelques minutes d'inactivité : la première requête suivante prend ~1 s de plus (pool vérifié avant usage).
+- Les comptes locaux (SQLite du Mac) ne sont pas copiés vers Neon : la base en ligne part des 4 profils de démo.
 
 ## Option 2 : Railway
 New Project > Deploy from GitHub : le `Dockerfile` est détecté, `PORT` est fourni. Générer un domaine
@@ -38,6 +48,8 @@ docker run -p 8000:8000 -e ENNUI_SYNC=0 ofk   # sans synchronisation de l'agenda
 | `PORT` | 8000 | port d'écoute (fourni par Render / Railway) |
 | `ENNUI_SYNC` | 1 | synchronisation OpenAgenda toutes les 6 h ; 0 pour la couper |
 | `ENNUI_ORIGINES` | `*` | CORS : origines autorisées, séparées par des virgules |
+| `DATABASE_URL` | — | PostgreSQL (Neon) ; absent = SQLite local |
+| `ENNUI_PG_POOL` | 5 | taille maximale du pool de connexions PostgreSQL |
 | `TMDB_API_KEY` | — | facultatif (scripts d'enrichissement) ; jamais dans le dépôt |
 
 ## Avant la démo

@@ -76,7 +76,8 @@ def api(chemin, corps=None, jeton=None, methode=None):
 def lancer_serveur(base):
     if not port_libre(PORT):
         sys.exit(f"Le port {PORT} est déjà pris : arrête l'autre serveur ou change PORT.")
-    env = {**os.environ, "ENNUI_SYNC": "0", "ENNUI_DB": str(base)}
+    # ENNUI_SANS_SENSIBLE : aucune affiche suggestive pendant la vidéo (filtre réservé à la démo)
+    env = {**os.environ, "ENNUI_SYNC": "0", "ENNUI_DB": str(base), "ENNUI_SANS_SENSIBLE": "1"}
     env.pop("DATABASE_URL", None)  # jamais la base de production
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "backend.main:app", "--port", str(PORT)],
                             cwd=RACINE, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

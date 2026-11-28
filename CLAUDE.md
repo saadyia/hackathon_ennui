@@ -65,7 +65,7 @@ python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB
 python3 backend/build_graph.py --movielens /chemin/ml-latest-small   # pré-calcul (< 1 s)
 uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 : pas de synchro auto)
 uvicorn backend.main:app --host 0.0.0.0 --port 8000   # accessible depuis un téléphone sur le même Wi-Fi
-python3 backend/enrich_sensible.py       # contenus adultes / suggestifs (mots-clés TMDB) -> data/sensibles.json, exclus par le moteur
+python3 backend/enrich_sensible.py       # contenus suggestifs (mots-clés TMDB) -> data/sensibles.json (exclus si ENNUI_SANS_SENSIBLE=1)
 python3 backend/enrich_resumes.py        # synopsis FR (Wikipédia) des films, séries, livres (reprise possible)
 docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render / Railway / tunnel : docs/deploiement.md
 python3 scripts/record_demo.py          # vidéo de démo 105–110 s : demo_output/ofk_demo.mp4 (1920x1080, iPhone centré) + ofk_demo_vertical.mp4 ; --16x9 = refaire la 16:9
@@ -99,10 +99,9 @@ python3 scripts/record_demo.py          # vidéo de démo 105–110 s : demo_out
   (cinéma, expos, spectacles, rencontres littéraires), Soirées & Concerts, Balades & Nature. Les autres catégories OpenAgenda
   (ateliers, cuisine, sport, café, créatif) ne sont jamais recommandées.
 - **Zéro émoji garanti à la source :** `build_graph.sans_emoji()` nettoie tous les textes externes (OpenAgenda, Wikipédia…).
-- **Aucun contenu adulte ou suggestif :** `enrich_sensible.py` marque (`sensible`) les films et séries au drapeau TMDB `adult`
-  ou aux mots-clés TMDB explicitement sexuels (nudité, érotisme, comédie sexy, striptease, relation avec un mineur…) ;
-  le moteur ne les recommande jamais (174 titres, ex. Eurotrip, American Pie, Basic Instinct, Lolita). Pas de
-  classification par âge (incohérente chez TMDB : Le Parrain y est « 16 »).
+- **Contenus suggestifs (vidéo de démo seulement) :** `enrich_sensible.py` marque (`sensible`) les films et séries au
+  drapeau TMDB `adult` ou aux mots-clés TMDB explicitement sexuels (174 titres, ex. Eurotrip, American Pie, Lolita).
+  Exclus uniquement si `ENNUI_SANS_SENSIBLE=1` (serveur lancé par `record_demo.py`) ; l'application n'est pas filtrée.
 - **Synopsis obligatoire :** un film ou une série sans synopsis français n'est jamais recommandé (même seuil que les affiches).
 - **PWA :** installable sur iPhone (Partager > Sur l'écran d'accueil) ; le service worker exige HTTPS hors `localhost`
   (déployer via `render.yaml` / `Dockerfile` pour un lien public).

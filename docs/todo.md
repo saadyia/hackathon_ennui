@@ -8,7 +8,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
-- [x] Filtre des contenus adultes / suggestifs (mots-clés TMDB, 174 titres exclus) ; vidéo de démo calée à 105–110 s (16:9, iPhone centré)
+- [x] Filtre des contenus suggestifs réservé à la vidéo (ENNUI_SANS_SENSIBLE=1, 174 titres) ; vidéo de démo calée à 105–110 s (16:9, iPhone centré)
 - [x] Plateformes TMDB (FR.flatrate) : 7 272 films et 220 séries vérifiés, 1 611 sur au moins une plateforme suivie, badges sur les cartes et fiches (abonnements de l'utilisateur en surbrillance) ; affiches TMDB : 7 336 / 7 363 films (28/11/2026)
 - [x] Hors écran : sous-onglet Tout, photos Unsplash locales (35, repli feutré), recettes complètes des 11 activités cuisine ; Sorties : sous-onglets Tout / Culture / Soirées / Nature, rencontres et sport mieux classés
 - [x] Onglet « Hors écran » (Créatif, Cuisine, Mouvement) : 35 activités, filtres Matériel / Mode, Confort ↔ Découverte, fiches avec étapes, Proposer à un ami, Mes envies, Choisir à ma place

@@ -50,6 +50,7 @@ populaires sortent en tête pour tout le monde.
 """
 
 import json
+import os
 import zlib
 import time
 from datetime import datetime, timedelta
@@ -202,8 +203,10 @@ class Moteur:
             decrits = int((m & self.a_resume).sum())
             if m.any() and (decrits / m.sum() >= SEUIL_AFFICHES_STRICT or decrits >= MIN_AFFICHES_STRICT):
                 self.sans_affiche_exclu |= m & ~self.a_resume
-        # Contenu adulte ou suggestif (enrich_sensible.py, données TMDB) : jamais recommandé
-        self.sans_affiche_exclu |= np.array([bool(nd.get("sensible")) for nd in self.noeuds])
+        # Contenu adulte ou suggestif (enrich_sensible.py, données TMDB) : exclu SEULEMENT si ENNUI_SANS_SENSIBLE=1
+        # (serveur de la vidéo de démo, scripts/record_demo.py) ; l'application normale n'est pas filtrée.
+        if os.environ.get("ENNUI_SANS_SENSIBLE") == "1":
+            self.sans_affiche_exclu |= np.array([bool(nd.get("sensible")) for nd in self.noeuds])
         # jeux vidéo : consoles possédées et modes de jeu
         self.masque_console: Dict[str, np.ndarray] = {}
         self.jeu_multi = vide.copy()   # co-op ou multijoueur (badge « Co-op / Multi »)

@@ -409,6 +409,55 @@ def moi(x_utilisateur: Optional[str] = Header(None)):
     return utilisateur_requis(x_utilisateur)
 
 
+class Dispo(BaseModel):
+    statut: Literal["indispo", "sortir", "distance"]
+
+
+class DemandeAmi(BaseModel):
+    code: str = Field(..., min_length=3, max_length=40)
+
+
+@app.put("/api/utilisateurs/moi/dispo")
+def changer_dispo(d: Dispo, x_utilisateur: Optional[str] = Header(None)):
+    """Statut du moment visible par ses amis (expire au bout de 12 h)."""
+    u = utilisateur_requis(x_utilisateur)
+    return database.changer_dispo(u["id"], d.statut)
+
+
+# ------------------------------------------------------------------ #
+# Routes : amis (le code public « Prénom#123 » sert d'identifiant ;    #
+# le jeton du compte n'est jamais exposé aux autres)                   #
+# ------------------------------------------------------------------ #
+
+@app.get("/api/amis")
+def lister_amis(x_utilisateur: Optional[str] = Header(None)):
+    u = utilisateur_requis(x_utilisateur)
+    return {"amis": database.amis(u["id"]), "suggestions": database.suggestions(u["id"])}
+
+
+@app.get("/api/amis/recherche")
+def rechercher_amis(q: str = Query(..., min_length=2, max_length=40), x_utilisateur: Optional[str] = Header(None)):
+    u = utilisateur_requis(x_utilisateur)
+    return database.rechercher_profils(u["id"], q)
+
+
+@app.post("/api/amis")
+def ajouter_ami(d: DemandeAmi, x_utilisateur: Optional[str] = Header(None)):
+    u = utilisateur_requis(x_utilisateur)
+    ami = database.ajouter_ami(u["id"], d.code)
+    if not ami:
+        raise HTTPException(status_code=404, detail="Aucun profil avec ce code")
+    return ami
+
+
+@app.post("/api/amis/retirer")
+def retirer_ami(d: DemandeAmi, x_utilisateur: Optional[str] = Header(None)):
+    u = utilisateur_requis(x_utilisateur)
+    if not database.retirer_ami(u["id"], d.code):
+        raise HTTPException(status_code=404, detail="Aucun profil avec ce code")
+    return {"ok": True}
+
+
 @app.put("/api/utilisateurs/moi")
 def modifier_moi(p: Profil, taches: BackgroundTasks, x_utilisateur: Optional[str] = Header(None)):
     u = utilisateur_requis(x_utilisateur)

@@ -2,7 +2,7 @@
 // - page et code de l'appli : réseau d'abord (jamais de version périmée en développement), cache en secours
 // - librairies, polices, icônes : cache d'abord (fichiers figés)
 // - API : toujours le réseau (données fraîches, comptes, plans)
-const VERSION = "ofk-v3";  // logo vectoriel, polices : renouvelle le cache
+const VERSION = "ofk-v4";  // splash à ressort, amis : renouvelle le cache
 const COQUILLE = [
   "/", "/assets/app.css", "/assets/app.js", "/manifest.json",
   "/vendor/lucide.min.js", "/vendor/nouislider.min.js", "/vendor/nouislider.min.css",

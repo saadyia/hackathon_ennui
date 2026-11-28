@@ -1,5 +1,5 @@
 """
-Persistance SQLite (bibliothèque standard) : utilisateurs, plans collaboratifs, participants, messages.
+Persistance SQLite (bibliothèque standard) : utilisateurs, amis, plans collaboratifs, participants, messages.
 
 Connexion express : un utilisateur = un prénom + une ville + ses préférences, identifié par un
 jeton aléatoire stocké dans le navigateur. Pas de mot de passe : c'est un outil de démo pour
@@ -10,8 +10,10 @@ Une connexion par opération (thread-safe avec FastAPI), mode WAL pour les lectu
 """
 
 import json
+import random
 import secrets
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +21,8 @@ from typing import Dict, Iterable, List, Optional
 
 CHEMIN = Path(__file__).resolve().parent / "data" / "ennui.sqlite3"
 GRACE_PASSE = timedelta(hours=6)  # un plan reste visible 6 h après son début
+DUREE_DISPO = timedelta(hours=12)  # un statut « Dispo » expire au bout de 12 h (c'est un statut du moment)
+STATUTS_DISPO = ("indispo", "sortir", "distance")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS utilisateurs (
@@ -54,6 +58,13 @@ CREATE TABLE IF NOT EXISTS messages (
     cree_le         TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS meta (cle TEXT PRIMARY KEY, valeur TEXT);
+-- Amitié symétrique, stockée dans les deux sens (a -> b et b -> a) pour des lectures simples
+CREATE TABLE IF NOT EXISTS amities (
+    utilisateur_id  TEXT NOT NULL REFERENCES utilisateurs(id) ON DELETE CASCADE,
+    ami_id          TEXT NOT NULL REFERENCES utilisateurs(id) ON DELETE CASCADE,
+    cree_le         TEXT NOT NULL,
+    PRIMARY KEY (utilisateur_id, ami_id)
+);
 CREATE TABLE IF NOT EXISTS sorties_communaute (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     auteur_id    TEXT NOT NULL REFERENCES utilisateurs(id),
@@ -88,27 +99,90 @@ def connexion(chemin: Path = None):
         con.close()
 
 
+# Colonnes ajoutées après coup (migration douce des bases existantes)
+COLONNES_UTILISATEURS = {
+    "code": "TEXT",                      # identifiant public court, ex. « Sadia#402 » (le jeton id reste secret)
+    "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
+    "dispo_le": "TEXT",
+    "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
+}
+
+# Profils fictifs pour tester les interactions sociales tout de suite. Ils sont marqués « Démo »
+# dans l'interface et ne rejoignent aucun plan : on n'invente ni participants ni activité.
+PROFILS_DEMO = [
+    ("demo-camille", "Camille", "Camille#101", "Rennes", 48.1113, -1.6800, "sortir"),
+    ("demo-lucas", "Lucas", "Lucas#214", "Rennes", 48.1113, -1.6800, "distance"),
+    ("demo-ines", "Inès", "Inès#327", "Nantes", 47.2184, -1.5536, "sortir"),
+    ("demo-thomas", "Thomas", "Thomas#438", "Lyon", 45.7640, 4.8357, "indispo"),
+    ("demo-yasmine", "Yasmine", "Yasmine#549", "Paris", 48.8566, 2.3522, "distance"),
+]
+
+
 def initialiser(chemin: Path = None):
     (chemin or CHEMIN).parent.mkdir(parents=True, exist_ok=True)
     with connexion(chemin) as con:
         con.execute("PRAGMA journal_mode = WAL")
         con.executescript(SCHEMA)
+        existantes = {r["name"] for r in con.execute("PRAGMA table_info(utilisateurs)")}
+        for nom, definition in COLONNES_UTILISATEURS.items():
+            if nom not in existantes:
+                con.execute(f"ALTER TABLE utilisateurs ADD COLUMN {nom} {definition}")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs(code COLLATE NOCASE)")
+        for (uid, prenom) in con.execute("SELECT id, prenom FROM utilisateurs WHERE code IS NULL").fetchall():
+            con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, prenom), uid))
+        for uid, prenom, code, ville, lat, lon, dispo in PROFILS_DEMO:
+            con.execute("""INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, dispo, dispo_le, demo)
+                           VALUES (?, ?, ?, '{}', ?, ?, ?, NULL, 1)
+                           ON CONFLICT(id) DO UPDATE SET dispo = excluded.dispo, demo = 1""",
+                        (uid, prenom, json.dumps({"nom": ville, "lat": lat, "lon": lon}), maintenant_iso(), code, dispo))
+
+
+def _nouveau_code(con, prenom: str) -> str:
+    """Code court unique « Prénom#123 » (insensible à la casse)."""
+    base = "".join(prenom.split())[:20] or "Étudiant"
+    for _ in range(200):
+        code = f"{base}#{random.randint(100, 999)}"
+        if not con.execute("SELECT 1 FROM utilisateurs WHERE code = ? COLLATE NOCASE", (code,)).fetchone():
+            return code
+    return f"{base}#{secrets.randbelow(900000) + 100000}"
+
+
+def sans_accents(t: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", t.lower()) if unicodedata.category(c) != "Mn")
 
 
 # ------------------------------------------------------------------ #
 # Utilisateurs                                                         #
 # ------------------------------------------------------------------ #
 
+def dispo_actuelle(row) -> str:
+    """Statut du moment : revient à « indispo » 12 h après avoir été choisi (sauf profils de démo)."""
+    if row["demo"]:
+        return row["dispo"]
+    if row["dispo"] == "indispo" or not row["dispo_le"]:
+        return "indispo"
+    choisi = datetime.fromisoformat(row["dispo_le"])
+    return row["dispo"] if datetime.now(timezone.utc) - choisi < DUREE_DISPO else "indispo"
+
+
 def _utilisateur(row) -> dict:
     return {"id": row["id"], "prenom": row["prenom"], "ville": json.loads(row["ville"] or "null"),
-            "prefs": json.loads(row["prefs"]), "cree_le": row["cree_le"]}
+            "prefs": json.loads(row["prefs"]), "cree_le": row["cree_le"],
+            "code": row["code"], "dispo": dispo_actuelle(row)}
+
+
+def _public(row, ami: bool = False) -> dict:
+    """Ce que les autres voient d'un profil : jamais le jeton id (il vaut authentification)."""
+    ville = json.loads(row["ville"] or "null") or {}
+    return {"code": row["code"], "prenom": row["prenom"], "ville": ville.get("nom"),
+            "dispo": dispo_actuelle(row), "demo": bool(row["demo"]), "ami": ami}
 
 
 def creer_utilisateur(prenom: str, ville: Optional[dict], prefs: dict) -> dict:
     uid = secrets.token_urlsafe(16)
     with connexion() as con:
-        con.execute("INSERT INTO utilisateurs VALUES (?, ?, ?, ?, ?)",
-                    (uid, prenom, json.dumps(ville), json.dumps(prefs), maintenant_iso()))
+        con.execute("INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code) VALUES (?, ?, ?, ?, ?, ?)",
+                    (uid, prenom, json.dumps(ville), json.dumps(prefs), maintenant_iso(), _nouveau_code(con, prenom)))
     return lire_utilisateur(uid)
 
 
@@ -120,9 +194,79 @@ def lire_utilisateur(uid: str) -> Optional[dict]:
 
 def mettre_a_jour_utilisateur(uid: str, prenom: str, ville: Optional[dict], prefs: dict) -> Optional[dict]:
     with connexion() as con:
+        ancien = con.execute("SELECT prenom FROM utilisateurs WHERE id = ?", (uid,)).fetchone()
         con.execute("UPDATE utilisateurs SET prenom = ?, ville = ?, prefs = ? WHERE id = ?",
                     (prenom, json.dumps(ville), json.dumps(prefs), uid))
+        if ancien and ancien["prenom"] != prenom:  # le code suit le prénom
+            con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, prenom), uid))
     return lire_utilisateur(uid)
+
+
+def changer_dispo(uid: str, statut: str) -> Optional[dict]:
+    with connexion() as con:
+        con.execute("UPDATE utilisateurs SET dispo = ?, dispo_le = ? WHERE id = ?", (statut, maintenant_iso(), uid))
+    return lire_utilisateur(uid)
+
+
+# ------------------------------------------------------------------ #
+# Amis                                                                 #
+# ------------------------------------------------------------------ #
+
+ORDRE_DISPO = {"sortir": 0, "distance": 1, "indispo": 2}
+
+
+def amis(uid: str) -> List[dict]:
+    """Amis de l'utilisateur, les disponibles d'abord."""
+    with connexion() as con:
+        rows = con.execute("""SELECT u.* FROM amities a JOIN utilisateurs u ON u.id = a.ami_id
+                              WHERE a.utilisateur_id = ? ORDER BY a.cree_le DESC""", (uid,)).fetchall()
+    out = [_public(r, ami=True) for r in rows]
+    return sorted(out, key=lambda a: ORDRE_DISPO.get(a["dispo"], 3))
+
+
+def suggestions(uid: str) -> List[dict]:
+    """Profils de démonstration pas encore ajoutés (pour tester sans attendre de vrais amis)."""
+    with connexion() as con:
+        rows = con.execute("""SELECT * FROM utilisateurs WHERE demo = 1 AND id != ?
+                              AND id NOT IN (SELECT ami_id FROM amities WHERE utilisateur_id = ?)
+                              ORDER BY prenom""", (uid, uid)).fetchall()
+    return [_public(r) for r in rows]
+
+
+def rechercher_profils(uid: str, q: str, limite: int = 10) -> List[dict]:
+    """Par code exact (« Sadia#402 ») ou début de prénom, sans accents ni casse ; soi-même exclu."""
+    q = q.strip()
+    cible = sans_accents(q)
+    with connexion() as con:
+        deja = {r["ami_id"] for r in con.execute("SELECT ami_id FROM amities WHERE utilisateur_id = ?", (uid,))}
+        rows = con.execute("SELECT * FROM utilisateurs WHERE id != ?", (uid,)).fetchall()
+    if "#" in cible:
+        trouves = [r for r in rows if r["code"] and sans_accents(r["code"]) == cible]
+    else:
+        trouves = [r for r in rows if sans_accents(r["prenom"]).startswith(cible)]
+    trouves.sort(key=lambda r: (r["id"] not in deja, not r["demo"], r["prenom"]))
+    return [_public(r, ami=r["id"] in deja) for r in trouves[:limite]]
+
+
+def ajouter_ami(uid: str, code: str) -> Optional[dict]:
+    with connexion() as con:
+        row = con.execute("SELECT * FROM utilisateurs WHERE code = ? COLLATE NOCASE", (code.strip(),)).fetchone()
+        if not row or row["id"] == uid:
+            return None
+        quand = maintenant_iso()
+        con.execute("INSERT OR IGNORE INTO amities VALUES (?, ?, ?)", (uid, row["id"], quand))
+        con.execute("INSERT OR IGNORE INTO amities VALUES (?, ?, ?)", (row["id"], uid, quand))
+    return _public(row, ami=True)
+
+
+def retirer_ami(uid: str, code: str) -> bool:
+    with connexion() as con:
+        row = con.execute("SELECT id FROM utilisateurs WHERE code = ? COLLATE NOCASE", (code.strip(),)).fetchone()
+        if not row:
+            return False
+        con.execute("DELETE FROM amities WHERE (utilisateur_id = ? AND ami_id = ?) OR (utilisateur_id = ? AND ami_id = ?)",
+                    (uid, row["id"], row["id"], uid))
+    return True
 
 
 # ------------------------------------------------------------------ #

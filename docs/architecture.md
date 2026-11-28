@@ -30,7 +30,7 @@ flowchart LR
 | `backend/build_graph.py` | P (films + séries + sorties), π\*, `noeuds.json`. `plateformes_verifiees` vaut `true` seulement pour les titres présents dans `tmdb.json`. |
 | `backend/moteur.py` | Vecteur de départ, marches, affinité, quota, masques (plateformes vérifiées, Haversine, fenêtres temporelles). |
 | `backend/main.py` | Routes, proxy API Adresse, couverture, comptes, plans, agenda, service du frontend. Le moteur courant est dans `Catalogue.moteur` (remplacé d'un bloc après une synchro). |
-| `backend/database.py` | SQLite (stdlib) : `utilisateurs`, `plans`, `participants`, `messages`, `meta`. Une connexion par opération, WAL. |
+| `backend/database.py` | SQLite (stdlib) : `utilisateurs` (+ `code`, `dispo`, `dispo_le`, `demo`, ajoutées par migration douce), `amities` (symétrique), `plans`, `participants`, `messages`, `meta`. Une connexion par opération, WAL. Profils de démo insérés à l'initialisation. |
 | `backend/scheduler.py` | `Synchroniseur` : boucle asyncio (6 h) + déclenchement manuel. Collecte OpenAgenda dans un thread, retire le passé, reconstruit le graphe, recharge le moteur. |
 
 ## Sorties (`france.json`)
@@ -135,6 +135,13 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
 ## « Choisir à ma place »
 Tirage côté client parmi le top 3 de l'écran courant (pondéré 50 / 30 / 20 %), donc avec exactement les filtres actifs ;
 balayage animé qui ralentit, puis fiche ouverte avec le badge « Sélectionné pour vous ».
+
+## Amis et statut « Dispo »
+- Code public `Prénom#NNN` unique (insensible à la casse), attribué à la création (et aux comptes existants à l'initialisation).
+  C'est le seul identifiant montré aux autres : le jeton `id` sert de connexion et ne sort jamais.
+- Amitié sans demande à accepter (outil de démo) : deux lignes `amities` (a → b, b → a), retrait des deux sens.
+- Statut `indispo` | `sortir` | `distance` + date ; considéré `indispo` 12 h après le choix. Les amis sont rechargés toutes les 60 s côté client.
+- 5 profils de démonstration (`demo-*`), statuts fixes, proposés en suggestions et marqués « Démo ».
 
 ## Espace collaboratif
 - Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre. Le créateur est inscrit d'office.

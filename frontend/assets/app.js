@@ -80,6 +80,7 @@ let controleur = null;
 let cleQuota = null;
 let feuille = null;     // feuille collaborative ouverte : { oeuvre, plans }
 let agenda = null;      // état de la synchronisation de l'agenda
+let social = { moi: null, amis: [], suggestions: [] };  // code, statut « Dispo », amis (serveur)
 let etape = "bienvenue"; // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
 
 const stock = {
@@ -281,6 +282,119 @@ function ligneJeu(o) {
   return `<div class="plateformes"><span class="tag tag-discret tag-mode">${mode}</span>${consoles}</div>`;
 }
 
+// ------------------------------------------------------------------ //
+// Amis et statut « Dispo »                                             //
+// ------------------------------------------------------------------ //
+const DISPOS = [
+  { id: "indispo", nom: "Indisponible", court: "Indispo", icone: "moon" },
+  { id: "sortir", nom: "Dispo pour sortir", court: "Pour sortir", icone: "footprints" },
+  { id: "distance", nom: "Dispo à distance", court: "À distance", icone: "video" },
+];
+const nomDispo = (id) => (DISPOS.find((d) => d.id === id) || DISPOS[0]).nom;
+/** « Bonjour » jusqu'à 18 h, « Bonsoir » ensuite (heure de Paris). */
+const salutation = () => { const h = heureNum(new Date()); return h >= 18 || h < 5 ? "Bonsoir" : "Bonjour"; };
+const initiales = (prenom) => (prenom || "?").split(/[\s-]+/).filter(Boolean).slice(0, 2).map((m) => m[0]).join("").toUpperCase();
+const avatar = (a, taille = "") => `<span class="avatar ${taille} dispo-${esc(a.dispo)}" aria-hidden="true">${esc(initiales(a.prenom))}<i class="pastille"></i></span>`;
+
+/** En haut de « Pour vous » : amis disponibles en ce moment (initiales dans des cercles translucides). */
+function rangeeAvatars() {
+  const dispos = social.amis.filter((a) => a.dispo !== "indispo");
+  return `<div class="rangee-avatars defilement" id="rangee-avatars" role="list" aria-label="Amis disponibles">
+      ${dispos.map((a) => `<button class="ami-bulle" role="listitem" data-action="ouvrir-amis" title="${esc(a.prenom)} · ${esc(nomDispo(a.dispo))}">
+          ${avatar(a)}<span class="ami-nom">${esc(a.prenom)}</span></button>`).join("")}
+      <button class="ami-bulle" data-action="ouvrir-amis" aria-label="Amis">
+        <span class="avatar avatar-ajout">${icone(social.amis.length ? "users" : "user-plus", 18)}</span>
+        <span class="ami-nom">${social.amis.length ? (dispos.length ? "Amis" : "Personne dispo") : "Ajouter"}</span></button>
+    </div>`;
+}
+
+/** Statut du moment, visible par ses amis : Indisponible, Dispo pour sortir, Dispo à distance. */
+function selecteurDispo() {
+  const actuel = social.moi?.dispo || "indispo";
+  const index = DISPOS.findIndex((d) => d.id === actuel);
+  return `<div class="segment segment-3 segment-pilule selecteur-dispo" id="selecteur-dispo" role="radiogroup" aria-label="Mon statut" style="--index:${index}">
+      <span class="segment-indicateur" aria-hidden="true"></span>
+      ${DISPOS.map((d) => `<button role="radio" data-action="dispo" data-valeur="${d.id}" aria-checked="${d.id === actuel}" aria-pressed="${d.id === actuel}">
+        ${icone(d.icone, 14)}${d.court}</button>`).join("")}
+    </div>`;
+}
+
+function ligneAmi(a) {
+  const bouton = a.ami
+    ? `<button class="bouton-ligne" data-action="retirer-ami" data-code="${esc(a.code)}" aria-label="Retirer ${esc(a.prenom)}">${icone("user-minus", 14)}Retirer</button>`
+    : `<button class="bouton-ligne bouton-accent" data-action="ajouter-ami" data-code="${esc(a.code)}">${icone("user-plus", 14)}Ajouter</button>`;
+  return `<li class="ligne-ami">${avatar(a, "avatar-s")}
+      <div class="ligne-ami-texte">
+        <span class="ligne-ami-nom"><b>${esc(a.prenom)}</b>${a.demo ? '<span class="tag-demo">Démo</span>' : ""}</span>
+        <span class="tres-muet petit">${esc(a.code)}${a.ville ? ` · ${esc(a.ville)}` : ""}</span>
+        <span class="petit statut-ami dispo-${esc(a.dispo)}">${esc(nomDispo(a.dispo))}</span>
+      </div>${bouton}</li>`;
+}
+
+function panneauAmis() {
+  const f = feuille;
+  const resultats = f.resultats === null ? ""
+    : f.resultats.length ? `<ul class="liste-amis">${f.resultats.map(ligneAmi).join("")}</ul>`
+    : `<p class="tres-muet petit" style="margin:10px 2px 0">Aucun profil trouvé. Vérifie le code (ex. Camille#101).</p>`;
+  return `<div class="feuille-fond" data-action="fermer-feuille"></div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Amis">
+      <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
+      <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+      <div class="feuille-corps">
+        <h2 class="titre-detail">Amis</h2>
+        <p class="muet petit" style="margin:6px 0 0">Ajoute tes amis avec leur code ou leur prénom. Ils voient ton statut du moment, tu vois le leur.</p>
+        ${social.moi ? `<div class="mon-code verre"><span class="tres-muet petit">Mon code</span><b>${esc(social.moi.code)}</b>
+          <button class="bouton-ligne" data-action="copier-code">${icone("copy", 14)}Copier</button></div>` : ""}
+        <label class="champ-recherche">${icone("search", 16, "tres-muet")}
+          <input class="champ" id="recherche-ami" maxlength="40" autocomplete="off" placeholder="Prénom ou code, ex. Camille#101" value="${esc(f.q || "")}">
+        </label>
+        <div id="resultats-amis">${resultats}</div>
+        <section class="groupe">
+          <span class="surtitre">Mes amis · ${social.amis.length}</span>
+          ${social.amis.length ? `<ul class="liste-amis">${social.amis.map(ligneAmi).join("")}</ul>`
+            : `<p class="tres-muet petit">Pas encore d'amis ici. Partage ton code ou cherche un prénom.</p>`}
+        </section>
+        ${social.suggestions.length ? `<section class="groupe">
+          <span class="surtitre">Profils de démonstration</span>
+          <p class="tres-muet petit" style="margin:-4px 0 10px">Étudiants fictifs, pour essayer les fonctions entre amis.</p>
+          <ul class="liste-amis">${social.suggestions.map(ligneAmi).join("")}</ul>
+        </section>` : ""}
+      </div>
+    </section>`;
+}
+
+/** Met à jour en place ce qui dépend des amis (sans recharger l'écran). */
+function rafraichirSocial() {
+  const r = $("#rangee-avatars");
+  if (r) r.outerHTML = rangeeAvatars();
+  const sel = $("#selecteur-dispo");
+  if (sel) sel.outerHTML = selecteurDispo();
+  const code = $("#bloc-code");
+  if (code) code.outerHTML = blocCode();
+  if (feuille?.mode === "amis") {
+    const champ = $("#recherche-ami");
+    const focus = document.activeElement === champ;
+    const position = champ?.selectionStart;
+    $("#feuille .feuille-panneau").outerHTML = panneauAmis().replace(/^[\s\S]*?(<section class="feuille-panneau")/, "$1");
+    if (focus) { const c = $("#recherche-ami"); c.focus(); c.setSelectionRange(position, position); }
+  }
+}
+
+async function chargerSocial() {
+  if (!etat.uid) return;
+  try {
+    const [moi, liste] = await Promise.all([api("/api/utilisateurs/moi"), api("/api/amis")]);
+    social = { moi: { code: moi.code, dispo: moi.dispo }, amis: liste.amis, suggestions: liste.suggestions };
+    rafraichirSocial();
+  } catch (_) { /* hors ligne : on garde l'existant */ }
+}
+
+const blocCode = () => `<div class="mon-code verre" id="bloc-code">
+    <span class="tres-muet petit">Mon code ami</span><b>${esc(social.moi?.code || "…")}</b>
+    <button class="bouton-ligne" data-action="copier-code" ${social.moi ? "" : "disabled"}>${icone("copy", 14)}Copier mon code</button>
+    <button class="bouton-ligne" data-action="ouvrir-amis">${icone("users", 14)}Amis · <span class="chiffre">${social.amis.length}</span></button>
+  </div>`;
+
 const estSauvegarde = (id) => etat.envies.some((e) => e.id === id);
 function boutonSauver(o, { texte = false } = {}) {
   const actif = estSauvegarde(o.id);
@@ -427,7 +541,7 @@ function statutAgenda() {
     </div>`;
 }
 
-function entete(surtitre, titre) {
+function entete(surtitre, titre, { avantTitre = "" } = {}) {
   const tirage = ["pour-vous", "ecrans", "sorties"].includes(etat.onglet);
   return `<header class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
@@ -435,6 +549,7 @@ function entete(surtitre, titre) {
         ${tirage ? `<button class="bouton-tirage" data-action="choisir-pour-moi">${icone("shuffle", 15)}Choisir à ma place</button>`
           : `<span class="surtitre">${esc(surtitre)}</span>`}
       </div>
+      ${avantTitre}
       ${tirage ? `<span class="surtitre surtitre-entete">${esc(surtitre)}</span>` : ""}
       <h1 class="titre-1">${esc(titre)}</h1>
     </header>`;
@@ -505,7 +620,7 @@ function ecranBienvenue() {
   return `<div class="bienvenue apparition">
       <span class="marque">${LOGO}</span>
       <div class="bienvenue-centre">
-        <h1 class="titre-1 bienvenue-titre">Salut !<br>On fait quoi aujourd'hui ?</h1>
+        <h1 class="titre-1 bienvenue-titre">${etat.uid && etat.prenom ? `${salutation()} ${esc(etat.prenom)},<br>on fait quoi ?` : "Salut !<br>On fait quoi aujourd'hui ?"}</h1>
         <p class="muet bienvenue-texte">Pas besoin de savoir : laisse-toi guider selon ton énergie, tes goûts et ce qu'il se passe près de chez toi.</p>
       </div>
       <button class="bouton-principal" data-action="c-est-parti">C'est parti ! ${icone("arrow-right", 18)}</button>
@@ -567,7 +682,8 @@ function ecranPourVous() {
   const rayon = etat.prefs.ville ? ` · ${etat.prefs.rayon} km` : "";
   const titre = (t, onglet) => `<div class="titre-section"><h2 class="titre-2">${t}</h2>
       ${onglet ? `<button class="lien-discret" data-action="onglet" data-onglet="${onglet}">Tout voir ${icone("chevron-right", 16)}</button>` : ""}</div>`;
-  return `${entete(dateDuJour(), `Salut ${etat.prenom}, qu'est-ce qu'on fait aujourd'hui ?`)}
+  return `${entete(dateDuJour(), `${salutation()} ${etat.prenom}, on fait quoi ?`, { avantTitre: rangeeAvatars() })}
+    ${selecteurDispo()}
     ${instrument()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
 
@@ -685,6 +801,7 @@ function ecranProfil() {
   const mesPlans = donnees.mesPlans;
   const autres = comptes().filter((c) => c.id !== etat.uid);
   return `${entete("Profil", etat.prenom)}
+    ${blocCode()}
     <div class="compte">
       <span class="muet">Connecté sur cet appareil</span>
       <div class="puces" style="margin-top:10px">
@@ -832,6 +949,13 @@ function detailOeuvre(o) {
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
+  if (feuille.mode === "amis") {
+    const ouverture = racine.hidden;
+    racine.hidden = false;
+    racine.innerHTML = panneauAmis();
+    if (ouverture) animerOuvertureFeuille(racine);
+    return;
+  }
   if (feuille.mode === "publier") {
     const ouverture = racine.hidden;
     racine.hidden = false;
@@ -1250,7 +1374,9 @@ async function changerCompte(uid) {
   donnees = {};
   haut();
   toast(`Bonjour ${etat.prenom}`);
+  social = { moi: null, amis: [], suggestions: [] };
   charger();
+  chargerSocial();
 }
 
 // ------------------------------------------------------------------ //
@@ -1349,7 +1475,9 @@ const actions = {
       memoriserCompte(u.id, u.prenom);
       sauvegarder();
       haut();
+      social = { moi: null, amis: [], suggestions: [] };
       charger();
+      chargerSocial();
     } catch (e) {
       b.disabled = false;
       toast(`Connexion impossible : ${e.message}`);
@@ -1374,6 +1502,7 @@ const actions = {
   },
   "nouveau-compte"() {
     etape = "questionnaire";
+    social = { moi: null, amis: [], suggestions: [] };
     etat = ETAT_INITIAL();
     stock.retirer("actif");
     donnees = {};
@@ -1445,6 +1574,45 @@ const actions = {
     });
     toast(actif ? "Ajouté à Mes envies" : "Retiré de Mes envies");
     if (etat.onglet === "profil" && !feuille) rendre();
+  },
+  "ouvrir-amis"() {
+    feuille = { mode: "amis", q: "", resultats: null };
+    rendreFeuille();
+    chargerSocial();
+  },
+  async "ajouter-ami"(b) {
+    try {
+      const a = await api("/api/amis", { code: b.dataset.code });
+      toast(`${a.prenom} fait partie de tes amis`);
+      if (feuille?.resultats) feuille.resultats = feuille.resultats.map((r) => r.code === a.code ? { ...r, ami: true } : r);
+      await chargerSocial();
+    } catch (err) { toast(err.message); }
+  },
+  async "retirer-ami"(b) {
+    try {
+      await api("/api/amis/retirer", { code: b.dataset.code });
+      if (feuille?.resultats) feuille.resultats = feuille.resultats.map((r) => r.code === b.dataset.code ? { ...r, ami: false } : r);
+      await chargerSocial();
+    } catch (err) { toast(err.message); }
+  },
+  async "copier-code"() {
+    const code = social.moi?.code;
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); toast(`Code copié : ${code}`); }
+    catch (_) { toast(`Ton code : ${code}`); }  // presse-papiers indisponible (HTTP sur téléphone)
+  },
+  async dispo(b) {
+    const statut = b.dataset.valeur;
+    if (!social.moi || social.moi.dispo === statut) return;
+    const precedent = social.moi.dispo;
+    social.moi.dispo = statut;
+    const groupe = b.closest(".segment-pilule");
+    groupe.style.setProperty("--index", DISPOS.findIndex((d) => d.id === statut));
+    groupe.querySelectorAll("button").forEach((x) => { x.setAttribute("aria-pressed", x === b); x.setAttribute("aria-checked", x === b); });
+    try {
+      await api("/api/utilisateurs/moi/dispo", { statut }, undefined, "PUT");
+      toast(statut === "indispo" ? "Tu apparais indisponible" : `Tes amis te voient « ${nomDispo(statut)} »`);
+    } catch (err) { social.moi.dispo = precedent; rafraichirSocial(); toast(err.message); }
   },
   "reinitialiser-filtres"() {
     Object.assign(etat.prefs, { budget: "tous", duree: "tout", modeJeu: "tous", categories: [] });
@@ -1522,6 +1690,17 @@ const rechercherVille = debounce(async (q, suffixe = "") => {
   liste.hidden = false;
 }, 250);
 
+const rechercherAmi = debounce(async (q) => {
+  if (feuille?.mode !== "amis") return;
+  feuille.q = q;
+  if (q.length < 2) { feuille.resultats = null; $("#resultats-amis").innerHTML = ""; return; }
+  try { feuille.resultats = await api(`/api/amis/recherche?q=${encodeURIComponent(q)}`); } catch (_) { feuille.resultats = []; }
+  if (feuille?.mode !== "amis") return;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = panneauAmis();
+  $("#resultats-amis").innerHTML = tmp.querySelector("#resultats-amis").innerHTML;
+}, 220);
+
 let resultatsRecherche = [];
 const rechercherVu = debounce(async (q) => {
   const liste = $("#suggestions-vu");
@@ -1590,6 +1769,8 @@ document.addEventListener("input", (e) => {
     rechercherVille(e.target.value.trim());
   } else if (id === "champ-ville-pub") {
     rechercherVille(e.target.value.trim(), "-pub");
+  } else if (id === "recherche-ami") {
+    rechercherAmi(e.target.value.trim());
   } else if (id === "recherche-vu") {
     rechercherVu(e.target.value.trim());
   }
@@ -1600,12 +1781,12 @@ document.documentElement.classList.toggle("anime", MOUVEMENT);
 // ------------------------------------------------------------------ //
 // Démarrage                                                            //
 // ------------------------------------------------------------------ //
-/** Écran de démarrage (index.html) : animé en CSS, il glisse vers l'application après 1,1 s. */
+/** Écran de démarrage (index.html) : animé en CSS (ressort), il s'ouvre vers l'application après 1,4 s. */
 const debutSplash = performance.now();
 function fermerSplash() {
   const splash = document.getElementById("splash");
   if (!splash) return;
-  const reste = Math.max(0, (MOUVEMENT ? 1100 : 300) - (performance.now() - debutSplash));
+  const reste = Math.max(0, (MOUVEMENT ? 1400 : 300) - (performance.now() - debutSplash));
   setTimeout(() => {
     splash.classList.add("splash-sortie");
     setTimeout(() => splash.remove(), 650);
@@ -1632,7 +1813,8 @@ if ("serviceWorker" in navigator) {
     // le compte existe-t-il encore côté serveur (base réinitialisée) ?
     try { await api("/api/utilisateurs/moi"); } catch (_) { etat = { ...etat, uid: null }; }
   }
-  if (etat.uid) charger(); else rendre();
+  if (etat.uid) { charger(); chargerSocial(); } else rendre();
   fermerSplash();
   setInterval(rafraichirAgenda, 60000);  // « il y a X min » reste juste
+  setInterval(chargerSocial, 60000);     // statuts des amis
 })();

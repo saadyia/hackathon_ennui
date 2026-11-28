@@ -933,3 +933,82 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 @media (hover: hover) { .bouton-tirage:hover { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); } }
 .tag-selection { background: rgba(232, 217, 181, 0.14); }
 .paliers-pilule, .segment-indicateur { background: linear-gradient(180deg, #F4F4F5, #E4E4E7); }
+
+/* ================================================================== */
+/* Splash à ressort (1,4 s) : « ofk » glisse, « ? » rebondit et luit    */
+/* ================================================================== */
+#splash {
+  background:
+    radial-gradient(42% 30% at 50% 46%, rgba(232, 217, 181, 0.07), transparent 70%),
+    radial-gradient(80% 50% at 50% 45%, rgba(255, 255, 255, 0.04), transparent 70%),
+    linear-gradient(180deg, #0B0F19 0%, #121726 100%);
+}
+.splash-centre { display: grid; justify-items: center; gap: 18px; }
+#splash svg { animation: none; overflow: visible; }
+#splash .logo-lettres, #splash .logo-question { transform-box: fill-box; }
+#splash .logo-lettres { transform-origin: center; animation: splash-lettres 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+#splash .logo-question { transform-origin: 50% 100%; animation: splash-rebond 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.38s both; }
+#splash .logo-question path { animation: splash-lueur 0.9s ease-out 0.5s both; }
+.splash-sous-titre {
+  margin: 0; font-family: var(--police-texte); font-size: 13px; font-weight: 500; letter-spacing: 0.01em;
+  color: rgba(244, 244, 245, 0.55); animation: splash-sous-titre 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.82s both;
+}
+@keyframes splash-lettres { from { opacity: 0; transform: translateY(26%); } to { opacity: 1; transform: none; } }
+@keyframes splash-rebond { from { opacity: 0; transform: translateY(18%) scale(0.35); } to { opacity: 1; transform: none; } }
+@keyframes splash-lueur {
+  0% { filter: none; }
+  45% { filter: drop-shadow(0 0 22px rgba(232, 217, 181, 0.95)); }
+  100% { filter: drop-shadow(0 0 8px rgba(232, 217, 181, 0.4)); }
+}
+@keyframes splash-sous-titre { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #splash .logo-lettres, #splash .logo-question, #splash .logo-question path, .splash-sous-titre { animation: none; }
+}
+
+/* ================================================================== */
+/* Amis et statut « Dispo »                                            */
+/* ================================================================== */
+.rangee-avatars { display: flex; gap: 14px; margin: 18px -2px 2px; padding: 2px; overflow-x: auto; scrollbar-width: none; }
+.rangee-avatars::-webkit-scrollbar { display: none; }
+.ami-bulle { flex: none; display: grid; justify-items: center; gap: 6px; width: 56px; }
+.ami-nom { max-width: 60px; font-size: 11px; color: var(--texte-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar {
+  position: relative; flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%;
+  font-family: var(--police-titres); font-weight: 600; font-size: 15px; letter-spacing: -0.02em; color: var(--texte);
+  background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12); border-top-color: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.avatar.dispo-sortir { border-color: rgba(232, 217, 181, 0.55); box-shadow: 0 0 0 3px rgba(232, 217, 181, 0.08); }
+.avatar.dispo-distance { border-color: rgba(255, 255, 255, 0.32); }
+.avatar .pastille { position: absolute; right: 1px; bottom: 1px; width: 11px; height: 11px; border-radius: 50%;
+  border: 2px solid var(--fond); background: var(--texte-3); }
+.avatar.dispo-sortir .pastille { background: var(--accent); }
+.avatar.dispo-distance .pastille { background: #F4F4F5; }
+.avatar.dispo-indispo .pastille { background: #3F3F46; }
+.avatar-ajout { color: var(--texte-2); border-style: dashed; background: transparent; }
+.avatar-s { width: 40px; height: 40px; font-size: 13px; }
+
+.selecteur-dispo { margin-top: 16px; }
+.segment.segment-3.segment-pilule .segment-indicateur { width: calc((100% - 10px) / 3); }
+.selecteur-dispo button { font-size: 12px; gap: 5px; }
+
+.mon-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 16px; padding: 12px 14px;
+  border: 1px solid var(--trait); border-radius: 14px; }
+.mon-code b { font-family: var(--police-titres); font-weight: 600; font-size: 16px; letter-spacing: -0.01em; margin-right: auto; }
+.mon-code > .tres-muet { flex-basis: 100%; }
+
+.champ-recherche { position: relative; display: block; margin-top: 16px; }
+.champ-recherche .icone { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); }
+.champ-recherche .champ { padding-left: 40px; }
+.liste-amis { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.ligne-ami { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px;
+  background: var(--verre); border: 1px solid var(--trait); border-top-color: rgba(255, 255, 255, 0.12); }
+.ligne-ami-texte { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.ligne-ami-texte b { font-weight: 500; font-size: 14px; }
+.statut-ami { color: var(--texte-3); }
+.statut-ami.dispo-sortir { color: var(--accent); }
+.statut-ami.dispo-distance { color: var(--texte); }
+.tag-demo { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500;
+  color: var(--texte-2); border: 1px solid var(--trait-fort); vertical-align: 1px; }
+.ligne-ami-nom { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ligne-ami-nom .tag-demo { margin-left: 0; flex: none; }

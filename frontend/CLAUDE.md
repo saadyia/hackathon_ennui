@@ -28,7 +28,12 @@ frontend/
 - Couleurs via variables ; **un seul accent** `--accent` (champagne) : éléments actifs, curseur 1–10, Pépite / Hors piste, marque-page actif, « ? » du logo.
 - Logo : `icons/logo-ofk.svg` (tracés vectoriels Plus Jakarta Sans Bold, lettres `currentColor`, « ? » en `var(--logo-accent)`),
   injecté dans `.marque` au démarrage (`LOGO`) et en ligne dans le splash de `index.html`. Icônes PWA dérivées (`icone.svg`, PNG).
-- Splash : `#splash` dans `index.html` (zoom + fondu du logo, « ? » qui s'illumine), retiré par `fermerSplash()` après le premier rendu, 1,1 s minimum.
+- Splash : `#splash` dans `index.html` (« ofk » glisse vers le haut en fondu, le « ? » rebondit en `cubic-bezier(0.34,1.56,0.64,1)` et luit,
+  sous-titre « On fait quoi ? » à 0,8 s), retiré par `fermerSplash()` après le premier rendu, 1,4 s minimum.
+- Amis : `social` (code, statut, amis, suggestions) chargé par `chargerSocial()` (démarrage, connexion, toutes les 60 s) et mis à jour
+  en place (`rafraichirSocial`) ; `rangeeAvatars()` (initiales dans des cercles translucides, pastille de statut) + `selecteurDispo()`
+  en haut de Pour vous, salut `salutation()` (Bonjour / Bonsoir dès 18 h) ; tiroir `feuille.mode === "amis"` (`panneauAmis`) ;
+  `blocCode()` dans Profil (« Copier mon code »).
 - Profondeur : halo `.app::before`, verre dépoli `--verre` + `backdrop-filter`, bordures `--trait`.
 - Ratios stricts : `.visuel.affiche` 2/3 (films, séries, livres), `.visuel.paysage` 16/10 (sorties, jeux), `.voile` pour la lisibilité.
 

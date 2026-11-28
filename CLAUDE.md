@@ -29,6 +29,9 @@
 6. **Plans collaboratifs** : « Rejoindre » / « Proposer un créneau » (watch-party, club de lecture ou sortie), participants,
    point de rendez-vous ou lien, messages. « Mes plans » dans Profil. Les utilisateurs peuvent aussi publier leurs propres sorties.
 7. **Agenda synchronisé automatiquement** toutes les 6 h (OpenAgenda), graphe reconstruit à chaud.
+8. **Amis & statut « Dispo »** : code public court (`Sadia#402`, « Copier mon code » dans Profil), tiroir Amis (recherche par prénom
+   ou code, ajout immédiat et réciproque), statut du moment (Indisponible / Dispo pour sortir / Dispo à distance, expire après 12 h),
+   accueil « Bonsoir Sadia, on fait quoi ? » avec la rangée d'avatars des amis disponibles. Splash à ressort de 1,4 s.
 
 ### Objectifs du hackathon
 - **Priorité absolue :** MVP fluide, sans latence, **aucune dépendance réseau bloquante pendant la démo**.
@@ -91,6 +94,9 @@ docker build -t on-fait-koi . && docker run -p 8000:8000 on-fait-koi   # image p
 - **Fiche détaillée :** synopsis en français seulement (TMDB fr-FR, Wikipédia FR via `enrich_resumes.py`, description longue
   OpenAgenda) ; les résumés TVmaze (anglais) ne sont jamais affichés.
 - **Honnêteté des données :** ne jamais inventer de prix, d'horaires, de dates, de plateformes ni de participants. Plus aucune donnée simulée.
+  Seule exception, demandée : 5 profils d'étudiants fictifs (`database.PROFILS_DEMO`, Camille, Lucas, Inès, Thomas, Yasmine) pour tester
+  les amis ; marqués « Démo » dans l'interface, ils ne rejoignent aucun plan.
+- **Identifiant public :** les autres utilisateurs ne voient que le code `Prénom#123`, jamais le jeton `id` (il vaut connexion).
 - **Langue :** code, commentaires et interface en français.
 - **Python 3.9 :** pas de syntaxe `X | None` ; utiliser `typing.Optional` / `List`.
 

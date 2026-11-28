@@ -2,8 +2,8 @@
 Vidéo de démonstration de « ofk? » (format iPhone 390 x 844, rendu x2), environ 2 minutes.
 
     python3 -m pip install --user playwright imageio-ffmpeg   # une fois (Chrome du Mac utilisé, rien à télécharger)
-    python3 scripts/record_demo.py   # -> demo_output/ofk_demo.mp4 (780 x 1688, plein écran du téléphone)
-                                     #    demo_output/ofk_demo_16x9.mp4 (1920 x 1080, iPhone centré, fond studio)
+    python3 scripts/record_demo.py   # -> demo_output/ofk_demo.mp4 (1920 x 1080, iPhone centré, fond studio, 105-110 s)
+                                     #    demo_output/ofk_demo_vertical.mp4 (780 x 1688, écran seul)
                                      #    demo_output/check_framing.png (contrôle du cadrage)
 
 - Lance son propre serveur FastAPI (port 8010) sur une base SQLite JETABLE (ENNUI_DB) et sans synchro de
@@ -33,7 +33,8 @@ SORTIE = RACINE / "demo_output"
 PORT = 8010
 URL = f"http://127.0.0.1:{PORT}"
 LARGEUR, HAUTEUR, ECHELLE = 390, 844, 2
-VITESSE = 0.62  # < 1 : pauses raccourcies (durée totale visée : ~2 min)
+VITESSE = 1.0   # multiplie toutes les pauses
+CIBLE_S, MIN_S, MAX_S = 108.0, 105.0, 110.0  # durée finale visée (1 min 48)
 
 # Point tactile : suit la souris, s'agrandit au clic. pointer-events:none, au-dessus de tout.
 SCRIPT_POINT = """
@@ -100,7 +101,7 @@ class Geste:
     def pause(self, s):
         self.p.wait_for_timeout(int(s * 1000 * VITESSE))
 
-    def aller(self, x, y, duree=0.32):
+    def aller(self, x, y, duree=0.26):
         pas = max(8, int(duree * 60))
         for i in range(1, pas + 1):
             t = i / pas
@@ -114,14 +115,14 @@ class Geste:
         el.wait_for(state="visible", timeout=15000)
         if visible:
             el.scroll_into_view_if_needed()
-            self.p.wait_for_timeout(150)
+            self.p.wait_for_timeout(60)
         return el.bounding_box()
 
-    def toucher(self, sel, pause=0.35, dx=0.5, dy=0.5):
+    def toucher(self, sel, pause=0.35, dx=0.5, dy=0.5, trajet=None):
         b = self.boite(sel)
-        self.aller(b["x"] + b["width"] * dx, b["y"] + b["height"] * dy)
-        self.pause(0.12)
-        self.p.mouse.down(); self.pause(0.09); self.p.mouse.up()
+        self.aller(b["x"] + b["width"] * dx, b["y"] + b["height"] * dy, *( [trajet] if trajet else []))
+        self.pause(0.07)
+        self.p.mouse.down(); self.pause(0.07); self.p.mouse.up()
         self.pause(pause)
 
     def taper(self, sel, texte, delai=55):
@@ -169,80 +170,87 @@ class Geste:
 # ------------------------------------------------------------------ #
 # Scénario                                                             #
 # ------------------------------------------------------------------ #
+CHAPITRES = []  # (nom, instant de début) : durée réelle de chaque séquence, affichée à la fin
+
+
+def chapitre(nom):
+    CHAPITRES.append((nom, time.time()))
+
+
 def scenario(page, g, camera):
-    # 1. 0:00 – 0:15 · Splash, inscription, studio d'avatar
+    # 1. 0:00 – 0:15 · Splash, inscription, avatar en 2 gestes
     page.goto(URL + "/", wait_until="commit")
     camera.demarrer()
-    g.pause(2.2)                                       # splash animé « ofk? »
-    g.toucher('[data-action="c-est-parti"]', 0.8)
-    g.taper("#champ-prenom", "Sadia")
-    g.pause(0.3)
-    g.toucher('[data-action="ouvrir-studio"]', 0.7)
-    g.toucher('[data-action="studio-onglet"][data-valeur="bg"]', 0.4)
-    g.toucher('#studio-options [data-action="studio-choix"]:nth-child(4)', 0.4)
-    g.toucher('[data-action="studio-aleatoire"]', 0.6)
-    g.toucher('[data-action="studio-enregistrer"]', 0.6)
-    g.taper("#mdp-inscription", "demo-ofk-2026", delai=45)
-    g.taper("#champ-ville", "Rennes")
-    g.toucher('#suggestions-ville [data-action="choisir-ville"]', 0.5)
+    chapitre("1. Splash et inscription")
+    g.pause(1.8)                                       # splash animé « ofk? »
+    g.toucher('[data-action="c-est-parti"]', 0.4)
+    g.taper("#champ-prenom", "Sadia", delai=45)
+    g.toucher('[data-action="avatar-aleatoire"]', 0.45)   # personnage et fond : 2 gestes
+    g.toucher('[data-action="avatar-aleatoire"]', 0.45)
+    g.taper("#mdp-inscription", "demo-ofk-2026", delai=25)
+    g.taper("#champ-ville", "Rennes", delai=45)
+    g.toucher('#suggestions-ville [data-action="choisir-ville"]', 0.3)
     b = g.boite("#rayon")
-    g.glisser(b["x"] + b["width"] * 0.22, b["y"] + b["height"] / 2, b["x"] + b["width"] * 0.45, 0.8)
-    for genre in ("Sci-Fi", "Animation", "Adventure"):
+    g.glisser(b["x"] + b["width"] * 0.22, b["y"] + b["height"] / 2, b["x"] + b["width"] * 0.45, 0.5)
+    # genres « grand public », aux visuels irréprochables devant un jury
+    for genre in ("Sci-Fi", "Adventure", "Thriller", "Animation", "Comedy", "Documentary"):
         sel = f'[data-action="pref"][data-groupe="genres"][data-valeur=\'"{genre}"\']'
         if page.locator(sel).count():
-            g.toucher(sel, 0.15)
+            g.toucher(sel, 0.0, trajet=0.16)
     for pf in (8, 119):  # Netflix, Prime Video
         sel = f'[data-action="pref"][data-groupe="plateformes"][data-valeur="{pf}"]'
         if page.locator(sel).count():
-            g.toucher(sel, 0.15)
-    g.toucher('[data-action="commencer"]', 2.2)
+            g.toucher(sel, 0.0, trajet=0.16)
+    g.toucher('[data-action="commencer"]', 0.5)
 
-    # 2. 0:15 – 0:25 · Pour vous + curseur 2 -> 8 + défilement
+    # 2. 0:15 – 0:25 · Pour vous + curseur 2 -> 8 + défilement 3 s
     page.locator(".rangee-affiches .carte-oeuvre").first.wait_for(timeout=20000)
+    chapitre("2. Pour vous et curseur")
     verifier_cadrage(page)
-    g.pause(1.2)
-    g.curseur(2, 8, duree=2.6)
-    g.pause(1.2)
-    g.defiler(1100, 2.6)
+    g.pause(0.8)
+    g.curseur(2, 8, duree=2.2)
     g.pause(0.6)
-    g.defiler(-1100, 1.2)
+    g.defiler(1100, 3.0)
+    g.defiler(-1100, 0.9)
 
-    # 3. 0:25 – 0:45 · Chez soi (Ce soir, au chaud)
-    g.toucher('#onglets [data-onglet="ecrans"]', 1.6)
+    # 3. 0:25 – 0:42 · Ce soir, au chaud
+    chapitre("3. Ce soir au chaud")
+    g.toucher('#onglets [data-onglet="ecrans"]', 0.8)
     for seg in ("ecrans", "livre", "jeu"):
-        g.toucher(f'[data-action="segment"][data-valeur="{seg}"]', 1.8)
-        g.defiler(380, 0.8); g.pause(0.4); g.defiler(-380, 0.5)
-    g.toucher('[data-action="mode-jeu"][data-valeur="multi"]', 1.4)
-    g.toucher('[data-action="mode-jeu"][data-valeur="solo"]', 1.4)
-    g.toucher('.grille-affiches .carte-oeuvre [data-action="ouvrir-plans"]', 1.6)
-    g.defiler(420, 1.4, ".feuille-corps"); g.pause(1.0)
+        g.toucher(f'[data-action="segment"][data-valeur="{seg}"]', 1.1)
+        g.defiler(360, 0.6); g.pause(0.2); g.defiler(-360, 0.35)
+    g.toucher('[data-action="mode-jeu"][data-valeur="multi"]', 0.9)
+    g.toucher('.grille-affiches .carte-oeuvre [data-action="ouvrir-plans"]', 1.1)
+    g.defiler(380, 0.9, ".feuille-corps"); g.pause(0.5)
     g.fermer_feuille()
 
-    # 4. 0:45 – 1:08 · Hors écran
-    g.toucher('#onglets [data-onglet="hors-ecran"]', 3.6)
-    for seg in ("creatif", "cuisine", "mouvement"):
-        g.toucher(f'[data-action="segment-hors"][data-valeur="{seg}"]', 1.6)
-        g.defiler(330, 0.8); g.pause(0.3); g.defiler(-330, 0.5)
-    g.toucher('[data-action="segment-hors"][data-valeur="cuisine"]', 1.2)
-    g.curseur(None, 9, duree=1.8)
-    g.pause(1.4)
-    g.toucher(".grille-activites .carte-activite h3", 1.4)
-    g.defiler(520, 1.8, ".feuille-corps"); g.pause(1.4)
-    g.defiler(560, 1.8, ".feuille-corps"); g.pause(1.6)
+    # 4. 0:42 – 1:02 · Hors écran : Tout (4 s), Créatif, Cuisine (recette), Mouvement, curseur 9
+    chapitre("4. Hors écran")
+    g.toucher('#onglets [data-onglet="hors-ecran"]', 3.2)
+    g.toucher('[data-action="segment-hors"][data-valeur="creatif"]', 1.3)
+    g.toucher('[data-action="segment-hors"][data-valeur="cuisine"]', 0.8)
+    g.curseur(None, 9, duree=1.2)
+    g.pause(0.6)
+    g.toucher(".grille-activites .carte-activite h3", 1.0)
+    g.defiler(520, 1.2, ".feuille-corps"); g.pause(0.9)
+    g.defiler(560, 1.2, ".feuille-corps"); g.pause(0.9)
     g.fermer_feuille()
+    g.toucher('[data-action="segment-hors"][data-valeur="mouvement"]', 1.4)
 
-    # 5. 1:08 – 1:28 · Sorties
-    g.toucher('#onglets [data-onglet="sorties"]', 1.8)
+    # 5. 1:02 – 1:20 · Sorties : culture, soirées, nature (distances, réservation)
+    chapitre("5. Sorties")
+    g.toucher('#onglets [data-onglet="sorties"]', 1.2)
     for seg in ("culture", "soirees", "nature"):
-        g.toucher(f'[data-action="segment-sorties"][data-valeur="{seg}"]', 1.6)
-        g.defiler(820, 1.4); g.pause(1.4); g.defiler(-820, 0.7)
+        g.toucher(f'[data-action="segment-sorties"][data-valeur="{seg}"]', 1.0)
+        g.defiler(820, 1.2); g.pause(1.1); g.defiler(-820, 0.5)
 
-    # 6. 1:28 – 2:00 · Choisir à ma place, créneau, un ami qui rejoint en direct
-    g.toucher('[data-action="choisir-pour-moi"]', 2.6)  # tirage ~500 ms puis fiche « Sélectionné pour vous »
-    g.defiler(700, 1.6, ".feuille-corps"); g.pause(0.6)
-    g.taper("#champ-rdv", "Devant l'entrée")
-    g.taper('#form-plan [name="message"]', "On y va ensemble ?", delai=60)
-    g.toucher('#form-plan button[type="submit"]', 1.8)
+    # 6. 1:20 – 1:48 · Choisir à ma place, créneau, un ami qui rejoint en direct, amis de démo
+    chapitre("6. Tirage, créneau et amis")
+    g.toucher('[data-action="choisir-pour-moi"]', 2.2)  # tirage ~500 ms puis fiche « Sélectionné pour vous »
+    g.defiler(700, 1.3, ".feuille-corps"); g.pause(0.3)
+    g.taper("#champ-rdv", "Devant l'entrée", delai=40)
+    g.taper('#form-plan [name="message"]', "On y va ensemble ?", delai=40)
+    g.toucher('#form-plan button[type="submit"]', 1.2)
 
     # Malo (vrai second compte, base jetable) devient ami et rejoint le créneau ; l'appli le voit à la synchro
     jeton = json.loads(page.evaluate("localStorage.getItem('ennui.v4.actif')"))
@@ -253,26 +261,26 @@ def scenario(page, g, camera):
     api("/api/amis", {"code": sadia["code"]}, jeton=malo["id"])
     api(f"/api/plans/{plan['id']}/participation", {"actif": True}, jeton=malo["id"])
     page.evaluate("dispatchEvent(new Event('focus'))")  # réveil de la synchro (comme au retour sur l'appli)
-    g.pause(3.2)
+    g.pause(2.6)
     g.fermer_feuille()
 
     # Amis : profils de démo (Camille, Lucas), ajout en un geste
-    g.toucher('#onglets [data-onglet="pour-vous"]', 1.8)
-    g.toucher('[data-action="ouvrir-amis"]', 1.2)
+    g.toucher('#onglets [data-onglet="pour-vous"]', 1.2)
+    g.toucher('[data-action="ouvrir-amis"]', 0.9)
     for code in ("Camille#101", "Lucas#214"):
         sel = f'[data-action="ajouter-ami"][data-code="{code}"]'
         try:
-            page.locator(sel).first.wait_for(timeout=3000)
-            g.toucher(sel, 0.9)
+            page.locator(sel).first.wait_for(timeout=2000)
+            g.toucher(sel, 0.7)
         except Exception:
             pass  # profil de démo absent de la liste
-    g.pause(1.0)
     g.fermer_feuille()
     # la session apparaît dans « Watch-parties & sessions », avec les avatars réunis
     sessions = page.locator(".carte-session").first
     if sessions.count():
         sessions.scroll_into_view_if_needed()
-    g.pause(3.0)
+    g.pause(2.6)
+    chapitre("fin")
 
 
 # ------------------------------------------------------------------ #
@@ -302,11 +310,15 @@ class Camera:
     def arreter(self):
         self.cdp.send("Page.stopScreencast")
 
-    def liste_concat(self, fichier: Path, fin=1.5):
-        """Fichier concat ffmpeg : chaque image dure jusqu'à la suivante (Chrome n'envoie que les changements)."""
+    def duree(self, fin=1.5):
+        return self.images[-1][0] - self.images[0][0] + fin
+
+    def liste_concat(self, fichier: Path, fin=1.5, facteur=1.0):
+        """Fichier concat ffmpeg : chaque image dure jusqu'à la suivante (Chrome n'envoie que les changements).
+        facteur < 1 accélère uniformément (calage de la durée totale)."""
         lignes = []
         for (t, chemin), suivant in zip(self.images, self.images[1:] + [(None, None)]):
-            duree = (suivant[0] - t) if suivant[0] else fin
+            duree = ((suivant[0] - t) if suivant[0] else fin) * facteur
             lignes += [f"file '{chemin}'", f"duration {max(duree, 0.001):.4f}"]
         lignes.append(f"file '{self.images[-1][1]}'")  # requis par le démultiplexeur concat
         fichier.write_text("\n".join(lignes) + "\n")
@@ -397,10 +409,10 @@ def video_16_9(ffmpeg, verticale: Path, mp4: Path, dossier: Path):
 
 def main():
     SORTIE.mkdir(exist_ok=True)
-    if "--16x9" in sys.argv:  # refaire seulement la version 16:9 à partir de ofk_demo.mp4
+    if "--16x9" in sys.argv:  # refaire seulement la version 16:9 à partir de la verticale
         with tempfile.TemporaryDirectory() as d:
-            video_16_9(ffmpeg_exe(), SORTIE / "ofk_demo.mp4", SORTIE / "ofk_demo_16x9.mp4", Path(d))
-        return print("Vidéo :", SORTIE / "ofk_demo_16x9.mp4")
+            video_16_9(ffmpeg_exe(), SORTIE / "ofk_demo_vertical.mp4", SORTIE / "ofk_demo.mp4", Path(d))
+        return print("Vidéo :", SORTIE / "ofk_demo.mp4")
     tmp = Path(tempfile.mkdtemp(prefix="ofk-demo-"))
     serveur = lancer_serveur(tmp / "demo.sqlite3")
     try:
@@ -421,11 +433,25 @@ def main():
                 nav.close()
             print(f"Scénario joué en {time.time() - debut:.0f} s, {len(camera.images)} images capturées")
         ffmpeg = ffmpeg_exe()
-        camera.liste_concat(tmp / "images.txt")
-        verticale = SORTIE / "ofk_demo.mp4"
+        brute = camera.duree()
+        # chronologie réelle de chaque séquence
+        for (nom, t0), (_, t1) in zip(CHAPITRES, CHAPITRES[1:]):
+            print(f"  {nom:<30} {t1 - t0:5.1f} s")
+        # calage : si la prise sort de 105–110 s, accélération ou ralenti uniforme vers 108 s (borné à ±20 %)
+        facteur = 1.0 if MIN_S <= brute <= MAX_S else CIBLE_S / brute
+        if not 0.8 <= facteur <= 1.2:
+            print(f"Attention : prise de {brute:.1f} s, trop loin de {CIBLE_S:.0f} s pour être calée sans se voir.")
+            facteur = min(1.2, max(0.8, facteur))
+        if facteur != 1.0:
+            print(f"Prise brute {brute:.1f} s -> calage x{1 / facteur:.3f}")
+        camera.liste_concat(tmp / "images.txt", facteur=facteur)
+        verticale = SORTIE / "ofk_demo_vertical.mp4"
         video_verticale(ffmpeg, tmp / "images.txt", verticale)
-        video_16_9(ffmpeg, verticale, SORTIE / "ofk_demo_16x9.mp4", tmp)
-        print("Vidéos :", verticale, "et", SORTIE / "ofk_demo_16x9.mp4")
+        finale = SORTIE / "ofk_demo.mp4"
+        video_16_9(ffmpeg, verticale, finale, tmp)
+        d = duree_video(ffmpeg, finale)
+        print(f"Vidéo : {finale} (1920 x 1080) · durée {d:.2f} s -> {'OK' if MIN_S <= d <= MAX_S else 'HORS CIBLE'} "
+              f"(cible {MIN_S:.0f}–{MAX_S:.0f} s) ; écran seul : {verticale}")
     finally:
         serveur.terminate()
         serveur.wait(timeout=10)

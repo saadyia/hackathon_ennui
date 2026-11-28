@@ -202,6 +202,8 @@ class Moteur:
             decrits = int((m & self.a_resume).sum())
             if m.any() and (decrits / m.sum() >= SEUIL_AFFICHES_STRICT or decrits >= MIN_AFFICHES_STRICT):
                 self.sans_affiche_exclu |= m & ~self.a_resume
+        # Contenu adulte ou suggestif (enrich_sensible.py, données TMDB) : jamais recommandé
+        self.sans_affiche_exclu |= np.array([bool(nd.get("sensible")) for nd in self.noeuds])
         # jeux vidéo : consoles possédées et modes de jeu
         self.masque_console: Dict[str, np.ndarray] = {}
         self.jeu_multi = vide.copy()   # co-op ou multijoueur (badge « Co-op / Multi »)

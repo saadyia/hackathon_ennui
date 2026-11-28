@@ -495,6 +495,13 @@ def assembler(S_films, noeuds_films, series, livres, jeux, sorties, tmdb_series,
     noeuds += metadonnees_jeux(jeux, len(noeuds))
     noeuds += metadonnees_sorties(sorties, len(noeuds))
     noeuds = [sans_emoji(nd) for nd in noeuds]
+    # contenus adultes ou suggestifs repérés par enrich_sensible.py (TMDB) : exclus par le moteur
+    sensibles = charger_json("sensibles.json", {"films": {}, "series": {}})
+    marques = {f"film:{k}" for k in sensibles.get("films", {})} | {f"serie:{k}" for k in sensibles.get("series", {})}
+    for nd in noeuds:
+        nd.pop("sensible", None)
+        if nd["id"] in marques:
+            nd["sensible"] = True
     for nd in noeuds:
         nd["duree_categorie"] = duree_categorie(nd)
         if nd["type"] == "sortie" and nd.get("prix") is None and nd.get("prix_num") is not None:

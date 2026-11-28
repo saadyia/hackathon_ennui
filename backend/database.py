@@ -30,7 +30,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-CHEMIN = Path(__file__).resolve().parent / "data" / "ennui.sqlite3"
+# ENNUI_DB : autre fichier SQLite (ex. base jetable pour enregistrer la vidéo de démo)
+CHEMIN = Path(os.environ.get("ENNUI_DB") or Path(__file__).resolve().parent / "data" / "ennui.sqlite3")
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 POSTGRES = DATABASE_URL.startswith(("postgres://", "postgresql://"))
 GRACE_PASSE = timedelta(hours=6)  # un plan reste visible 6 h après son début

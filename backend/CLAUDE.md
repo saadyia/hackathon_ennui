@@ -14,7 +14,7 @@ python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB
 python3 backend/import_books.py --csv ~/Downloads/GoodReadsData.csv   # livres (reprise possible)
 python3 backend/enrich_affiches.py --movielens /chemin/ml-latest-small  # affiches films (ENNUI_CONTACT conseillé)
 python3 backend/build_graph.py --movielens /chemin/ml-latest-small
-uvicorn backend.main:app --reload                   # ENNUI_SYNC=0 pour couper la synchro auto
+uvicorn backend.main:app --reload                   # ENNUI_SYNC=0 : pas de synchro auto ; ENNUI_DB=fichier.sqlite3 : autre base SQLite
 ```
 
 ## Structure

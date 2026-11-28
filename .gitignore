@@ -13,3 +13,6 @@ backend/data/*.sqlite3*
 # fichiers de clés, quel que soit leur nom (jamais versionnés)
 *.env
 .env.*
+
+# vidéo de démo générée (scripts/record_demo.py)
+demo_output/

@@ -9,3 +9,7 @@ backend/data/raw/
 # base de données locale (comptes et plans des utilisateurs)
 backend/data/*.sqlite3*
 *.tmp
+
+# fichiers de clés, quel que soit leur nom (jamais versionnés)
+*.env
+.env.*

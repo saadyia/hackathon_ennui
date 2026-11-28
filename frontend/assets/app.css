@@ -769,7 +769,13 @@ body { background: var(--fond-hors-app); }
 
 /* Transitions : l'écran glisse et se fond (GSAP), sans à-coup de défilement horizontal */
 #ecran { will-change: opacity, transform; }
-.app { overflow-x: hidden; }
+/* Débordement horizontal coupé SANS créer de zone de défilement : avec « hidden », .app devenait un conteneur de
+   défilement sur téléphone (où c'est la page qui défile) et la barre d'onglets « sticky » restait en bas du contenu. */
+.app { overflow-x: clip; }
+@supports not (overflow: clip) {
+  .app { overflow-x: visible; }
+  html { overflow-x: hidden; }  /* navigateurs anciens : coupe au niveau de la page (propagé à la fenêtre) */
+}
 
 /* ---------------- « Choisir à ma place » ---------------- */
 .bouton-tirage {

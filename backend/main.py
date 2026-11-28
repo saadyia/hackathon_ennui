@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import os
+import threading
 import unicodedata
 import urllib.parse
 import urllib.request
@@ -440,14 +441,54 @@ class DemandeAmi(BaseModel):
     code: str = Field(..., min_length=3, max_length=40)
 
 
+class DemandeReprise(BaseModel):
+    code: str = Field(..., min_length=3, max_length=40)
+    pin: Optional[str] = Field(None, pattern=r"^\d{4}$")
+
+
+class DemandePin(BaseModel):
+    pin: Optional[str] = Field(None, pattern=r"^\d{4}$", description="4 chiffres ; null = retirer le PIN")
+
+
+# Anti-essais : 5 PIN faux en 15 min par profil -> reprise bloquée jusqu'à la fin de la fenêtre (mémoire du processus)
+ESSAIS_MAX, FENETRE_ESSAIS = 5, timedelta(minutes=15)
+_echecs_pin: Dict[str, List[datetime]] = {}
+_verrou_pin = threading.Lock()
+
+
 @app.post("/api/utilisateurs/reprendre")
-def reprendre_profil(d: DemandeAmi):
+def reprendre_profil(d: DemandeReprise):
     """Reprendre un profil existant sur un nouvel appareil (ou après avoir perdu le stockage du navigateur)
-    avec son code « Prénom#123 ». Renvoie le compte complet, jeton compris. Outil de démo : pas de mot de passe."""
+    avec son code « Prénom#123 », et son PIN s'il en a un. Renvoie le compte complet, jeton compris."""
     u = database.utilisateur_par_code(d.code)
     if not u:
         raise HTTPException(status_code=404, detail="Aucun profil avec ce code")
+    pin_hash = u.pop("_pin_hash")
+    if pin_hash:
+        cle = u["code"].lower()
+        maintenant = datetime.now(timezone.utc)
+        with _verrou_pin:
+            recents = [t for t in _echecs_pin.get(cle, []) if maintenant - t < FENETRE_ESSAIS]
+            _echecs_pin[cle] = recents
+        if len(recents) >= ESSAIS_MAX:
+            minutes = max(1, math.ceil((recents[0] + FENETRE_ESSAIS - maintenant).total_seconds() / 60))
+            raise HTTPException(status_code=429, detail=f"Trop d'essais : réessaie dans {minutes} min")
+        if not d.pin:
+            raise HTTPException(status_code=403, detail="PIN requis")
+        if not database.pin_valide(pin_hash, d.pin):
+            with _verrou_pin:
+                _echecs_pin.setdefault(cle, []).append(maintenant)
+            raise HTTPException(status_code=403, detail="PIN incorrect")
+        with _verrou_pin:
+            _echecs_pin.pop(cle, None)
     return u
+
+
+@app.put("/api/utilisateurs/moi/pin")
+def definir_pin(d: DemandePin, x_utilisateur: Optional[str] = Header(None)):
+    """Active, change ou retire (pin: null) le PIN qui protège la reprise du profil sur un autre appareil."""
+    u = utilisateur_requis(x_utilisateur)
+    return database.definir_pin(u["id"], d.pin)
 
 
 @app.get("/api/utilisateurs/profils")

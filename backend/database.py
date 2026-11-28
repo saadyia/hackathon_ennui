@@ -16,6 +16,8 @@ organiser des sorties entre étudiants, pas un système d'authentification.
 SQLite : fichier ignoré par git ; une connexion par opération (thread-safe avec FastAPI), mode WAL.
 """
 
+import hashlib
+import hmac
 import json
 import os
 import random
@@ -161,6 +163,7 @@ COLONNES_UTILISATEURS = {
     "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
     "dispo_le": "TEXT",
     "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
+    "pin_hash": "TEXT",                  # code PIN facultatif : « sel$empreinte » PBKDF2-SHA256, jamais le PIN en clair
     "avatar": "TEXT",                    # JSON DiceBear {style, seed, bg, hair?, glasses?, mouth?, eyes?} ; NULL = dérivé du prénom
 }
 
@@ -245,7 +248,8 @@ def dispo_actuelle(row) -> str:
 def _utilisateur(row) -> dict:
     return {"id": row["id"], "prenom": row["prenom"], "ville": json.loads(row["ville"] or "null"),
             "prefs": json.loads(row["prefs"]), "cree_le": row["cree_le"],
-            "code": row["code"], "dispo": dispo_actuelle(row), "avatar": json.loads(row["avatar"] or "null")}
+            "code": row["code"], "dispo": dispo_actuelle(row), "avatar": json.loads(row["avatar"] or "null"),
+            "pin_actif": bool(row["pin_hash"])}
 
 
 def _public(row, ami: bool = False) -> dict:
@@ -253,7 +257,7 @@ def _public(row, ami: bool = False) -> dict:
     ville = json.loads(row["ville"] or "null") or {}
     return {"code": row["code"], "prenom": row["prenom"], "ville": ville.get("nom"),
             "dispo": dispo_actuelle(row), "demo": bool(row["demo"]), "ami": ami,
-            "avatar": json.loads(row["avatar"] or "null")}
+            "avatar": json.loads(row["avatar"] or "null"), "protege": bool(row["pin_hash"])}
 
 
 def creer_utilisateur(prenom: str, ville: Optional[dict], prefs: dict, avatar: Optional[dict] = None) -> dict:
@@ -281,11 +285,39 @@ def mettre_a_jour_utilisateur(uid: str, prenom: str, ville: Optional[dict], pref
     return lire_utilisateur(uid)
 
 
+ITERATIONS_PIN = 120_000
+
+
+def _empreinte_pin(pin: str, sel: bytes) -> str:
+    return hashlib.pbkdf2_hmac("sha256", pin.encode(), sel, ITERATIONS_PIN).hex()
+
+
+def definir_pin(uid: str, pin: Optional[str]) -> Optional[dict]:
+    """PIN à 4 chiffres (None = retiré). Seule une empreinte salée est stockée."""
+    valeur = None
+    if pin:
+        sel = secrets.token_bytes(16)
+        valeur = f"{sel.hex()}${_empreinte_pin(pin, sel)}"
+    with connexion() as con:
+        con.execute("UPDATE utilisateurs SET pin_hash = ? WHERE id = ?", (valeur, uid))
+    return lire_utilisateur(uid)
+
+
+def pin_valide(pin_hash: Optional[str], pin: Optional[str]) -> bool:
+    if not pin_hash:
+        return True
+    if not pin:
+        return False
+    sel, attendu = pin_hash.split("$", 1)
+    return hmac.compare_digest(_empreinte_pin(pin, bytes.fromhex(sel)), attendu)
+
+
 def utilisateur_par_code(code: str) -> Optional[dict]:
-    """Compte complet (avec son jeton) d'après le code public « Prénom#123 » ; jamais un profil de démo."""
+    """Compte complet (avec son jeton) d'après le code public « Prénom#123 » ; jamais un profil de démo.
+    Contient « _pin_hash » (usage interne : vérification du PIN, jamais renvoyé au client)."""
     with connexion() as con:
         row = con.execute("SELECT * FROM utilisateurs WHERE lower(code) = lower(?) AND demo = 0", (code.strip(),)).fetchone()
-    return _utilisateur(row) if row else None
+    return {**_utilisateur(row), "_pin_hash": row["pin_hash"]} if row else None
 
 
 def lister_profils(q: str = "", limite: int = 40) -> List[dict]:

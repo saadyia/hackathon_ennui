@@ -64,6 +64,8 @@ frontend/
   `pastilleNouveau()`, `marquerOngletNouveau()` ; `pileMembres()` (avatars des participants).
 - Billetterie des sorties : `tagBillet(o)` (Entrée libre, Sur réservation, Complet) sur les cartes et la fiche,
   `lienReservation(o)` (« Réserver » en https, ou téléphone).
+- PIN : `reprendreProfil(code, pin)` (403 -> étape PIN dans le tiroir de reprise), `panneauPin()` (Profil), `etat.pinActif` ;
+  champs `.champ-pin` (chiffres seulement, JetBrains Mono).
 - Comptes : `reprendreProfil(code)`, tiroir `feuille.mode === "reprise"` (`panneauReprise`, `chargerProfils`) ;
   au démarrage, `api()` expose `erreur.status` : seul un 401 fait oublier le compte.
 - « Choisir à ma place » : `candidatsTirage()` = tout le pool affiché, `dernierTirage` évite la répétition, effet ~500 ms.

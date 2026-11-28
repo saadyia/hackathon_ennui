@@ -1183,3 +1183,22 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 @media (hover: hover) { .lien-reprise:hover { color: var(--texte); } }
 .reprise-code { display: grid; gap: 10px; margin-top: 18px; }
 .reprise-code .champ { font-family: var(--police-texte); letter-spacing: 0.01em; }
+
+/* ================================================================== */
+/* Code PIN (reprise de profil protégée)                               */
+/* ================================================================== */
+.etape-pin { display: grid; justify-items: center; text-align: center; gap: 4px; }
+.etape-pin .titre-detail { margin-top: 10px; }
+.etape-pin > p { max-width: 36ch; margin: 6px 0 0; line-height: 1.5; }
+.pin-icone { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--accent);
+  background: rgba(232, 217, 181, 0.08); box-shadow: 0 0 0 1px rgba(232, 217, 181, 0.3); }
+.form-pin { width: 100%; display: grid; gap: 12px; margin-top: 18px; }
+.champ-pin {
+  height: 60px; text-align: center; font-family: var(--police-chiffres); font-size: 26px; font-weight: 500;
+  letter-spacing: 0.6em; padding-left: 0.6em; font-variant-numeric: tabular-nums;
+}
+.champ-pin::placeholder { letter-spacing: 0.6em; color: var(--texte-3); }
+.pin-erreur { margin: -2px 0 0; font-size: 13px; color: #FDA4AF; }
+.etape-pin .lien-discret { margin-top: 14px; gap: 6px; }
+.bouton-ligne.pin-actif { color: var(--accent); border-color: rgba(232, 217, 181, 0.4); }
+.ligne-ami-nom .icone { flex: none; }

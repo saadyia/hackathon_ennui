@@ -104,6 +104,7 @@ docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render /
   Seule exception, demandée : 4 profils d'étudiants fictifs (`database.PROFILS_DEMO`, Camille, Lucas, Inès, Thomas, avec leur personnage) pour tester
   les amis ; marqués « Démo » dans l'interface, ils ne rejoignent aucun plan.
 - **Identifiant public :** les autres utilisateurs ne voient que le code `Prénom#123`, jamais le jeton `id` (il vaut connexion).
+  Reprise d'un profil sur un autre appareil par ce code, protégée par un PIN facultatif (empreinte salée, jamais en clair).
 - **Langue :** code, commentaires et interface en français.
 - **Python 3.9 :** pas de syntaxe `X | None` ; utiliser `typing.Optional` / `List`.
 

@@ -584,6 +584,7 @@ async function chargerSocial() {
     const humeurAvant = etat.dispo;
     social = { moi: { code: m.code }, amis: liste.amis, suggestions: liste.suggestions };
     etat.code = m.code;
+    etat.pinActif = Boolean(m.pin_actif);
     memoriserCompte(etat.uid, etat.prenom, m.code);
     etat.dispo = m.dispo;
     if (m.avatar) etat.avatar = m.avatar;
@@ -600,8 +601,31 @@ const blocCode = () => `<div class="mon-code verre" id="bloc-code">
       <button class="bouton-ligne" data-action="copier-code" ${social.moi ? "" : "disabled"}>${icone("copy", 14)}Copier mon code</button>
       <button class="bouton-ligne" data-action="ouvrir-amis">${icone("users", 14)}Amis · <span class="chiffre">${social.amis.length}</span></button>
       <button class="bouton-ligne" data-action="ouvrir-studio">${icone("palette", 14)}Studio d'avatar</button>
+      <button class="bouton-ligne ${etat.pinActif ? "pin-actif" : ""}" data-action="ouvrir-pin">${icone(etat.pinActif ? "lock" : "lock-open", 14)}${etat.pinActif ? "PIN actif" : "Protéger par un PIN"}</button>
     </div>
   </div>`;
+
+function panneauPin() {
+  return `<div class="feuille-fond" data-action="fermer-feuille"></div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Code PIN">
+      <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
+      <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+      <div class="feuille-corps etape-pin">
+        <span class="pin-icone">${icone(etat.pinActif ? "lock" : "lock-open", 22)}</span>
+        <h2 class="titre-detail">${etat.pinActif ? "Changer de PIN" : "Protéger mon profil"}</h2>
+        <p class="muet petit">Ton code <b>${esc(etat.code || "")}</b> est visible par tes amis. Avec un PIN à 4 chiffres, personne ne peut reprendre
+          ton profil sur un autre appareil sans le connaître. Sur ce téléphone, rien ne change.</p>
+        <form id="form-definir-pin" class="form-pin">
+          <input class="champ champ-pin" id="champ-pin" name="pin" inputmode="numeric" pattern="\\d{4}" maxlength="4"
+            autocomplete="new-password" placeholder="····" required aria-label="Nouveau PIN">
+          <input class="champ champ-pin" name="confirmation" inputmode="numeric" pattern="\\d{4}" maxlength="4"
+            autocomplete="new-password" placeholder="····" required aria-label="Confirmer le PIN">
+          <button class="bouton-principal" type="submit">${icone("check", 18)}Enregistrer le PIN</button>
+        </form>
+        ${etat.pinActif ? `<button class="lien-discret" data-action="retirer-pin">${icone("lock-open", 15)}Retirer le PIN</button>` : ""}
+      </div>
+    </section>`;
+}
 
 const estSauvegarde = (id) => etat.envies.some((e) => e.id === id);
 function boutonSauver(o, { texte = false } = {}) {
@@ -1174,6 +1198,14 @@ function detailOeuvre(o) {
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
+  if (feuille.mode === "pin") {
+    const ouverture = racine.hidden;
+    racine.hidden = false;
+    racine.innerHTML = panneauPin();
+    if (ouverture) animerOuvertureFeuille(racine);
+    setTimeout(() => $("#champ-pin")?.focus(), 60);
+    return;
+  }
   if (feuille.mode === "reprise") {
     const ouverture = racine.hidden;
     racine.hidden = false;
@@ -1580,10 +1612,17 @@ function memoriserCompte(id, prenom, code) {
 }
 
 /** Reprendre un profil existant (code « Prénom#123 ») : aucun nouveau compte, aucun doublon. */
-async function reprendreProfil(code) {
+async function reprendreProfil(code, pin) {
   let u;
-  try { u = await api("/api/utilisateurs/reprendre", { code }); } catch (e) {
-    return toast(e.status === 404 ? "Aucun profil avec ce code." : "Serveur injoignable, réessaie dans un instant.");
+  try { u = await api("/api/utilisateurs/reprendre", pin ? { code, pin } : { code }); } catch (e) {
+    if (e.status === 403 && feuille?.mode === "reprise") {  // profil protégé : étape PIN
+      feuille.pinPour = code;
+      feuille.erreurPin = pin ? "PIN incorrect." : null;
+      rendreFeuille();
+      setTimeout(() => $("#champ-pin")?.focus(), 50);
+      return;
+    }
+    return toast(e.status === 404 ? "Aucun profil avec ce code." : e.status === 429 ? e.message : "Serveur injoignable, réessaie dans un instant.");
   }
   memoriserCompte(u.id, u.prenom, u.code);
   feuille = null;
@@ -1595,10 +1634,29 @@ async function reprendreProfil(code) {
 // ---------------- Tiroir « Reprendre un profil existant » ----------------
 function panneauReprise() {
   const f = feuille;
+  if (f.pinPour) {
+    return `<div class="feuille-fond" data-action="fermer-feuille"></div>
+      <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="PIN du profil">
+        <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
+        <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+        <div class="feuille-corps etape-pin">
+          <span class="pin-icone">${icone("lock", 22)}</span>
+          <h2 class="titre-detail">Profil protégé</h2>
+          <p class="muet petit">Saisis le PIN à 4 chiffres de <b>${esc(f.pinPour)}</b>.</p>
+          <form id="form-pin" class="form-pin">
+            <input class="champ champ-pin" id="champ-pin" name="pin" inputmode="numeric" pattern="\\d{4}" maxlength="4"
+              autocomplete="one-time-code" placeholder="····" required aria-label="PIN à 4 chiffres">
+            ${f.erreurPin ? `<p class="pin-erreur" role="alert">${esc(f.erreurPin)}</p>` : ""}
+            <button class="bouton-principal" type="submit">${icone("log-in", 18)}Reprendre</button>
+          </form>
+          <button class="lien-discret" data-action="retour-reprise">${icone("arrow-left", 15)}Autre profil</button>
+        </div>
+      </section>`;
+  }
   const locaux = comptes().filter((c) => c.id !== etat.uid);
   const liste = f.profils === null ? `<div class="squelette" style="height:120px;border-radius:14px"></div>`
     : f.profils.length ? `<ul class="liste-amis">${f.profils.map((p) => `<li class="ligne-ami">${avatar({ ...p, dispo: "indispo" }, 40)}
-        <div class="ligne-ami-texte"><span class="ligne-ami-nom"><b>${esc(p.prenom)}</b>${p.code === etat.code ? '<span class="tag-demo">Toi</span>' : ""}</span>
+        <div class="ligne-ami-texte"><span class="ligne-ami-nom"><b>${esc(p.prenom)}</b>${p.protege ? icone("lock", 13, "tres-muet") : ""}${p.code === etat.code ? '<span class="tag-demo">Toi</span>' : ""}</span>
           <span class="tres-muet petit">${esc(p.code)}${p.ville ? ` · ${esc(p.ville)}` : ""}</span></div>
         <button class="bouton-ligne" data-action="reprendre-profil" data-code="${esc(p.code)}" ${p.code === etat.code ? "disabled" : ""}>${icone("log-in", 14)}Reprendre</button></li>`).join("")}</ul>`
     : `<p class="tres-muet petit">Aucun profil trouvé.</p>`;
@@ -1896,6 +1954,15 @@ const actions = {
     if (etat.onglet === "profil" && !feuille) rendre();
   },
   "ouvrir-reprise"() { ouvrirReprise(); },
+  "retour-reprise"() { feuille.pinPour = null; feuille.erreurPin = null; rendreFeuille(); chargerProfils(feuille.q || ""); },
+  "ouvrir-pin"() { feuille = { mode: "pin" }; rendreFeuille(); },
+  async "retirer-pin"() {
+    try {
+      await api("/api/utilisateurs/moi/pin", { pin: null }, undefined, "PUT");
+      etat.pinActif = false; sauvegarder();
+      await fermerFeuille(); rafraichirSocial(); toast("PIN retiré");
+    } catch (err) { toast(err.message); }
+  },
   "reprendre-profil"(b) { reprendreProfil(b.dataset.code); },
   "ouvrir-amis"() {
     feuille = { mode: "amis", q: "", resultats: null };
@@ -2109,6 +2176,23 @@ document.addEventListener("click", (e) => {
 document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target;
+  if (f.id === "form-pin" && feuille?.pinPour) {
+    const pin = String(new FormData(f).get("pin") || "").trim();
+    if (!/^\d{4}$/.test(pin)) return toast("Le PIN compte 4 chiffres.");
+    reprendreProfil(feuille.pinPour, pin);
+    return;
+  }
+  if (f.id === "form-definir-pin") {
+    const d = Object.fromEntries(new FormData(f));
+    if (!/^\d{4}$/.test(d.pin)) return toast("Le PIN compte 4 chiffres.");
+    if (d.pin !== d.confirmation) return toast("Les deux PIN ne correspondent pas.");
+    try {
+      await api("/api/utilisateurs/moi/pin", { pin: d.pin }, undefined, "PUT");
+      etat.pinActif = true; sauvegarder();
+      await fermerFeuille(); rafraichirSocial(); toast("Profil protégé par un PIN");
+    } catch (err) { toast(err.message); }
+    return;
+  }
   if (f.id === "form-reprise") {
     const code = new FormData(f).get("code").trim();
     if (code) reprendreProfil(code);
@@ -2156,6 +2240,8 @@ document.addEventListener("input", (e) => {
     rechercherVille(e.target.value.trim());
   } else if (id === "champ-ville-pub") {
     rechercherVille(e.target.value.trim(), "-pub");
+  } else if (e.target.classList.contains("champ-pin")) {
+    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
   } else if (id === "recherche-profil") {
     chargerProfils(e.target.value.trim());
   } else if (id === "recherche-ami") {

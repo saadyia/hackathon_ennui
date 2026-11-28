@@ -144,7 +144,11 @@ Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétitio
   code mémorisé. Une panne passagère (redémarrage après mise à jour, réveil de Render ou de Neon, réseau) garde le compte :
   c'était la cause des profils vierges recréés.
 - « Reprendre un profil existant » (bienvenue, questionnaire, Profil > Changer de compte) : code « Prénom#123 » ou liste des
-  profils enregistrés. Sans mot de passe : n'importe qui ayant le lien peut reprendre n'importe quel profil (outil de démo).
+  profils enregistrés.
+- **PIN facultatif** (Profil > « Protéger par un PIN ») : 4 chiffres, stocké en empreinte PBKDF2-SHA256 salée (120 000
+  itérations, colonne `pin_hash`), vérifié en temps constant. Exigé seulement pour reprendre le profil sur un autre appareil.
+  Anti-essais : 5 erreurs en 15 min par profil -> 429 (compteur en mémoire du processus : une seule instance sur Render).
+  Sans PIN, n'importe qui ayant le lien peut reprendre le profil (outil de démo).
 
 ## Amis et statut « Dispo »
 - Code public `Prénom#NNN` unique (insensible à la casse), attribué à la création (et aux comptes existants à l'initialisation).

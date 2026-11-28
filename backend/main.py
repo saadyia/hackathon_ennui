@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -159,6 +159,7 @@ class Profil(BaseModel):
     ville: Optional[Ville] = None
     prefs: dict = Field(default_factory=dict)
     avatar: Optional[Avatar] = None
+    mot_de_passe: Optional[str] = Field(None, min_length=6, max_length=128, description="obligatoire à la création")
 
     @field_validator("prenom")
     @classmethod
@@ -424,8 +425,10 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
 def creer_utilisateur(p: Profil, taches: BackgroundTasks):
     if p.ville:  # ville hors couverture : collecte ciblée en arrière-plan
         taches.add_task(synchro.ajouter_ville, p.ville.nom, p.ville.lat, p.ville.lon)
+    if not p.mot_de_passe:
+        raise HTTPException(status_code=422, detail="Choisis un mot de passe (6 caractères minimum)")
     return database.creer_utilisateur(p.prenom, p.ville.model_dump() if p.ville else None, p.prefs,
-                                      p.avatar.model_dump(exclude_none=True) if p.avatar else None)
+                                      p.avatar.model_dump(exclude_none=True) if p.avatar else None, p.mot_de_passe)
 
 
 @app.get("/api/utilisateurs/moi")
@@ -441,60 +444,64 @@ class DemandeAmi(BaseModel):
     code: str = Field(..., min_length=3, max_length=40)
 
 
-class DemandeReprise(BaseModel):
-    code: str = Field(..., min_length=3, max_length=40)
-    pin: Optional[str] = Field(None, pattern=r"^\d{4}$")
+class DemandeConnexion(BaseModel):
+    identifiant: str = Field(..., min_length=1, max_length=40, description="prénom ou code « Prénom#123 »")
+    mot_de_passe: str = Field(..., min_length=1, max_length=128)
 
 
-class DemandePin(BaseModel):
-    pin: Optional[str] = Field(None, pattern=r"^\d{4}$", description="4 chiffres ; null = retirer le PIN")
+class DemandeMotDePasse(BaseModel):
+    actuel: Optional[str] = Field(None, max_length=128)
+    nouveau: str = Field(..., min_length=6, max_length=128)
 
 
-# Anti-essais : 5 PIN faux en 15 min par profil -> reprise bloquée jusqu'à la fin de la fenêtre (mémoire du processus)
-ESSAIS_MAX, FENETRE_ESSAIS = 5, timedelta(minutes=15)
-_echecs_pin: Dict[str, List[datetime]] = {}
-_verrou_pin = threading.Lock()
+# Anti-essais : 5 échecs en 15 min par identifiant (et 20 par adresse) -> 429 jusqu'à la fin de la fenêtre.
+# Compteurs en mémoire du processus (une seule instance sur Render).
+ESSAIS_MAX, ESSAIS_MAX_IP, FENETRE_ESSAIS = 5, 20, timedelta(minutes=15)
+_echecs: Dict[str, List[datetime]] = {}
+_verrou_echecs = threading.Lock()
 
 
-@app.post("/api/utilisateurs/reprendre")
-def reprendre_profil(d: DemandeReprise):
-    """Reprendre un profil existant sur un nouvel appareil (ou après avoir perdu le stockage du navigateur)
-    avec son code « Prénom#123 », et son PIN s'il en a un. Renvoie le compte complet, jeton compris."""
-    u = database.utilisateur_par_code(d.code)
+def _attente_essais(cles: List[str], maxima: List[int]) -> Optional[int]:
+    """Minutes d'attente si une des clés a atteint son maximum d'échecs, sinon None."""
+    maintenant = datetime.now(timezone.utc)
+    with _verrou_echecs:
+        for cle, maximum in zip(cles, maxima):
+            recents = [t for t in _echecs.get(cle, []) if maintenant - t < FENETRE_ESSAIS]
+            _echecs[cle] = recents
+            if len(recents) >= maximum:
+                return max(1, math.ceil((recents[0] + FENETRE_ESSAIS - maintenant).total_seconds() / 60))
+    return None
+
+
+@app.post("/api/connexion")
+def se_connecter(d: DemandeConnexion, request: Request):
+    """Se connecter avec son prénom (ou son code « Prénom#123 ») et son mot de passe. Renvoie le compte, jeton compris."""
+    cles = [f"id:{database.sans_accents(d.identifiant.strip())}", f"ip:{request.client.host if request.client else '?'}"]
+    attente = _attente_essais(cles, [ESSAIS_MAX, ESSAIS_MAX_IP])
+    if attente:
+        raise HTTPException(status_code=429, detail=f"Trop d'essais : réessaie dans {attente} min")
+    try:
+        u = database.connecter(d.identifiant, d.mot_de_passe)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Plusieurs comptes portent ce prénom : utilise ton code (ex. Sadia#402)")
     if not u:
-        raise HTTPException(status_code=404, detail="Aucun profil avec ce code")
-    pin_hash = u.pop("_pin_hash")
-    if pin_hash:
-        cle = u["code"].lower()
-        maintenant = datetime.now(timezone.utc)
-        with _verrou_pin:
-            recents = [t for t in _echecs_pin.get(cle, []) if maintenant - t < FENETRE_ESSAIS]
-            _echecs_pin[cle] = recents
-        if len(recents) >= ESSAIS_MAX:
-            minutes = max(1, math.ceil((recents[0] + FENETRE_ESSAIS - maintenant).total_seconds() / 60))
-            raise HTTPException(status_code=429, detail=f"Trop d'essais : réessaie dans {minutes} min")
-        if not d.pin:
-            raise HTTPException(status_code=403, detail="PIN requis")
-        if not database.pin_valide(pin_hash, d.pin):
-            with _verrou_pin:
-                _echecs_pin.setdefault(cle, []).append(maintenant)
-            raise HTTPException(status_code=403, detail="PIN incorrect")
-        with _verrou_pin:
-            _echecs_pin.pop(cle, None)
+        with _verrou_echecs:
+            for cle in cles:
+                _echecs.setdefault(cle, []).append(datetime.now(timezone.utc))
+        raise HTTPException(status_code=401, detail="Prénom ou mot de passe incorrect")
+    with _verrou_echecs:
+        _echecs.pop(cles[0], None)
     return u
 
 
-@app.put("/api/utilisateurs/moi/pin")
-def definir_pin(d: DemandePin, x_utilisateur: Optional[str] = Header(None)):
-    """Active, change ou retire (pin: null) le PIN qui protège la reprise du profil sur un autre appareil."""
+@app.put("/api/utilisateurs/moi/mot-de-passe")
+def changer_mot_de_passe(d: DemandeMotDePasse, x_utilisateur: Optional[str] = Header(None)):
+    """Définir (compte sans mot de passe) ou changer son mot de passe (l'actuel est alors exigé)."""
     u = utilisateur_requis(x_utilisateur)
-    return database.definir_pin(u["id"], d.pin)
-
-
-@app.get("/api/utilisateurs/profils")
-def profils(q: str = Query("", max_length=40)):
-    """Liste publique des profils enregistrés (prénom, code, ville, avatar ; jamais le jeton)."""
-    return database.lister_profils(q)
+    stocke = database.empreinte_de(u["id"])
+    if stocke and not database.mdp_valide(stocke, d.actuel or ""):
+        raise HTTPException(status_code=403, detail="Mot de passe actuel incorrect")
+    return database.definir_mot_de_passe(u["id"], d.nouveau)
 
 
 @app.put("/api/utilisateurs/moi/avatar")

@@ -138,17 +138,18 @@ autres onglets : la grille, 20 à 40 résultats), sans retomber deux fois de sui
 (visuels qui défilent en ralentissant), puis fiche ouverte avec le badge « Sélectionné pour vous ».
 Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétition consécutive.
 
-## Session et reprise de profil
-- `localStorage` : jeton (`actif`), état par compte et liste `comptes` `{id, prenom, code}`.
-- Démarrage : seul un **401** fait oublier le jeton (le serveur ne connaît plus le compte) ; on tente alors la reprise par le
-  code mémorisé. Une panne passagère (redémarrage après mise à jour, réveil de Render ou de Neon, réseau) garde le compte :
-  c'était la cause des profils vierges recréés.
-- « Reprendre un profil existant » (bienvenue, questionnaire, Profil > Changer de compte) : code « Prénom#123 » ou liste des
-  profils enregistrés.
-- **PIN facultatif** (Profil > « Protéger par un PIN ») : 4 chiffres, stocké en empreinte PBKDF2-SHA256 salée (120 000
-  itérations, colonne `pin_hash`), vérifié en temps constant. Exigé seulement pour reprendre le profil sur un autre appareil.
-  Anti-essais : 5 erreurs en 15 min par profil -> 429 (compteur en mémoire du processus : une seule instance sur Render).
-  Sans PIN, n'importe qui ayant le lien peut reprendre le profil (outil de démo).
+## Comptes, mots de passe et session
+- Inscription (« Créer un compte ») : prénom ou pseudo, avatar, mot de passe (6 caractères minimum), ville et périmètre, goûts.
+  Connexion (« Se connecter ») : prénom ou code « Prénom#123 » + mot de passe ; homonymes départagés par le mot de passe.
+- Mot de passe : empreinte PBKDF2-SHA256 salée, 240 000 itérations (`pbkdf2_sha256$itérations$sel$empreinte`, colonne
+  `mdp_hash`), comparée en temps constant ; jamais en clair, jamais renvoyée, jamais stockée côté client.
+  Anti-essais : 5 échecs en 15 min par identifiant, 20 par adresse IP -> 429 (compteurs en mémoire du processus).
+- Session : jeton aléatoire (32 octets) dans `localStorage` (`actif`), état par compte, liste `comptes` `{id, prenom, code}`
+  pour repasser d'un compte à l'autre sur le même appareil. « Se déconnecter » oublie le jeton de l'appareil.
+- Démarrage : seul un **401** fait oublier le jeton (compte absent de la base) et ouvre « Se connecter ». Une panne passagère
+  (redémarrage après mise à jour, réveil de Render ou de Neon, réseau) garde la session : c'était la cause des profils
+  vierges recréés. Plus de liste ouverte des profils ni de reprise par simple code.
+- Les profils de démo n'ont pas de mot de passe : on ne peut pas s'y connecter.
 
 ## Amis et statut « Dispo »
 - Code public `Prénom#NNN` unique (insensible à la casse), attribué à la création (et aux comptes existants à l'initialisation).
@@ -213,5 +214,6 @@ Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétitio
 - **Sans clé TMDB** : affiches typographiques pour les films, affiches TVmaze pour les séries, « Disponibilité non vérifiée » partout.
 - **Couverture des sorties** : 40 villes. Ailleurs, l'application propose la ville couverte la plus proche (ex. Bourges → Orléans, 95 km).
 - **Plafond de collecte** : 300 événements bruts par ville (Paris en a davantage). Le rayon de 50 km ne voit que ce qui a été collecté à 15 km des villes.
-- **Comptes sans mot de passe** : n'importe qui connaissant un jeton peut agir en son nom. Acceptable pour une démo, pas pour une mise en production.
+- **Session = jeton porteur** : quiconque obtient le jeton d'un appareil (accès au navigateur) agit au nom du compte ; pas de
+  réinitialisation de mot de passe par e-mail (aucune adresse collectée). Suffisant pour la démo, à renforcer pour une production.
 - **Découverte des séries et sorties à 10/10** : les résultats « hors piste » se ressemblent d'un profil à l'autre (petit catalogue).

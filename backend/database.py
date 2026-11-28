@@ -163,7 +163,8 @@ COLONNES_UTILISATEURS = {
     "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
     "dispo_le": "TEXT",
     "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
-    "pin_hash": "TEXT",                  # code PIN facultatif : « sel$empreinte » PBKDF2-SHA256, jamais le PIN en clair
+    "pin_hash": "TEXT",                  # ancien code PIN (remplacé par le mot de passe), conservé pour les bases existantes
+    "mdp_hash": "TEXT",                  # mot de passe : « pbkdf2_sha256$itérations$sel$empreinte », jamais en clair
     "avatar": "TEXT",                    # JSON DiceBear {style, seed, bg, hair?, glasses?, mouth?, eyes?} ; NULL = dérivé du prénom
 }
 
@@ -249,7 +250,7 @@ def _utilisateur(row) -> dict:
     return {"id": row["id"], "prenom": row["prenom"], "ville": json.loads(row["ville"] or "null"),
             "prefs": json.loads(row["prefs"]), "cree_le": row["cree_le"],
             "code": row["code"], "dispo": dispo_actuelle(row), "avatar": json.loads(row["avatar"] or "null"),
-            "pin_actif": bool(row["pin_hash"])}
+            "mdp_actif": bool(row["mdp_hash"])}
 
 
 def _public(row, ami: bool = False) -> dict:
@@ -257,15 +258,16 @@ def _public(row, ami: bool = False) -> dict:
     ville = json.loads(row["ville"] or "null") or {}
     return {"code": row["code"], "prenom": row["prenom"], "ville": ville.get("nom"),
             "dispo": dispo_actuelle(row), "demo": bool(row["demo"]), "ami": ami,
-            "avatar": json.loads(row["avatar"] or "null"), "protege": bool(row["pin_hash"])}
+            "avatar": json.loads(row["avatar"] or "null")}
 
 
-def creer_utilisateur(prenom: str, ville: Optional[dict], prefs: dict, avatar: Optional[dict] = None) -> dict:
-    uid = secrets.token_urlsafe(16)
+def creer_utilisateur(prenom: str, ville: Optional[dict], prefs: dict, avatar: Optional[dict] = None,
+                      mot_de_passe: Optional[str] = None) -> dict:
+    uid = secrets.token_urlsafe(32)
     with connexion() as con:
-        con.execute("INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        con.execute("INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, avatar, mdp_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (uid, prenom, json.dumps(ville), json.dumps(prefs), maintenant_iso(), _nouveau_code(con, prenom),
-                     json.dumps(avatar) if avatar else None))
+                     json.dumps(avatar) if avatar else None, empreinte_mdp(mot_de_passe) if mot_de_passe else None))
     return lire_utilisateur(uid)
 
 
@@ -285,49 +287,54 @@ def mettre_a_jour_utilisateur(uid: str, prenom: str, ville: Optional[dict], pref
     return lire_utilisateur(uid)
 
 
-ITERATIONS_PIN = 120_000
+# ------------------------------------------------------------------ #
+# Mots de passe (PBKDF2-SHA256 salé, bibliothèque standard)            #
+# ------------------------------------------------------------------ #
+ITERATIONS_MDP = 240_000
 
 
-def _empreinte_pin(pin: str, sel: bytes) -> str:
-    return hashlib.pbkdf2_hmac("sha256", pin.encode(), sel, ITERATIONS_PIN).hex()
+def empreinte_mdp(mdp: str) -> str:
+    sel = secrets.token_bytes(16)
+    h = hashlib.pbkdf2_hmac("sha256", mdp.encode(), sel, ITERATIONS_MDP).hex()
+    return f"pbkdf2_sha256${ITERATIONS_MDP}${sel.hex()}${h}"
 
 
-def definir_pin(uid: str, pin: Optional[str]) -> Optional[dict]:
-    """PIN à 4 chiffres (None = retiré). Seule une empreinte salée est stockée."""
-    valeur = None
-    if pin:
-        sel = secrets.token_bytes(16)
-        valeur = f"{sel.hex()}${_empreinte_pin(pin, sel)}"
+def mdp_valide(stocke: Optional[str], mdp: str) -> bool:
+    """Comparaison en temps constant ; un compte sans mot de passe ne peut pas se connecter par ce biais."""
+    if not stocke or not mdp:
+        return False
+    _, iterations, sel, attendu = stocke.split("$")
+    calcule = hashlib.pbkdf2_hmac("sha256", mdp.encode(), bytes.fromhex(sel), int(iterations)).hex()
+    return hmac.compare_digest(calcule, attendu)
+
+
+def definir_mot_de_passe(uid: str, mdp: str) -> Optional[dict]:
     with connexion() as con:
-        con.execute("UPDATE utilisateurs SET pin_hash = ? WHERE id = ?", (valeur, uid))
+        con.execute("UPDATE utilisateurs SET mdp_hash = ? WHERE id = ?", (empreinte_mdp(mdp), uid))
     return lire_utilisateur(uid)
 
 
-def pin_valide(pin_hash: Optional[str], pin: Optional[str]) -> bool:
-    if not pin_hash:
-        return True
-    if not pin:
-        return False
-    sel, attendu = pin_hash.split("$", 1)
-    return hmac.compare_digest(_empreinte_pin(pin, bytes.fromhex(sel)), attendu)
-
-
-def utilisateur_par_code(code: str) -> Optional[dict]:
-    """Compte complet (avec son jeton) d'après le code public « Prénom#123 » ; jamais un profil de démo.
-    Contient « _pin_hash » (usage interne : vérification du PIN, jamais renvoyé au client)."""
+def empreinte_de(uid: str) -> Optional[str]:
     with connexion() as con:
-        row = con.execute("SELECT * FROM utilisateurs WHERE lower(code) = lower(?) AND demo = 0", (code.strip(),)).fetchone()
-    return {**_utilisateur(row), "_pin_hash": row["pin_hash"]} if row else None
+        row = con.execute("SELECT mdp_hash FROM utilisateurs WHERE id = ?", (uid,)).fetchone()
+    return row["mdp_hash"] if row else None
 
 
-def lister_profils(q: str = "", limite: int = 40) -> List[dict]:
-    """Profils réels (pas de démo) pour « Reprendre un profil existant » : vue publique, les plus récents d'abord."""
+def connecter(identifiant: str, mdp: str) -> Optional[dict]:
+    """Connexion par code « Prénom#123 » ou par prénom (insensible à la casse et aux accents) + mot de passe.
+    Plusieurs comptes peuvent porter le même prénom : on garde celui dont le mot de passe correspond.
+    Renvoie le compte (jeton compris), None si aucun ; ValueError si l'identifiant est ambigu."""
+    cible = sans_accents(identifiant.strip())
     with connexion() as con:
-        rows = con.execute("SELECT * FROM utilisateurs WHERE demo = 0 ORDER BY cree_le DESC").fetchall()
-    cible = sans_accents(q.strip())
-    if cible:
-        rows = [r for r in rows if sans_accents(r["prenom"]).startswith(cible) or cible in sans_accents(r["code"] or "")]
-    return [_public(r) for r in rows[:limite]]
+        rows = con.execute("SELECT * FROM utilisateurs WHERE demo = 0 AND mdp_hash IS NOT NULL").fetchall()
+    if "#" in cible:
+        candidats = [r for r in rows if sans_accents(r["code"] or "") == cible]
+    else:
+        candidats = [r for r in rows if sans_accents(" ".join(r["prenom"].split())) == " ".join(cible.split())]
+    bons = [r for r in candidats if mdp_valide(r["mdp_hash"], mdp)]
+    if len(bons) > 1:
+        raise ValueError("ambigu")
+    return _utilisateur(bons[0]) if bons else None
 
 
 def changer_avatar(uid: str, avatar: dict) -> Optional[dict]:

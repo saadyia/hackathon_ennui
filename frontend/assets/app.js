@@ -70,7 +70,7 @@ const ETAT_INITIAL = () => ({
   dejaVus: [],          // [{ id, titre, type }]
   envies: [],           // « Mes envies » : [{ id, titre, type, affiche, ... }] mis de côté
   avatar: null,         // personnage DiceBear ; null = déduit du prénom
-  code: null,           // code public « Prénom#123 » : permet de reprendre le profil sur un autre appareil
+  code: null,           // code public « Prénom#123 » (amis, connexion)
   dispo: "indispo",     // humeur du moment (copie locale du serveur)
   decouverte: 0.3,
   energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
@@ -89,7 +89,8 @@ let social = { moi: null, amis: [], suggestions: [] };
 // Synchronisation temps réel (/api/sync) : version, plans connus { id -> participants }, plans signalés « Nouveau » { id -> oeuvre_id }
 let synchro = { v: null, connus: null, enCours: false };
 const nouveaux = new Map();  // code, statut « Dispo », amis (serveur)
-let etape = "bienvenue"; // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
+let etape = "bienvenue";
+let modeAuth = "creer";  // écran d'authentification : "creer" (inscription) | "connexion" // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
 
 const stock = {
   lire(cle, defaut) { try { return JSON.parse(localStorage.getItem(`${PREFIXE}.${cle}`)) ?? defaut; } catch (_) { return defaut; } },
@@ -584,7 +585,7 @@ async function chargerSocial() {
     const humeurAvant = etat.dispo;
     social = { moi: { code: m.code }, amis: liste.amis, suggestions: liste.suggestions };
     etat.code = m.code;
-    etat.pinActif = Boolean(m.pin_actif);
+    etat.mdpActif = Boolean(m.mdp_actif);
     memoriserCompte(etat.uid, etat.prenom, m.code);
     etat.dispo = m.dispo;
     if (m.avatar) etat.avatar = m.avatar;
@@ -601,28 +602,26 @@ const blocCode = () => `<div class="mon-code verre" id="bloc-code">
       <button class="bouton-ligne" data-action="copier-code" ${social.moi ? "" : "disabled"}>${icone("copy", 14)}Copier mon code</button>
       <button class="bouton-ligne" data-action="ouvrir-amis">${icone("users", 14)}Amis · <span class="chiffre">${social.amis.length}</span></button>
       <button class="bouton-ligne" data-action="ouvrir-studio">${icone("palette", 14)}Studio d'avatar</button>
-      <button class="bouton-ligne ${etat.pinActif ? "pin-actif" : ""}" data-action="ouvrir-pin">${icone(etat.pinActif ? "lock" : "lock-open", 14)}${etat.pinActif ? "PIN actif" : "Protéger par un PIN"}</button>
+      <button class="bouton-ligne" data-action="ouvrir-mdp">${icone("key-round", 14)}${etat.mdpActif === false ? "Choisir un mot de passe" : "Mot de passe"}</button>
     </div>
   </div>`;
 
-function panneauPin() {
+function panneauMdp() {
+  const avecActuel = etat.mdpActif !== false;
   return `<div class="feuille-fond" data-action="fermer-feuille"></div>
-    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Code PIN">
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Mot de passe">
       <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
       <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
       <div class="feuille-corps etape-pin">
-        <span class="pin-icone">${icone(etat.pinActif ? "lock" : "lock-open", 22)}</span>
-        <h2 class="titre-detail">${etat.pinActif ? "Changer de PIN" : "Protéger mon profil"}</h2>
-        <p class="muet petit">Ton code <b>${esc(etat.code || "")}</b> est visible par tes amis. Avec un PIN à 4 chiffres, personne ne peut reprendre
-          ton profil sur un autre appareil sans le connaître. Sur ce téléphone, rien ne change.</p>
-        <form id="form-definir-pin" class="form-pin">
-          <input class="champ champ-pin" id="champ-pin" name="pin" inputmode="numeric" pattern="\\d{4}" maxlength="4"
-            autocomplete="new-password" placeholder="····" required aria-label="Nouveau PIN">
-          <input class="champ champ-pin" name="confirmation" inputmode="numeric" pattern="\\d{4}" maxlength="4"
-            autocomplete="new-password" placeholder="····" required aria-label="Confirmer le PIN">
-          <button class="bouton-principal" type="submit">${icone("check", 18)}Enregistrer le PIN</button>
+        <span class="pin-icone">${icone("key-round", 22)}</span>
+        <h2 class="titre-detail">${avecActuel ? "Changer de mot de passe" : "Choisir un mot de passe"}</h2>
+        <p class="muet petit">Il te permet de te reconnecter à <b>${esc(etat.code || etat.prenom)}</b> sur n'importe quel appareil.</p>
+        <form id="form-mdp" class="form-auth">
+          ${avecActuel ? champMdp("actuel", "Mot de passe actuel", "current-password") : ""}
+          ${champMdp("nouveau", "Nouveau mot de passe (6 caractères minimum)", "new-password")}
+          <p class="auth-erreur" id="erreur-mdp" role="alert" hidden></p>
+          <button class="bouton-principal" type="submit">${icone("check", 18)}Enregistrer</button>
         </form>
-        ${etat.pinActif ? `<button class="lien-discret" data-action="retirer-pin">${icone("lock-open", 15)}Retirer le PIN</button>` : ""}
       </div>
     </section>`;
 }
@@ -741,7 +740,9 @@ function localisation() {
       <ul class="suggestions" id="suggestions-ville" hidden></ul>
       ${v ? `<div class="rayon">
           <div class="rayon-tete"><span class="surtitre">Périmètre</span><span class="instrument-valeur chiffre" id="valeur-rayon">${etat.prefs.rayon} km</span></div>
-          <div class="slider-ui slider-rayon" id="rayon-ui" aria-label="Rayon de recherche en kilomètres"></div>
+          <input type="range" class="curseur-natif" id="rayon" min="5" max="50" step="5" value="${etat.prefs.rayon}"
+            style="--pct:${((etat.prefs.rayon - 5) / 45) * 100}%" aria-label="Rayon de recherche en kilomètres" aria-valuetext="${etat.prefs.rayon} km">
+          <div class="curseur-reperes chiffre" aria-hidden="true">${[5, 15, 30, 50].map((v) => `<span style="left:${((v - 5) / 45) * 100}%">${v} km</span>`).join("")}</div>
         </div>` : `<p class="tres-muet petit" style="margin:8px 2px 0">Sans ville, on te montre les sorties partout en France.</p>`}
     </div>`;
 }
@@ -857,37 +858,67 @@ function ecranBienvenue() {
       </div>
       <div class="bienvenue-actions">
         <button class="bouton-principal" data-action="c-est-parti">C'est parti ! ${icone("arrow-right", 18)}</button>
-        ${etat.uid ? "" : `<button class="lien-discret lien-reprise" data-action="ouvrir-reprise">${icone("log-in", 15)}Reprendre un profil existant</button>`}
+        ${etat.uid ? "" : `<button class="lien-discret lien-reprise" data-action="auth" data-mode="connexion">${icone("log-in", 15)}J'ai déjà un compte</button>`}
       </div>
     </div>`;
 }
 
+/** Champ mot de passe masqué, avec bouton discret Afficher / Masquer. */
+const champMdp = (nom, libelle, autocomplete) => `<label class="champ-mdp">
+    <span class="petit muet">${libelle}</span>
+    <span class="champ-mdp-ligne">
+      <input class="champ" type="password" name="${nom}" id="mdp-${nom}" minlength="${nom === "actuel" || autocomplete === "current-password" ? 1 : 6}" maxlength="128"
+        autocomplete="${autocomplete}" required>
+      <button type="button" class="bouton-afficher" data-action="basculer-mdp" data-cible="mdp-${nom}" aria-pressed="false">Afficher</button>
+    </span>
+  </label>`;
+
 function ecranAccueil() {
   const connus = comptes();
+  const creer = modeAuth === "creer";
   return `<div class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span class="marque">${LOGO}</span>
         <button class="lien-discret" data-action="retour-bienvenue">${icone("arrow-left", 16)}Retour</button>
       </div>
-      <h1 class="titre-1" style="font-size:34px;margin-top:40px">Dis-nous tout.</h1>
-      <p class="muet" style="margin:14px 0 0">Ton profil, une fois pour toutes : tes goûts, ta ville et ce que tu possèdes. L'envie du moment se choisit ensuite dans les onglets. Seul ton prénom est obligatoire.</p>
-      <button class="lien-discret lien-reprise" style="margin-top:16px" data-action="ouvrir-reprise">${icone("log-in", 15)}Reprendre un profil existant</button>
-      ${connus.length ? `<div class="reprendre">
-          <span class="tres-muet petit">Déjà venu sur cet appareil ?</span>
-          <div class="puces" style="margin-top:8px">${connus.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">
-            ${icone("user", 14)}${esc(c.prenom)}</button>`).join("")}</div>
-        </div>` : ""}
+      <h1 class="titre-1" style="font-size:34px;margin-top:34px">${creer ? "Dis-nous tout." : "Content de te revoir."}</h1>
+      <div class="segment segment-pilule segment-auth" role="tablist" aria-label="Compte" style="--index:${creer ? 0 : 1}">
+        <span class="segment-indicateur" aria-hidden="true"></span>
+        <button role="tab" data-action="auth" data-mode="creer" aria-pressed="${creer}">Créer un compte</button>
+        <button role="tab" data-action="auth" data-mode="connexion" aria-pressed="${!creer}">Se connecter</button>
+      </div>
+      ${creer ? `
+      <p class="muet" style="margin:16px 0 0">Ton profil, une fois pour toutes : tes goûts, ta ville et ce que tu possèdes. L'envie du moment se choisit ensuite dans les onglets.</p>
       <section class="groupe">
-        <span class="surtitre">Ton prénom</span>
-        <input class="champ" id="champ-prenom" maxlength="30" autocomplete="given-name" placeholder="Ex. Chloé" value="${esc(etat.prenom)}">
+        <span class="surtitre">Ton prénom ou pseudo</span>
+        <input class="champ" id="champ-prenom" maxlength="30" autocomplete="nickname" placeholder="Ex. Chloé" value="${esc(etat.prenom)}">
         ${apercuInscription()}
+      </section>
+      <section class="groupe">
+        <span class="surtitre">Ton mot de passe</span>
+        <form id="form-inscription-mdp" class="form-auth">
+          ${champMdp("inscription", "6 caractères minimum", "new-password")}
+        </form>
       </section>
       ${sectionVille()}
       ${preferences({ ville: false, ambiances: false })}
     </div>
     <div class="barre-action">
-      <button class="bouton-principal" data-action="commencer" ${etat.prenom.trim() ? "" : "disabled"}>Découvrir ma sélection ${icone("arrow-right", 18)}</button>
-    </div>`;
+      <button class="bouton-principal" data-action="commencer" ${etat.prenom.trim() ? "" : "disabled"}>Créer mon compte ${icone("arrow-right", 18)}</button>
+    </div>` : `
+      <form id="form-connexion" class="form-auth" style="margin-top:22px">
+        <label class="champ-mdp"><span class="petit muet">Prénom ou code (ex. Sadia#402)</span>
+          <input class="champ" name="identifiant" id="champ-identifiant" maxlength="40" autocomplete="username" autocapitalize="words" required></label>
+        ${champMdp("connexion", "Mot de passe", "current-password")}
+        <p class="auth-erreur" id="erreur-connexion" role="alert" hidden></p>
+        <button class="bouton-principal" type="submit">${icone("log-in", 18)}Se connecter</button>
+      </form>
+      ${connus.length ? `<section class="groupe">
+          <span class="surtitre">Déjà connecté sur cet appareil</span>
+          <div class="puces">${connus.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">
+            ${icone("user", 14)}${esc(c.prenom)}${c.code ? ` <span class="tres-muet">#${esc(c.code.split("#")[1] || "")}</span>` : ""}</button>`).join("")}</div>
+        </section>` : ""}
+    </div>`}`;
 }
 
 const rangee = (cartes, classe = "") => `<div class="swiper rangee ${classe}"><div class="swiper-wrapper">
@@ -1053,8 +1084,9 @@ function ecranProfil() {
       <span class="muet">Connecté sur cet appareil</span>
       <div class="puces" style="margin-top:10px">
         ${autres.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">${icone("user", 14)}${esc(c.prenom)}</button>`).join("")}
-        <button class="puce" data-action="ouvrir-reprise">${icone("repeat", 14)}Changer de compte</button>
+        <button class="puce" data-action="changer-de-compte">${icone("repeat", 14)}Changer de compte</button>
         <button class="puce" data-action="nouveau-compte">${icone("plus", 14)}Nouveau compte</button>
+        <button class="puce" data-action="se-deconnecter">${icone("log-out", 14)}Se déconnecter</button>
       </div>
     </div>
     <section class="groupe">
@@ -1198,18 +1230,10 @@ function detailOeuvre(o) {
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
-  if (feuille.mode === "pin") {
+  if (feuille.mode === "mdp") {
     const ouverture = racine.hidden;
     racine.hidden = false;
-    racine.innerHTML = panneauPin();
-    if (ouverture) animerOuvertureFeuille(racine);
-    setTimeout(() => $("#champ-pin")?.focus(), 60);
-    return;
-  }
-  if (feuille.mode === "reprise") {
-    const ouverture = racine.hidden;
-    racine.hidden = false;
-    racine.innerHTML = panneauReprise();
+    racine.innerHTML = panneauMdp();
     if (ouverture) animerOuvertureFeuille(racine);
     return;
   }
@@ -1379,19 +1403,6 @@ function monterComposants(racine) {
       chargerApresCran();
     });
     curseur.noUiSlider.on("change", sauvegarder);
-  }
-  const rayon = racine.querySelector?.("#rayon-ui");
-  if (rayon && !rayon.noUiSlider && noUiSlider) {
-    noUiSlider.create(rayon, {
-      start: etat.prefs.rayon, connect: [true, false], step: 5, range: { min: 5, max: 50 },
-      pips: { mode: "values", values: [5, 15, 30, 50], density: 12, format: { to: (v) => `${Math.round(v)} km` } },
-    });
-    rayon.noUiSlider.on("slide", ([v]) => {
-      etat.prefs.rayon = Math.round(Number(v));
-      $("#valeur-rayon").textContent = `${etat.prefs.rayon} km`;
-      if (etat.uid && etape !== "bienvenue" && etat.onglet !== "profil") chargerApresRayon();
-    });
-    rayon.noUiSlider.on("change", sauvegarder);
   }
   if (Swiper) {
     racine.querySelectorAll?.(".swiper.rangee:not(.swiper-initialized)").forEach((el) => new Swiper(el, {
@@ -1578,6 +1589,15 @@ const chargerSiQuotaChange = debounce(() => {
   if (`${etat.onglet}:${etat.ecrans}:${nbPepites()}` !== cleQuota) charger({ partiel: true });
 }, 60);
 const chargerApresRayon = debounce(() => charger({ partiel: true }), 150);
+/** Curseur natif du périmètre : valeur en direct (JetBrains Mono), remplissage, rechargement si l'appli est ouverte. */
+function majRayon(champ) {
+  etat.prefs.rayon = Number(champ.value);
+  champ.style.setProperty("--pct", `${((etat.prefs.rayon - 5) / 45) * 100}%`);
+  champ.setAttribute("aria-valuetext", `${etat.prefs.rayon} km`);
+  const v = $("#valeur-rayon");
+  if (v) v.textContent = `${etat.prefs.rayon} km`;
+  if (etat.uid && etape === "application" && etat.onglet !== "profil") chargerApresRayon();
+}
 const chargerApresCran = debounce(() => charger({ partiel: true }), 120);
 
 function trouver(id) {
@@ -1610,95 +1630,6 @@ function memoriserCompte(id, prenom, code) {
   const liste = comptes().filter((c) => c.id !== id);
   stock.ecrire("comptes", [{ id, prenom, code: code || ancien?.code || null }, ...liste].slice(0, 8));
 }
-
-/** Reprendre un profil existant (code « Prénom#123 ») : aucun nouveau compte, aucun doublon. */
-async function reprendreProfil(code, pin) {
-  let u;
-  try { u = await api("/api/utilisateurs/reprendre", pin ? { code, pin } : { code }); } catch (e) {
-    if (e.status === 403 && feuille?.mode === "reprise") {  // profil protégé : étape PIN
-      feuille.pinPour = code;
-      feuille.erreurPin = pin ? "PIN incorrect." : null;
-      rendreFeuille();
-      setTimeout(() => $("#champ-pin")?.focus(), 50);
-      return;
-    }
-    return toast(e.status === 404 ? "Aucun profil avec ce code." : e.status === 429 ? e.message : "Serveur injoignable, réessaie dans un instant.");
-  }
-  memoriserCompte(u.id, u.prenom, u.code);
-  feuille = null;
-  rendreFeuille();
-  etape = "application";
-  await changerCompte(u.id);
-}
-
-// ---------------- Tiroir « Reprendre un profil existant » ----------------
-function panneauReprise() {
-  const f = feuille;
-  if (f.pinPour) {
-    return `<div class="feuille-fond" data-action="fermer-feuille"></div>
-      <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="PIN du profil">
-        <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
-        <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
-        <div class="feuille-corps etape-pin">
-          <span class="pin-icone">${icone("lock", 22)}</span>
-          <h2 class="titre-detail">Profil protégé</h2>
-          <p class="muet petit">Saisis le PIN à 4 chiffres de <b>${esc(f.pinPour)}</b>.</p>
-          <form id="form-pin" class="form-pin">
-            <input class="champ champ-pin" id="champ-pin" name="pin" inputmode="numeric" pattern="\\d{4}" maxlength="4"
-              autocomplete="one-time-code" placeholder="····" required aria-label="PIN à 4 chiffres">
-            ${f.erreurPin ? `<p class="pin-erreur" role="alert">${esc(f.erreurPin)}</p>` : ""}
-            <button class="bouton-principal" type="submit">${icone("log-in", 18)}Reprendre</button>
-          </form>
-          <button class="lien-discret" data-action="retour-reprise">${icone("arrow-left", 15)}Autre profil</button>
-        </div>
-      </section>`;
-  }
-  const locaux = comptes().filter((c) => c.id !== etat.uid);
-  const liste = f.profils === null ? `<div class="squelette" style="height:120px;border-radius:14px"></div>`
-    : f.profils.length ? `<ul class="liste-amis">${f.profils.map((p) => `<li class="ligne-ami">${avatar({ ...p, dispo: "indispo" }, 40)}
-        <div class="ligne-ami-texte"><span class="ligne-ami-nom"><b>${esc(p.prenom)}</b>${p.protege ? icone("lock", 13, "tres-muet") : ""}${p.code === etat.code ? '<span class="tag-demo">Toi</span>' : ""}</span>
-          <span class="tres-muet petit">${esc(p.code)}${p.ville ? ` · ${esc(p.ville)}` : ""}</span></div>
-        <button class="bouton-ligne" data-action="reprendre-profil" data-code="${esc(p.code)}" ${p.code === etat.code ? "disabled" : ""}>${icone("log-in", 14)}Reprendre</button></li>`).join("")}</ul>`
-    : `<p class="tres-muet petit">Aucun profil trouvé.</p>`;
-  return `<div class="feuille-fond" data-action="fermer-feuille"></div>
-    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Reprendre un profil existant">
-      <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
-      <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
-      <div class="feuille-corps">
-        <h2 class="titre-detail">Reprendre un profil</h2>
-        <p class="muet petit" style="margin:6px 0 0">Ton avatar, tes amis et « Mes envies » sont enregistrés sur le serveur. Retrouve-les avec ton code, visible dans Profil.</p>
-        <form class="reprise-code" id="form-reprise">
-          <input class="champ" name="code" maxlength="40" autocomplete="off" autocapitalize="words" placeholder="Prénom#123" required>
-          <button class="bouton-principal" type="submit">${icone("log-in", 18)}Reprendre</button>
-        </form>
-        ${locaux.length ? `<section class="groupe"><span class="surtitre">Sur cet appareil</span>
-          <div class="puces">${locaux.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">${icone("user", 14)}${esc(c.prenom)}${c.code ? ` <span class="tres-muet">${esc(c.code.split("#")[1] ? "#" + c.code.split("#")[1] : "")}</span>` : ""}</button>`).join("")}</div>
-        </section>` : ""}
-        <section class="groupe">
-          <span class="surtitre">Profils enregistrés</span>
-          <label class="champ-recherche">${icone("search", 16, "tres-muet")}
-            <input class="champ" id="recherche-profil" maxlength="40" autocomplete="off" placeholder="Chercher un prénom" value="${esc(f.q || "")}">
-          </label>
-          <div id="liste-profils" style="margin-top:10px">${liste}</div>
-        </section>
-      </div>
-    </section>`;
-}
-
-async function ouvrirReprise() {
-  feuille = { mode: "reprise", q: "", profils: null };
-  rendreFeuille();
-  chargerProfils("");
-}
-const chargerProfils = debounce(async (q) => {
-  if (feuille?.mode !== "reprise") return;
-  feuille.q = q;
-  try { feuille.profils = await api(`/api/utilisateurs/profils?q=${encodeURIComponent(q)}`); } catch (_) { feuille.profils = []; }
-  if (feuille?.mode !== "reprise") return;
-  const tmp = document.createElement("div");
-  tmp.innerHTML = panneauReprise();
-  $("#liste-profils").innerHTML = tmp.querySelector("#liste-profils").innerHTML;
-}, 200);
 
 /** Horizon d'un ancien profil (ex. « court ») absent des choix proposés : « Dans la semaine ». */
 function normaliserHorizon() {
@@ -1834,15 +1765,22 @@ const actions = {
   async commencer(b) {
     const prenom = etat.prenom.trim();
     if (!prenom) return;
+    const mdp = $("#mdp-inscription")?.value || "";
+    if (mdp.length < 6) {
+      $("#mdp-inscription")?.focus();
+      return toast("Choisis un mot de passe de 6 caractères minimum.");
+    }
     b.disabled = true;
     try {
       const { ville, ...prefs } = etat.prefs;
       const u = await api("/api/utilisateurs", { prenom, ville, prefs: { ...prefs, horizon: etat.horizon },
-        avatar: avatarDe({ prenom, avatar: etat.avatar }) });  // avatar déduit du prénom si non personnalisé
+        avatar: avatarDe({ prenom, avatar: etat.avatar }), mot_de_passe: mdp });  // jamais stocké côté client
       etat.uid = u.id;
       etat.prenom = u.prenom;
       etat.code = u.code;
+      etat.mdpActif = true;
       etat.onglet = "pour-vous";
+      etape = "application";
       memoriserCompte(u.id, u.prenom, u.code);
       sauvegarder();
       haut();
@@ -1861,6 +1799,7 @@ const actions = {
   },
   "c-est-parti"() {
     etape = etat.uid ? "application" : "questionnaire";  // compte connu : directement à la sélection
+    modeAuth = "creer";
     haut();
     rendre();
     synchroniser();
@@ -1878,6 +1817,7 @@ const actions = {
   },
   "nouveau-compte"() {
     etape = "questionnaire";
+    modeAuth = "creer";
     social = { moi: null, amis: [], suggestions: [] };
     etat = ETAT_INITIAL();
     stock.retirer("actif");
@@ -1953,17 +1893,36 @@ const actions = {
     toast(actif ? "Ajouté à Mes envies" : "Retiré de Mes envies");
     if (etat.onglet === "profil" && !feuille) rendre();
   },
-  "ouvrir-reprise"() { ouvrirReprise(); },
-  "retour-reprise"() { feuille.pinPour = null; feuille.erreurPin = null; rendreFeuille(); chargerProfils(feuille.q || ""); },
-  "ouvrir-pin"() { feuille = { mode: "pin" }; rendreFeuille(); },
-  async "retirer-pin"() {
-    try {
-      await api("/api/utilisateurs/moi/pin", { pin: null }, undefined, "PUT");
-      etat.pinActif = false; sauvegarder();
-      await fermerFeuille(); rafraichirSocial(); toast("PIN retiré");
-    } catch (err) { toast(err.message); }
+  auth(b) {
+    modeAuth = b.dataset.mode;
+    etape = "questionnaire";
+    haut();
+    rendre();
+    if (modeAuth === "connexion") setTimeout(() => $("#champ-identifiant")?.focus(), 50);
   },
-  "reprendre-profil"(b) { reprendreProfil(b.dataset.code); },
+  "basculer-mdp"(b) {
+    const champ = document.getElementById(b.dataset.cible);
+    const visible = champ.type === "password";
+    champ.type = visible ? "text" : "password";
+    b.textContent = visible ? "Masquer" : "Afficher";
+    b.setAttribute("aria-pressed", String(visible));
+  },
+  "ouvrir-mdp"() { feuille = { mode: "mdp" }; rendreFeuille(); },
+  "changer-de-compte"() {
+    stock.retirer("actif");  // le compte reste dans « Déjà connecté sur cet appareil »
+    etat = ETAT_INITIAL(); donnees = {}; social = { moi: null, amis: [], suggestions: [] };
+    modeAuth = "connexion"; etape = "questionnaire";
+    haut(); rendre();
+  },
+  "se-deconnecter"() {
+    stock.ecrire("comptes", comptes().filter((c) => c.id !== etat.uid));
+    stock.retirer(`etat.${etat.uid}`);
+    stock.retirer("actif");
+    etat = ETAT_INITIAL(); donnees = {}; social = { moi: null, amis: [], suggestions: [] };
+    modeAuth = "connexion"; etape = "questionnaire";
+    haut(); rendre();
+    toast("Déconnecté");
+  },
   "ouvrir-amis"() {
     feuille = { mode: "amis", q: "", resultats: null };
     rendreFeuille();
@@ -2176,26 +2135,32 @@ document.addEventListener("click", (e) => {
 document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target;
-  if (f.id === "form-pin" && feuille?.pinPour) {
-    const pin = String(new FormData(f).get("pin") || "").trim();
-    if (!/^\d{4}$/.test(pin)) return toast("Le PIN compte 4 chiffres.");
-    reprendreProfil(feuille.pinPour, pin);
-    return;
-  }
-  if (f.id === "form-definir-pin") {
+  if (f.id === "form-connexion") {
     const d = Object.fromEntries(new FormData(f));
-    if (!/^\d{4}$/.test(d.pin)) return toast("Le PIN compte 4 chiffres.");
-    if (d.pin !== d.confirmation) return toast("Les deux PIN ne correspondent pas.");
+    const erreur = $("#erreur-connexion");
+    const bouton = f.querySelector("button[type=submit]");
+    bouton.disabled = true;
     try {
-      await api("/api/utilisateurs/moi/pin", { pin: d.pin }, undefined, "PUT");
-      etat.pinActif = true; sauvegarder();
-      await fermerFeuille(); rafraichirSocial(); toast("Profil protégé par un PIN");
-    } catch (err) { toast(err.message); }
+      const u = await api("/api/connexion", { identifiant: d.identifiant.trim(), mot_de_passe: d.connexion });
+      memoriserCompte(u.id, u.prenom, u.code);
+      etape = "application";
+      await changerCompte(u.id);
+    } catch (err) {
+      bouton.disabled = false;
+      erreur.hidden = false;
+      erreur.textContent = err.status ? err.message : "Serveur injoignable, réessaie dans un instant.";
+    }
     return;
   }
-  if (f.id === "form-reprise") {
-    const code = new FormData(f).get("code").trim();
-    if (code) reprendreProfil(code);
+  if (f.id === "form-mdp") {
+    const d = Object.fromEntries(new FormData(f));
+    const erreur = $("#erreur-mdp");
+    if ((d.nouveau || "").length < 6) { erreur.hidden = false; erreur.textContent = "6 caractères minimum."; return; }
+    try {
+      await api("/api/utilisateurs/moi/mot-de-passe", { actuel: d.actuel || null, nouveau: d.nouveau }, undefined, "PUT");
+      etat.mdpActif = true; sauvegarder();
+      await fermerFeuille(); rafraichirSocial(); toast("Mot de passe enregistré");
+    } catch (err) { erreur.hidden = false; erreur.textContent = err.message; }
     return;
   }
   if (f.id === "form-sortie" && feuille) {
@@ -2227,6 +2192,8 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
+document.addEventListener("change", (e) => { if (e.target.id === "rayon") sauvegarder(); });
+
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && feuille) fermerFeuille(); });
 
 document.addEventListener("input", (e) => {
@@ -2240,10 +2207,8 @@ document.addEventListener("input", (e) => {
     rechercherVille(e.target.value.trim());
   } else if (id === "champ-ville-pub") {
     rechercherVille(e.target.value.trim(), "-pub");
-  } else if (e.target.classList.contains("champ-pin")) {
-    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
-  } else if (id === "recherche-profil") {
-    chargerProfils(e.target.value.trim());
+  } else if (id === "rayon") {
+    majRayon(e.target);
   } else if (id === "recherche-ami") {
     rechercherAmi(e.target.value.trim());
   } else if (id === "recherche-vu") {
@@ -2289,19 +2254,10 @@ if ("serviceWorker" in navigator) {
     // Seul un 401 (compte absent de la base) fait oublier l'identifiant : un serveur qui redémarre (mise à jour,
     // réveil de Render ou de Neon) ne doit jamais faire recréer un profil vierge.
     try { await api("/api/utilisateurs/moi"); } catch (e) {
-      if (e.status === 401) {
-        const code = etat.code || comptes().find((c) => c.id === etat.uid)?.code;
-        let retrouve = null;
-        if (code) { try { retrouve = await api("/api/utilisateurs/reprendre", { code }); } catch (_) { /* introuvable */ } }
-        if (retrouve) {
-          stock.ecrire("comptes", comptes().filter((c) => c.id !== etat.uid));
-          memoriserCompte(retrouve.id, retrouve.prenom, retrouve.code);
-          etat = { ...etat, uid: retrouve.id, prenom: retrouve.prenom, code: retrouve.code, avatar: retrouve.avatar || etat.avatar };
-          sauvegarder();
-        } else {
-          etat = { ...etat, uid: null };
-          setTimeout(() => toast("Profil introuvable sur ce serveur : reprends-le avec ton code ou crée-en un."), 1600);
-        }
+      if (e.status === 401) {  // compte absent de la base : retour à la connexion
+        etat = { ...etat, uid: null };
+        modeAuth = "connexion";
+        setTimeout(() => toast("Session expirée : reconnecte-toi avec ton prénom et ton mot de passe."), 1600);
       }
     }
   }

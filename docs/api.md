@@ -56,14 +56,15 @@ Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `pl
   `distance_km` (si `lat` / `lon`), `credit_image`, `url`
 
 ## Comptes
-- `POST /api/utilisateurs` `{prenom, ville, prefs}` → `{id, prenom, ville, prefs, cree_le}`
+- `POST /api/utilisateurs` `{prenom, ville, prefs, avatar, mot_de_passe}` (mot de passe obligatoire, 6 à 128 caractères)
+  → compte complet, jeton `id` compris (à garder dans `localStorage`, envoyé ensuite dans `X-Utilisateur`)
+- `POST /api/connexion` `{identifiant, mot_de_passe}` (identifiant = prénom ou code « Prénom#123 », sans casse ni accents)
+  → compte complet ; 401 « Prénom ou mot de passe incorrect » ; 409 si plusieurs homonymes ont ce mot de passe (utiliser
+  le code) ; 429 après 5 échecs en 15 min par identifiant (20 par adresse IP)
+- `PUT /api/utilisateurs/moi/mot-de-passe` `{actuel?, nouveau}` : définir ou changer (l'actuel est exigé s'il existe) ;
+  `GET …/moi` renvoie `mdp_actif` (jamais l'empreinte)
 - `GET /api/utilisateurs/moi` · `PUT /api/utilisateurs/moi` `{prenom, ville, prefs}` (compte requis) ; la réponse inclut `code`
   (« Prénom#123 », change avec le prénom) et `dispo` (statut actuel)
-- `POST /api/utilisateurs/reprendre` `{code, pin?}` → compte complet (jeton compris) d'après le code « Prénom#123 » ;
-  404 si inconnu ou profil de démo ; profil protégé : 403 « PIN requis » / « PIN incorrect », 429 après 5 erreurs en 15 min.
-- `PUT /api/utilisateurs/moi/pin` `{pin: "1234" | null}` : active, change ou retire le PIN ; `GET …/moi` renvoie `pin_actif`
-  (jamais l'empreinte) ; les profils publics ont `protege`.
-- `GET /api/utilisateurs/profils?q=` → profils réels (vue publique, sans jeton), les plus récents d'abord.
 - `PUT /api/utilisateurs/moi/dispo` `{statut: indispo | sortir | distance}` : humeur du moment (Mode ermite, Partant pour bouger,
   Chill à distance), revient à `indispo` après 12 h
 - `PUT /api/utilisateurs/moi/avatar` `{style: lorelei | micah, seed, bg: 1e293b | 27294a | 422b18 | 13382e | 351f47 | 293548,

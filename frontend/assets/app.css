@@ -1181,24 +1181,70 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 .bienvenue-actions .bouton-principal { width: 100%; }
 .lien-reprise { gap: 7px; font-size: 13.5px; color: var(--texte-2); }
 @media (hover: hover) { .lien-reprise:hover { color: var(--texte); } }
-.reprise-code { display: grid; gap: 10px; margin-top: 18px; }
-.reprise-code .champ { font-family: var(--police-texte); letter-spacing: 0.01em; }
 
 /* ================================================================== */
-/* Code PIN (reprise de profil protégée)                               */
+/* Tiroirs à icône centrale (mot de passe)                             */
 /* ================================================================== */
 .etape-pin { display: grid; justify-items: center; text-align: center; gap: 4px; }
 .etape-pin .titre-detail { margin-top: 10px; }
 .etape-pin > p { max-width: 36ch; margin: 6px 0 0; line-height: 1.5; }
 .pin-icone { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--accent);
   background: rgba(232, 217, 181, 0.08); box-shadow: 0 0 0 1px rgba(232, 217, 181, 0.3); }
-.form-pin { width: 100%; display: grid; gap: 12px; margin-top: 18px; }
-.champ-pin {
-  height: 60px; text-align: center; font-family: var(--police-chiffres); font-size: 26px; font-weight: 500;
-  letter-spacing: 0.6em; padding-left: 0.6em; font-variant-numeric: tabular-nums;
-}
-.champ-pin::placeholder { letter-spacing: 0.6em; color: var(--texte-3); }
-.pin-erreur { margin: -2px 0 0; font-size: 13px; color: #FDA4AF; }
 .etape-pin .lien-discret { margin-top: 14px; gap: 6px; }
-.bouton-ligne.pin-actif { color: var(--accent); border-color: rgba(232, 217, 181, 0.4); }
 .ligne-ami-nom .icone { flex: none; }
+
+/* ================================================================== */
+/* Authentification : onglets, mot de passe                            */
+/* ================================================================== */
+.segment-auth { grid-template-columns: 1fr 1fr; margin-top: 22px; }
+.segment-auth .segment-indicateur { width: calc((100% - 8px) / 2); }
+.form-auth { display: grid; gap: 14px; }
+.champ-mdp { display: grid; gap: 7px; text-align: left; }
+.champ-mdp-ligne { position: relative; display: block; }
+.champ-mdp-ligne .champ { padding-right: 92px; }
+.bouton-afficher {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%); height: 32px; padding: 0 12px; border-radius: 9px;
+  font-family: var(--police-texte); font-size: 12.5px; font-weight: 500; color: var(--texte-2);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--trait);
+}
+.bouton-afficher:active { transform: translateY(-50%) scale(0.98); }
+.auth-erreur { margin: -4px 2px 0; font-size: 13px; color: #FDA4AF; }
+.etape-pin .form-auth { width: 100%; margin-top: 18px; }
+
+/* ================================================================== */
+/* Curseur natif du périmètre (mobile : glisser au doigt, valeur en direct) */
+/* ================================================================== */
+.rayon { position: relative; z-index: 1; }
+.curseur-natif {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 36px; margin: 10px 0 0; padding: 0;
+  background: transparent; cursor: pointer; touch-action: pan-y; position: relative; z-index: 2;
+  --pct: 22%;
+}
+.curseur-natif:focus-visible { outline: none; }
+.curseur-natif::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(232, 217, 181, 0.35), var(--accent) var(--pct), rgba(255, 255, 255, 0.10) var(--pct));
+}
+.curseur-natif::-moz-range-track { height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.10); }
+.curseur-natif::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--accent); }
+.curseur-natif::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 26px; height: 26px; margin-top: -11px; border-radius: 50%;
+  background: #F4F4F5; border: 0; box-shadow: 0 0 0 6px rgba(232, 217, 181, 0.14), 0 6px 16px -4px rgba(0, 0, 0, 0.7);
+  transition: transform 0.15s var(--ressort), box-shadow 0.2s;
+}
+.curseur-natif::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%; background: #F4F4F5; border: 0;
+  box-shadow: 0 0 0 6px rgba(232, 217, 181, 0.14), 0 6px 16px -4px rgba(0, 0, 0, 0.7);
+}
+.curseur-natif:active::-webkit-slider-thumb { transform: scale(1.1); box-shadow: 0 0 0 9px rgba(232, 217, 181, 0.2), 0 6px 16px -4px rgba(0, 0, 0, 0.7); }
+.curseur-natif:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
+.curseur-reperes { position: relative; height: 16px; margin: 2px 13px 0; font-size: 10.5px; color: var(--texte-3); pointer-events: none; }
+.curseur-reperes span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.curseur-reperes span:first-child { transform: none; }
+.curseur-reperes span:last-child { transform: translateX(-100%); }
+#valeur-rayon { font-variant-numeric: tabular-nums; }
+
+/* La barre d'action collée en bas ne capte jamais le toucher hors de son bouton
+   (son dégradé recouvrait le curseur du périmètre sur mobile). */
+.barre-action { pointer-events: none; }
+.barre-action > * { pointer-events: auto; }

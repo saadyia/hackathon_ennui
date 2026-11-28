@@ -76,8 +76,9 @@ docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render /
 - **Réseau à l'exécution :** `/api/communes` (API Adresse, timeout 3 s, repli local) et la synchro de l'agenda en tâche de fond
   (thread, jamais sur le chemin d'une requête). Les fichiers `backend/data/*.json` sont versionnés (repli). Le fichier `tmdb.json` aussi, une fois créé.
 - **Persistance :** PostgreSQL si `DATABASE_URL` est défini (Neon en production, psycopg 3 + pool), sinon SQLite
-  `backend/data/ennui.sqlite3` (local, non versionné). Mêmes requêtes (`?` traduits en `%s`, syntaxe commune). Identifiant de compte = jeton aléatoire dans l'en-tête `X-Utilisateur`.
-  Ce n'est pas une authentification (pas de mot de passe) : c'est un outil de démo.
+  `backend/data/ennui.sqlite3` (local, non versionné). Mêmes requêtes (`?` traduits en `%s`, syntaxe commune). Session = jeton aléatoire dans l'en-tête `X-Utilisateur`
+  (gardé dans `localStorage`). Comptes protégés par mot de passe (empreinte PBKDF2 salée, jamais en clair) : inscription et
+  connexion par prénom ou code « Prénom#123 ».
 - **Budget de latence :** < 20 ms de calcul par requête (~17 ms avec 14 646 nœuds). Aucune I/O par requête.
   Leviers si on ajoute des contenus : `K_FILMS_EXTERNE` (10), `K_COMPTAGE` / `K_COSINUS` (20) dans `build_graph.py`,
   `TOL_MARCHE` (5 %) dans `moteur.py`. Toujours mesurer la latence ET la stabilité du top 10 après un changement.
@@ -104,7 +105,7 @@ docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render /
   Seule exception, demandée : 4 profils d'étudiants fictifs (`database.PROFILS_DEMO`, Camille, Lucas, Inès, Thomas, avec leur personnage) pour tester
   les amis ; marqués « Démo » dans l'interface, ils ne rejoignent aucun plan.
 - **Identifiant public :** les autres utilisateurs ne voient que le code `Prénom#123`, jamais le jeton `id` (il vaut connexion).
-  Reprise d'un profil sur un autre appareil par ce code, protégée par un PIN facultatif (empreinte salée, jamais en clair).
+  Reconnexion sur un autre appareil : prénom ou code + mot de passe.
 - **Langue :** code, commentaires et interface en français.
 - **Python 3.9 :** pas de syntaxe `X | None` ; utiliser `typing.Optional` / `List`.
 

@@ -64,10 +64,12 @@ frontend/
   `pastilleNouveau()`, `marquerOngletNouveau()` ; `pileMembres()` (avatars des participants).
 - Billetterie des sorties : `tagBillet(o)` (Entrée libre, Sur réservation, Complet) sur les cartes et la fiche,
   `lienReservation(o)` (« Réserver » en https, ou téléphone).
-- PIN : `reprendreProfil(code, pin)` (403 -> étape PIN dans le tiroir de reprise), `panneauPin()` (Profil), `etat.pinActif` ;
-  champs `.champ-pin` (chiffres seulement, JetBrains Mono).
-- Comptes : `reprendreProfil(code)`, tiroir `feuille.mode === "reprise"` (`panneauReprise`, `chargerProfils`) ;
-  au démarrage, `api()` expose `erreur.status` : seul un 401 fait oublier le compte.
+- Authentification : `ecranAccueil()` à deux onglets (`modeAuth` : « Créer un compte » / « Se connecter »), `champMdp()`
+  (masqué, bouton Afficher / Masquer : action `basculer-mdp`), formulaires `form-connexion` (POST /api/connexion) et
+  `form-mdp` (`panneauMdp()`, Profil > Mot de passe) ; Profil : « Changer de compte », « Se déconnecter ».
+  Au démarrage, `api()` expose `erreur.status` : seul un 401 fait oublier la session.
+- Périmètre : `<input type="range" id="rayon">` natif (`majRayon`, `--pct` pour le remplissage, `touch-action: pan-y`,
+  valeur en JetBrains Mono). `.barre-action` ne capte pas le toucher hors de son bouton (elle recouvrait le curseur).
 - « Choisir à ma place » : `candidatsTirage()` = tout le pool affiché, `dernierTirage` évite la répétition, effet ~500 ms.
 - États vides : `.etat-vide` + bouton « Réinitialiser les filtres » (budget, temps, mode, envies, horizon « Dans le mois »).
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).

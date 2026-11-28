@@ -1093,7 +1093,7 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 .zone-sociale { z-index: 30; }
 .popover-humeur { z-index: 30; background: #121826; -webkit-backdrop-filter: none; backdrop-filter: none; }
 
-/* Avatars DiceBear : disque pastel net sur fond sombre */
+/* Avatars : disque net sur fond sombre */
 .avatar { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .avatar .avatar-svg { border-radius: 50%; }
 .studio-options { grid-template-columns: repeat(4, 1fr); max-height: 46vh; overflow-y: auto; padding: 2px; overscroll-behavior: contain; }

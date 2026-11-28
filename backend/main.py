@@ -203,6 +203,7 @@ class DemandePlan(BaseModel):
     debut: str = Field(..., description="ISO 8601 ; sans fuseau = heure de Paris (champ datetime-local)")
     rendez_vous: str = Field("", max_length=200, description="point de rendez-vous ou lien de watch-party")
     message: str = Field("", max_length=280)
+    format: Optional[Literal["physique", "en_ligne"]] = Field(None, description="en vrai ou en ligne (sorties : toujours en vrai)")
 
 
 class DemandeSortie(BaseModel):
@@ -604,7 +605,8 @@ def creer_plan(p: DemandePlan, x_utilisateur: Optional[str] = Header(None)):
     if debut > maintenant + timedelta(days=60):
         raise HTTPException(status_code=422, detail="Créneau trop lointain (60 jours maximum)")
     noeud = ACTIVITES_PAR_ID.get(p.oeuvre_id) or m.noeuds[m.index_par_id[p.oeuvre_id]]
-    plan_id = database.creer_plan(u["id"], noeud, debut.isoformat(), p.rendez_vous.strip(), p.message.strip())
+    format_plan = "physique" if noeud.get("type") == "sortie" else (p.format or "physique")
+    plan_id = database.creer_plan(u["id"], noeud, debut.isoformat(), p.rendez_vous.strip(), p.message.strip(), format_plan)
     return {"id": plan_id, "plans": database.plans_detail(p.oeuvre_id, u["id"])}
 
 

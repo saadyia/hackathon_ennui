@@ -17,7 +17,7 @@
    prénom, ville (toute la France, API Adresse) + rayon, énergie (cocon → Chez soi, sortir → Sorties, les deux → Pour vous),
    horizon, curiosité (curseur 0.1 / 0.3 / 0.7), envies, genres, ambiances, plateformes.
    Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
-2. **Pour vous** (rangées : Pépites du moment, Sorties proches, Watch-parties & sessions), **Chez soi** (Tout / Films & Séries /
+2. **Pour vous** (rangées : Nos conseils pépites, Sorties proches, Watch-parties & sessions), **Chez soi** (Tout / Films & Séries /
    Lecture [thèmes] / Jeux vidéo [machine, mode]), **Hors écran** (Créatif / Cuisine / Mouvement : 35 activités, filtres Matériel
    et Mode, curseur Confort ↔ Découverte, « Proposer à un ami »), **Sorties** (Liste ou Carte Leaflet ; Sorties culturelles, Soirées & Concerts, Balades & Nature ; ville, rayon, horizon,
    budget, « Proposer une sortie »), **Profil**.

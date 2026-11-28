@@ -94,7 +94,8 @@ let social = { moi: null, amis: [], suggestions: [] };
 let synchro = { v: null, connus: null, enCours: false };
 const nouveaux = new Map();  // code, statut « Dispo », amis (serveur)
 let etape = "bienvenue";
-let modeAuth = "creer";  // écran d'authentification : "creer" (inscription) | "connexion" // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
+let modeAuth = "creer";
+let mdpEnCours = "";     // saisie du mot de passe à l'inscription : gardée en mémoire si l'écran se redessine (jamais stockée)  // écran d'authentification : "creer" (inscription) | "connexion" // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
 
 const stock = {
   lire(cle, defaut) { try { return JSON.parse(localStorage.getItem(`${PREFIXE}.${cle}`)) ?? defaut; } catch (_) { return defaut; } },
@@ -308,7 +309,7 @@ function ligneCollab(o, { compacte = false } = {}) {
     : `<button class="bouton-ligne bouton-accent" data-action="rejoindre" data-plan="${plan.id}" data-id="${id}">${icone("users", 14)}Rejoindre</button>`;
   return `<div class="collab ${compacte ? "compacte" : ""}">
       <button class="collab-texte" data-action="ouvrir-plans" data-id="${id}">
-        <span class="collab-quand">${esc(quand)}${esc(autres)}${pastilleNouveau(oeuvreANouveau(o.id))}</span>
+        <span class="collab-quand">${esc(quand)}${libelleFormat(plan) ? ` · ${libelleFormat(plan)}` : ""}${esc(autres)}${pastilleNouveau(oeuvreANouveau(o.id))}</span>
         <span class="collab-avec">${pileMembres(plan, 18)}<span class="tres-muet">${esc(avecQui(plan))}</span></span>
       </button>
       ${bouton}
@@ -808,7 +809,7 @@ function videSorties() {
 
 function videEcrans() {
   return `<div class="vide verre etat-vide">${icone("sparkles", 28, "tres-muet")}
-      <p><b>Rien ne correspond à ces filtres.</b><br>Élargis le budget, le temps disponible, les thèmes ou les machines.</p>
+      <p><b>Rien ne correspond à ces filtres.</b><br>Élargis tes filtres : temps disponible, thèmes ou machines.</p>
       <button class="bouton-ligne bouton-accent" style="margin-top:14px" data-action="reinitialiser-filtres">${icone("rotate-ccw", 14)}Réinitialiser les filtres</button></div>`;
 }
 
@@ -938,7 +939,7 @@ function carteSession(p) {
       <div class="carte-session-corps">
         <span class="surtitre">${esc(collectifDe({ type: p.oeuvre_type, categorie: p.categorie }) || "Sortie à plusieurs")}${pastilleNouveau(nouveaux.has(p.id))}</span>
         <h3>${esc(p.oeuvre_titre)}</h3>
-        <div class="petit"><span class="chiffre">${esc(libelleInstant(new Date(p.debut)))}</span></div>
+        <div class="petit"><span class="chiffre">${esc(libelleInstant(new Date(p.debut)))}</span>${libelleFormat(p) ? `<span class="tres-muet"> · ${libelleFormat(p)}</span>` : ""}</div>
         <div class="collab-avec">${pileMembres(p)}<span class="tres-muet petit">${esc(avecQui(p))}</span></div>
         ${p.je_participe
           ? `<button class="bouton-ligne" aria-pressed="true" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">${icone("check", 14)}Inscrit</button>`
@@ -950,7 +951,7 @@ function carteSession(p) {
 /** L'humeur oriente l'accueil : « Partant pour bouger » met les sorties en premier. */
 function blocsPourVous(titre, ecrans, sorties, rayon) {
   const d = donnees;
-  const blocEcrans = `${titre(etat.dispo === "distance" ? "Ce soir au chaud" : "Pépites du moment", "ecrans")}
+  const blocEcrans = `${titre(etat.dispo === "distance" ? "Ce soir au chaud" : "Nos conseils pépites", "ecrans")}
       ${ecrans.length ? rangee(ecrans.map(carteOeuvre), "rangee-affiches")
         : d.chargement ? squelettesRangee() : videEcrans()}`;
   const blocSorties = `${titre(`Sorties proches · ${esc(nomVille())}${esc(rayon)}`, "sorties")}
@@ -1014,7 +1015,6 @@ function zoneChezSoi() {
   const liste = d.grille || [];
   return `<div id="zone-chez-soi">
       ${filtresChezSoi()}
-      <div style="margin-top:12px">${selecteurBudget()}</div>
       ${dureeVisible() ? `<div style="margin-top:8px">${selecteurDuree()}</div>` : ""}
       <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:22px">
         ${liste.length ? `<div class="grille-affiches">${liste.map(carteOeuvre).join("")}</div>`
@@ -1327,6 +1327,29 @@ function detailOeuvre(o) {
     ${o.url && lienSur(o.url) ? `<a class="lien-discret" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${icone("external-link", 14)}${sortie ? "Voir l'événement" : "Voir la source"}</a>` : ""}`;
 }
 
+// ---------------- Créneaux Chez soi : en vrai ou en ligne, au choix ----------------
+const FORMAT_CHOISISSABLE = new Set(["film", "serie", "livre", "jeu"]);
+const formatParDefaut = (o) => (o.type === "livre" ? "physique" : "en_ligne");
+function textesRdv(o, format) {
+  if (format === "en_ligne") {
+    return {
+      film: ["Lien de la watch-party", "Teleparty, Discord, lien d'appel (https://…)"],
+      serie: ["Lien de la watch-party", "Teleparty, Discord, lien d'appel (https://…)"],
+      livre: ["Lien de la visio", "Lien d'appel ou serveur Discord (https://…)"],
+      jeu: ["Serveur ou lien", "Serveur Discord, code de partie, lien (https://…)"],
+    }[o.type];
+  }
+  return {
+    film: ["Lieu de rendez-vous", "Chez qui ? Salle du campus, ciné-club…"],
+    serie: ["Lieu de rendez-vous", "Chez qui ? Salle du campus, foyer…"],
+    livre: ["Lieu de rendez-vous", "Café, bibliothèque, parc…"],
+    jeu: ["Lieu de rendez-vous", "Chez qui ? Salle du campus, bar à jeux…"],
+  }[o.type];
+}
+/** Icône et libellé d'un plan selon son format (les anciens plans sans format gardent l'icône d'avant). */
+const iconeFormat = (p, estSortie) => p.format === "en_ligne" ? "video" : p.format === "physique" || estSortie ? "map-pin" : "tv";
+const libelleFormat = (p) => p.format === "en_ligne" ? "En ligne" : p.format === "physique" ? "En vrai" : "";
+
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
@@ -1365,13 +1388,13 @@ function rendreFeuille() {
     : plans.length ? plans.map((p) => `<div class="plan">
         <div class="plan-tete">
           <div>
-            <div class="plan-quand">${esc(libelleInstant(new Date(p.debut)))}${pastilleNouveau(nouveaux.has(p.id))}</div>
+            <div class="plan-quand">${esc(libelleInstant(new Date(p.debut)))}${libelleFormat(p) ? `<span class="tag-format">${icone(iconeFormat(p, estSortie), 12)}${libelleFormat(p)}</span>` : ""}${pastilleNouveau(nouveaux.has(p.id))}</div>
             <div class="collab-avec">${pileMembres(p)}<span class="tres-muet petit">${esc(avecQui(p))} · proposé par ${esc(p.auteur)}</span></div>
           </div>
           <button class="bouton-ligne ${p.je_participe ? "" : "bouton-accent"}" data-action="${p.je_participe ? "quitter" : "rejoindre"}" data-plan="${p.id}" data-id="${esc(o.id)}"
             ${p.je_participe ? 'aria-pressed="true"' : ""}>${icone(p.je_participe ? "check" : "users", 14)}${p.je_participe ? "Inscrit" : "Rejoindre"}</button>
         </div>
-        ${p.rendez_vous ? `<div class="ligne-info">${icone(estSortie ? "map-pin" : "tv", 15)}${lienSur(p.rendez_vous)
+        ${p.rendez_vous ? `<div class="ligne-info">${icone(iconeFormat(p, estSortie), 15)}${lienSur(p.rendez_vous)
           ? `<a href="${esc(p.rendez_vous)}" target="_blank" rel="noopener noreferrer">${esc(p.rendez_vous)}</a>` : `<span>${esc(p.rendez_vous)}</span>`}</div>` : ""}
         ${p.message ? `<p class="plan-message">« ${esc(p.message)} » <span class="tres-muet">— ${esc(p.auteur)}</span></p>` : ""}
         ${(p.messages || []).length ? `<ul class="fil">${p.messages.map((m) => `<li><b>${esc(m.prenom)}</b> ${esc(m.texte)}</li>`).join("")}</ul>` : ""}
@@ -1396,9 +1419,13 @@ function rendreFeuille() {
           <label class="petit muet">Quand
             <input class="champ" type="datetime-local" name="debut" required value="${esc(valeurLocale(creneauParDefaut(o)))}" min="${esc(valeurLocale(new Date()))}">
           </label>
-          <label class="petit muet">${estSortie || o.type === "activite" ? "Point de rendez-vous" : o.type === "livre" ? "Lieu ou lien visio" : o.type === "jeu" ? "Lien Discord ou lieu" : "Lien de la watch-party"}
-            <input class="champ" name="rendez_vous" maxlength="200"
-              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : o.type === "activite" ? ({ cuisine: "Chez qui ? Quelle cuisine ?", mouvement: "Parc, salle, point de départ…", creatif: "Chez qui, café, salle du campus…" }[o.categorie]) : o.type === "livre" ? "Café, bibliothèque, lien visio…" : o.type === "jeu" ? "Serveur Discord, chez qui, salle du campus…" : "Lien Discord, Teleparty… (https://)"}">
+          ${FORMAT_CHOISISSABLE.has(o.type) ? `<div class="choix-format" role="radiogroup" aria-label="En vrai ou en ligne">
+              ${[["physique", "En vrai", "map-pin"], ["en_ligne", "En ligne", "video"]].map(([v, n, ic]) => `<label class="choix-format-option">
+                <input type="radio" name="format" value="${v}" ${formatParDefaut(o) === v ? "checked" : ""}>${icone(ic, 15)}<span>${n}</span></label>`).join("")}
+            </div>` : ""}
+          <label class="petit muet"><span id="libelle-rdv">${FORMAT_CHOISISSABLE.has(o.type) ? textesRdv(o, formatParDefaut(o))[0] : "Point de rendez-vous"}</span>
+            <input class="champ" name="rendez_vous" id="champ-rdv" maxlength="200"
+              placeholder="${FORMAT_CHOISISSABLE.has(o.type) ? textesRdv(o, formatParDefaut(o))[1] : estSortie ? "Devant la gare, le campus, l'entrée…" : ({ cuisine: "Chez qui ? Quelle cuisine ?", mouvement: "Parc, salle, point de départ…", creatif: "Chez qui, café, salle du campus…" }[o.categorie] || "Lieu de rendez-vous")}">
           </label>
           <label class="petit muet">Un mot (facultatif)
             <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : o.type === "activite" ? `${o.titre} ensemble ? J'apporte ce qu'il faut.` : o.type === "livre" ? "On lit les 100 premières pages pour la prochaine fois ?" : o.type === "jeu" ? "On lance une partie à 21h ? Il reste deux places." : "On lance l'épisode à 21h ?"}">
@@ -1456,6 +1483,8 @@ function rendre() {
     nav.hidden = true;
     ecran.className = `ecran sans-onglets${etape === "bienvenue" ? " ecran-bienvenue" : ""}`;
     ecran.innerHTML = etape === "bienvenue" ? ecranBienvenue() : ecranAccueil();
+    const champMdpInscription = $("#mdp-inscription");
+    if (champMdpInscription && mdpEnCours) champMdpInscription.value = mdpEnCours;  // choix de la ville, des genres… : rien n'est perdu
     return;
   }
   nav.hidden = false;
@@ -1627,7 +1656,7 @@ function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
     lon: v?.lon ?? null,
     rayon_km: etat.prefs.rayon,
     horizon: etat.horizon,
-    budget: etat.prefs.budget,
+    budget: etat.onglet === "ecrans" ? "tous" : etat.prefs.budget,  // Chez soi : déjà inclus dans les abonnements
     themes: etat.prefs.themes,
     duree: dureeVisible() ? etat.prefs.duree || "tout" : "tout",  // durée : Films & Séries et Sorties seulement
     categories: etat.prefs.categories,
@@ -1900,7 +1929,7 @@ const actions = {
   async commencer(b) {
     const prenom = etat.prenom.trim();
     if (!prenom) return;
-    const mdp = $("#mdp-inscription")?.value || "";
+    const mdp = $("#mdp-inscription")?.value || mdpEnCours;
     if (mdp.length < 6) {
       $("#mdp-inscription")?.focus();
       return toast("Choisis un mot de passe de 6 caractères minimum.");
@@ -1914,6 +1943,7 @@ const actions = {
       etat.prenom = u.prenom;
       etat.code = u.code;
       etat.mdpActif = true;
+      mdpEnCours = "";
       etat.onglet = "pour-vous";
       etape = "application";
       memoriserCompte(u.id, u.prenom, u.code);
@@ -2327,7 +2357,14 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
-document.addEventListener("change", (e) => { if (e.target.id === "rayon") sauvegarder(); });
+document.addEventListener("change", (e) => {
+  if (e.target.id === "rayon") sauvegarder();
+  if (e.target.name === "format" && feuille?.oeuvre) {
+    const [libelle, exemple] = textesRdv(feuille.oeuvre, e.target.value);
+    $("#libelle-rdv").textContent = libelle;
+    $("#champ-rdv").placeholder = exemple;
+  }
+});
 
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && feuille) fermerFeuille(); });
 
@@ -2342,6 +2379,8 @@ document.addEventListener("input", (e) => {
     rechercherVille(e.target.value.trim());
   } else if (id === "champ-ville-pub") {
     rechercherVille(e.target.value.trim(), "-pub");
+  } else if (id === "mdp-inscription") {
+    mdpEnCours = e.target.value;
   } else if (id === "rayon") {
     majRayon(e.target);
   } else if (id === "recherche-ami") {

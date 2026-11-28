@@ -76,6 +76,8 @@ frontend/
   (teintes `.activite-<categorie>`), `detailActivite()` (Il te faut, étapes), filtres `materiel` / `mode-activite`
   (`etat.prefs.materiel`, `etat.prefs.modeActivite`), action `proposer-ami` (défile vers le formulaire de créneau),
   `collectifDe()` (Atelier ensemble, Session cuisine, Séance à plusieurs). Barre du bas : 5 onglets.
+- Inscription : `mdpEnCours` garde la saisie du mot de passe en mémoire quand l'écran se redessine (ville, genres…).
+- Créneaux Chez soi : bascule « En vrai / En ligne » (`.choix-format`, `textesRdv()`, `iconeFormat()`, `libelleFormat()`).
 - États vides : `.etat-vide` + bouton « Réinitialiser les filtres » (budget, temps, mode, envies, horizon « Dans le mois »).
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).
   CartoDB Dark Matter exige désormais une clé (filigrane « API KEY REQUIRED ») : tuiles OpenStreetMap + `.tuiles-sombres`.

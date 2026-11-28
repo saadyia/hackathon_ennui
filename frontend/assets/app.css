@@ -1300,3 +1300,17 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 }
 .proposer.surbrillance { box-shadow: 0 0 0 1px rgba(232, 217, 181, 0.55), 0 0 30px -8px rgba(232, 217, 181, 0.45); transition: box-shadow 0.4s var(--ressort); border-radius: 16px; }
 @media (max-width: 360px) { .detail-activite { grid-template-columns: 1fr; } .detail-visuel-activite { aspect-ratio: 16 / 9; } }
+
+/* Créneau : en vrai ou en ligne */
+.choix-format { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 12px;
+  border: 1px solid var(--trait); background: var(--verre); }
+.choix-format-option { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; height: 38px;
+  border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--texte-2); cursor: pointer; transition: background 0.25s var(--ressort), color 0.2s; }
+.choix-format-option input { position: absolute; opacity: 0; pointer-events: none; }
+.choix-format-option:has(input:checked) { background: linear-gradient(180deg, #F4F4F5, #E4E4E7); color: var(--fond);
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.8); }
+.choix-format-option:has(input:focus-visible) { outline: 1.5px solid var(--texte); outline-offset: 2px; }
+.tag-format { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  vertical-align: 1px; font-family: var(--police-texte); font-size: 11px; font-weight: 500; color: var(--texte-2);
+  border: 1px solid var(--trait-fort); }
+.proposer .choix-format-option { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 7px; margin: 0; }

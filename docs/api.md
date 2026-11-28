@@ -81,7 +81,8 @@ Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `pl
 - `GET /api/sync?v=<version>` (compte requis) : `{v, inchange: false, amis: [...], plans: [...], dispo}` ;
   si `v` est la version courante : `{v, inchange: true}` (~40 octets). Appelé toutes les 12 s par l'appli visible
   et au retour sur l'appli. `plans` = plans à venir où je suis inscrit ou un de mes amis (créés ou rejoints).
-- Chaque plan (partout) contient aussi `cree_le` et `membres: [{prenom, avatar, moi}]` (jamais d'identifiant).
+- Chaque plan (partout) contient aussi `cree_le`, `format` (`physique` | `en_ligne` | null pour les anciens plans)
+  et `membres: [{prenom, avatar, moi}]` (jamais d'identifiant). `POST /api/plans` accepte `format`.
 
 ## Amis (compte requis ; un profil public = `{code, prenom, ville, dispo, demo, ami, avatar}`, jamais l'`id`)
 - `GET /api/amis` → `{amis: [...], suggestions: [...]}` (amis triés : dispo pour sortir, à distance, indisponibles ; suggestions = profils de démo non ajoutés)

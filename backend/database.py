@@ -168,6 +168,11 @@ COLONNES_UTILISATEURS = {
     "avatar": "TEXT",                    # JSON DiceBear {style, seed, bg, hair?, glasses?, mouth?, eyes?} ; NULL = dérivé du prénom
 }
 
+# Colonnes ajoutées à la table plans
+COLONNES_PLANS = {
+    "format": "TEXT",  # « physique » (en vrai) ou « en_ligne » ; NULL pour les anciens plans
+}
+
 # Profils fictifs pour tester les interactions sociales tout de suite. Ils sont marqués « Démo »
 # dans l'interface et ne rejoignent aucun plan : on n'invente ni participants ni activité.
 PROFILS_DEMO = [
@@ -199,12 +204,18 @@ def initialiser(chemin: Path = None):
         if POSTGRES:
             for nom, definition in COLONNES_UTILISATEURS.items():
                 con.execute(f"ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS {nom} {definition}")
+            for nom, definition in COLONNES_PLANS.items():
+                con.execute(f"ALTER TABLE plans ADD COLUMN IF NOT EXISTS {nom} {definition}")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs (lower(code))")
         else:
             existantes = {r["name"] for r in con.execute("PRAGMA table_info(utilisateurs)")}
             for nom, definition in COLONNES_UTILISATEURS.items():
                 if nom not in existantes:
                     con.execute(f"ALTER TABLE utilisateurs ADD COLUMN {nom} {definition}")
+            colonnes_plans = {r["name"] for r in con.execute("PRAGMA table_info(plans)")}
+            for nom, definition in COLONNES_PLANS.items():
+                if nom not in colonnes_plans:
+                    con.execute(f"ALTER TABLE plans ADD COLUMN {nom} {definition}")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs(code COLLATE NOCASE)")
         for r in con.execute("SELECT id, prenom FROM utilisateurs WHERE code IS NULL").fetchall():
             con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, r["prenom"]), r["id"]))
@@ -418,12 +429,14 @@ def _limite_passe() -> str:
     return (datetime.now(timezone.utc) - GRACE_PASSE).isoformat(timespec="seconds")
 
 
-def creer_plan(auteur_id: str, oeuvre: dict, debut: str, rendez_vous: str, message: str) -> int:
+def creer_plan(auteur_id: str, oeuvre: dict, debut: str, rendez_vous: str, message: str,
+               format_plan: Optional[str] = None) -> int:
     with connexion() as con:
         plan_id = con.inserer(
-            "INSERT INTO plans (oeuvre_id, oeuvre_titre, oeuvre_type, auteur_id, debut, rendez_vous, message, cree_le)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (oeuvre["id"], oeuvre["titre"], oeuvre["type"], auteur_id, debut, rendez_vous, message, maintenant_iso()))
+            "INSERT INTO plans (oeuvre_id, oeuvre_titre, oeuvre_type, auteur_id, debut, rendez_vous, message, cree_le, format)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (oeuvre["id"], oeuvre["titre"], oeuvre["type"], auteur_id, debut, rendez_vous, message, maintenant_iso(),
+             format_plan))
         con.execute("INSERT INTO participants VALUES (?, ?, ?)", (plan_id, auteur_id, maintenant_iso()))
     return plan_id
 
@@ -478,7 +491,7 @@ def _plans(con, where: str, params: Iterable, uid: Optional[str], avec_messages:
             "id": r["id"], "oeuvre_id": r["oeuvre_id"], "oeuvre_titre": r["oeuvre_titre"],
             "oeuvre_type": r["oeuvre_type"], "debut": r["debut"], "rendez_vous": r["rendez_vous"],
             "message": r["message"], "auteur": r["auteur_prenom"], "est_auteur": r["auteur_id"] == uid,
-            "cree_le": r["cree_le"],
+            "cree_le": r["cree_le"], "format": r["format"],
             "participants": [p["prenom"] for p in parts],
             # avatars des participants (jamais leur identifiant : il vaut connexion)
             "membres": [{"prenom": p["prenom"], "avatar": json.loads(p["avatar"] or "null"), "moi": p["id"] == uid} for p in parts],

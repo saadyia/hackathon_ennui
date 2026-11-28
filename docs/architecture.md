@@ -121,6 +121,8 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
   sinon `null`. 759 sorties sur 1 300 ont un prix connu, dont 449 gratuites.
 - Sorties : « Gratuit » = `prix_num == 0` strictement ; « < 10 € » / « < 25 € » = `prix_num ≤ plafond` **ou tarif non précisé**
   (gardé, affiché « Tarif non précisé »).
+- Chez soi n'affiche plus de filtre de prix (les requêtes de cet onglet envoient `budget: "tous"`) : films et séries sont
+  inclus dans les abonnements, livres et jeux déjà possédés ou empruntables. Le budget reste sur Pour vous et Sorties.
 - Films et séries : inclus dans les abonnements = 0 €. Avec des plateformes vérifiées (TMDB), seuls ceux présents sur un
   abonnement de l'utilisateur ou sur Arte ; sans données TMDB, tous restent visibles.
 - Livres et jeux : considérés comme déjà possédés ou empruntables, jamais exclus par le budget.
@@ -190,7 +192,9 @@ Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétitio
 - Mesuré (28/11/2026) : 1 299 sorties, 810 sur réservation (718 avec lien), 118 entrée libre, 4 complet, 367 sans information.
 
 ## Espace collaboratif
-- Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre. Le créateur est inscrit d'office.
+- Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre.
+  `format` : `physique` (en vrai) ou `en_ligne`, au choix pour les films, séries, livres et jeux (par défaut en ligne, en vrai
+  pour les livres) ; toujours `physique` pour les sorties et les activités. Affiché « En vrai » / « En ligne » sur les plans. Le créateur est inscrit d'office.
 - Le titre et le type de l'œuvre sont copiés dans le plan : il reste lisible si l'événement sort du catalogue.
 - Plans visibles jusqu'à 6 h après leur début. Un plan sans plus aucun participant est supprimé.
 - Chaque recommandation inclut `plans` (une requête SQL par lot) : « Ce soir · 22h00 · Avec Malo et toi ».

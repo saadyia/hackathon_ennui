@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0A0A0C">
+  <meta name="theme-color" content="#0B0F19">
   <meta name="color-scheme" content="dark">
   <title>On fait koi ?</title>
   <link rel="preload" href="/assets/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
   <!-- Librairies UI en local (aucun CDN) : noUiSlider, Swiper -->
   <link rel="stylesheet" href="/vendor/nouislider.min.css">
   <link rel="stylesheet" href="/vendor/swiper-bundle.min.css">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
@@ -21,11 +23,12 @@
     <div id="toast" class="toast" role="status"></div>
   </div>
   <noscript>Cette application a besoin de JavaScript.</noscript>
-  <!-- Lucide (icônes), noUiSlider (curseurs), Swiper (carrousels), GSAP (animations) : frontend/vendor -->
+  <!-- Lucide (icônes), noUiSlider (périmètre), Swiper (carrousels), GSAP (animations), Leaflet (carte) : frontend/vendor -->
   <script src="/vendor/lucide.min.js"></script>
   <script src="/vendor/nouislider.min.js"></script>
   <script src="/vendor/swiper-bundle.min.js"></script>
   <script src="/vendor/gsap.min.js"></script>
+  <script src="/vendor/leaflet/leaflet.js"></script>
   <script type="module" src="/assets/app.js"></script>
 </body>
 </html>

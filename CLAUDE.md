@@ -18,7 +18,7 @@
    horizon, curiosité (curseur 0.1 / 0.3 / 0.7), envies, genres, ambiances, plateformes.
    Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
 2. **Pour vous** (rangées : Pépites du moment, Sorties proches, Watch-parties & sessions), **Chez soi** (Tout / Films & Séries /
-   Lecture [thèmes] / Jeux vidéo [machine, mode]), **Sorties** (Sorties culturelles, Soirées & Concerts, Balades & Nature ; ville, rayon, horizon,
+   Lecture [thèmes] / Jeux vidéo [machine, mode]), **Sorties** (Liste ou Carte Leaflet ; Sorties culturelles, Soirées & Concerts, Balades & Nature ; ville, rayon, horizon,
    budget, « Proposer une sortie »), **Profil**.
    Horizons : Maintenant (3 h), Aujourd'hui, Ce week-end, Dans la semaine, Dans le mois.
    Envies : 12 catégories de sorties + « Séries & binge-watch » et « Livres » (chez soi).
@@ -81,6 +81,9 @@ uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 :
 - **Catégories :** deux univers et six envies seulement. Chez soi : Films & Séries, Lecture, Jeux vidéo. Sorties : Sorties culturelles
   (cinéma, expos, spectacles, rencontres littéraires), Soirées & Concerts, Balades & Nature. Les autres catégories OpenAgenda
   (ateliers, cuisine, sport, café, créatif) ne sont jamais recommandées.
+- **Zéro émoji garanti à la source :** `build_graph.sans_emoji()` nettoie tous les textes externes (OpenAgenda, Wikipédia…).
+- **Fiche détaillée :** synopsis en français seulement (TMDB fr-FR, Wikipédia FR via `enrich_resumes.py`, description longue
+  OpenAgenda) ; les résumés TVmaze (anglais) ne sont jamais affichés.
 - **Honnêteté des données :** ne jamais inventer de prix, d'horaires, de dates, de plateformes ni de participants. Plus aucune donnée simulée.
 - **Langue :** code, commentaires et interface en français.
 - **Python 3.9 :** pas de syntaxe `X | None` ; utiliser `typing.Optional` / `List`.

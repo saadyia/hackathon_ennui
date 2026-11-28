@@ -40,17 +40,6 @@ const ICONES_CATEGORIE = {
   livres: "book-open", series: "tv", jeux: "gamepad-2", cuisine: "chef-hat", creatif: "palette", lecture: "book-open",
   cafe: "coffee", sport: "bike",
 };
-// Questionnaire : l'énergie choisit l'onglet d'arrivée, la curiosité règle le curseur Découverte.
-const ENERGIES = [
-  { id: "cocon", nom: "Mode cocon", icone: "popcorn", onglet: "ecrans" },
-  { id: "mixte", nom: "Un peu des deux", icone: "sparkles", onglet: "pour-vous" },
-  { id: "dehors", nom: "Envie de sortir", icone: "compass", onglet: "sorties" },
-];
-const CURIOSITES = [
-  { id: 0.1, nom: "Des valeurs sûres" },
-  { id: 0.3, nom: "Un peu des deux" },
-  { id: 0.7, nom: "Surprends-moi" },
-];
 const NOMS_CONSOLES = { pc: "PC", mac: "Mac", switch: "Switch", playstation: "PlayStation", xbox: "Xbox", mobile: "Mobile" };
 const TYPES = {
   film: { nom: "Film", icone: "film", vu: "Déjà vu", collectif: "Watch-party" },
@@ -110,6 +99,8 @@ function restaurer() {
   if (local) etat = { ...ETAT_INITIAL(), ...local, prefs: { ...PREFS_INITIALES(), ...(local.prefs || {}) } };
   etat.prefs.categories = [...new Set(etat.prefs.categories.map((c) => MIGRATION_ENVIES[c] || c))];
   if (!["tout", "ecrans", "livre", "jeu"].includes(etat.ecrans)) etat.ecrans = "tout";
+  etat.decouverte = PALIERS[indexPalier()].valeur;
+  if (!["liste", "carte"].includes(etat.vueSorties)) etat.vueSorties = "liste";
 }
 
 /** Profil côté serveur (SQLite) : prénom, ville et préférences, pour changer d'appareil ou de compte. */
@@ -243,8 +234,7 @@ function visuelSortie(o, format = "paysage") {
 }
 
 function lignePlateformes(o) {
-  if (!o.plateformes_verifiees) return `<div class="plateformes"><span class="non-verifie">Disponibilité non vérifiée</span></div>`;
-  if (!o.plateformes?.length) return `<div class="plateformes"><span class="non-verifie">Hors abonnements suivis</span></div>`;
+  if (!o.plateformes?.length) return "";  // rien à afficher plutôt qu'un avertissement
   return `<div class="plateformes">${o.plateformes.filter((p) => p in NOMS_PLATEFORMES).map((p) =>
     `<span class="plateforme ${etat.prefs.plateformes.includes(p) ? "possedee" : ""}">${esc(NOMS_PLATEFORMES[p])}</span>`).join("")}</div>`;
 }
@@ -332,19 +322,25 @@ function carteSortie(o, i = 0) {
     </article>`;
 }
 
+const PALIERS = [
+  { valeur: 0, nom: "Sur mesure", aide: "Basé sur tes genres et tes thèmes favoris." },
+  { valeur: 0.3, nom: "Équilibré", aide: "Tes goûts, avec quelques pépites glissées." },
+  { valeur: 0.6, nom: "Exploration", aide: "Plus de pépites, hors des sentiers battus." },
+  { valeur: 1, nom: "Hors piste", aide: "Hors de ta zone de confort : d'autres univers." },
+];
+const indexPalier = () => PALIERS.reduce((meilleur, p, i) =>
+  Math.abs(p.valeur - etat.decouverte) < Math.abs(PALIERS[meilleur].valeur - etat.decouverte) ? i : meilleur, 0);
 const valeurCurseur = (n) => n === 0 ? "Valeurs sûres uniquement"
   : n === 10 ? "<b>Découverte totale</b> · hors de tes genres" : `<b>${n}</b> découverte${n > 1 ? "s" : ""} sur 10`;
 
 function instrument() {
-  const n = nbPepites();
-  const sujet = etat.onglet === "ecrans" && etat.ecrans === "livre" ? "tes thèmes" : "tes genres";
-  return `<div class="instrument verre">
-      <div class="instrument-tete">
-        <span class="surtitre">Confort ↔ Découverte</span>
-        <span class="instrument-valeur" id="valeur-curseur">${valeurCurseur(n)}</span>
+  const actif = indexPalier();
+  return `<div class="paliers-bloc">
+      <div class="paliers" role="radiogroup" aria-label="Confort ou découverte" style="--index:${actif}">
+        <span class="paliers-pilule" aria-hidden="true"></span>
+        ${PALIERS.map((p, i) => `<button role="radio" aria-checked="${i === actif}" data-action="palier" data-index="${i}">${p.nom}</button>`).join("")}
       </div>
-      <div class="slider-ui" id="curseur-ui" aria-label="Zone de confort ou découverte"></div>
-      <p class="instrument-aide tres-muet">À gauche, ${sujet} ; à droite, d'autres univers et des pépites moins connues.</p>
+      <p class="paliers-aide" id="paliers-aide">${PALIERS[actif].aide}</p>
     </div>`;
 }
 
@@ -410,11 +406,7 @@ function videSorties() {
 }
 
 function videEcrans() {
-  if (etat.prefs.budget !== "tous" && !CONFIG.plateformes_verifiees) {
-    return `<div class="vide">Impossible de garantir « ${esc(CONFIG.budgets.find((b) => b.id === etat.prefs.budget).nom)} » :
-      les disponibilités sur tes abonnements ne sont pas encore vérifiées. Repasse sur « Tous les prix ».</div>`;
-  }
-  return `<div class="vide">Rien ne correspond. Ajoute un abonnement dans le profil ou élargis le budget.</div>`;
+  return `<div class="vide verre">Rien ne correspond à ces filtres pour l'instant. Élargis le budget, les thèmes ou les machines.</div>`;
 }
 
 // ------------------------------------------------------------------ //
@@ -437,17 +429,16 @@ const sectionGenres = () => groupePuces("Tes genres favoris", "genres", CONFIG.g
     <p class="tres-muet petit" style="margin:10px 2px 0">Pour tes sorties.</p>
   </section>`;
 
-function preferences({ ville = true } = {}) {
-  const noteTmdb = CONFIG.plateformes_verifiees ? "" :
-    `<p class="tres-muet petit" style="margin:10px 2px 0">Disponibilités en cours de vérification : le filtre s'appliquera dès que les plateformes seront confirmées.</p>`;
+/**
+ * Profil durable (accueil et Profil) : ville, genres et thèmes, abonnements et consoles.
+ * Les envies du moment se choisissent par les onglets du bas, plus dans le questionnaire.
+ */
+function preferences({ ville = true, ambiances = true } = {}) {
   return (ville ? sectionVille() : "")
-    + `<section class="groupe"><span class="surtitre">Envie de…</span>
-        <p class="sous-titre-groupe">Chez soi</p>${puces("categories", CONFIG.envies.filter((e) => e.univers === "chez-soi"))}
-        <p class="sous-titre-groupe">Sortir</p>${puces("categories", CONFIG.envies.filter((e) => e.univers === "sorties"))}
-      </section>`
+    + groupePuces("Tes genres favoris", "genres", CONFIG.genres)
     + groupePuces("Tes thèmes de lecture", "themes", CONFIG.themes)
-    + sectionGenres()
-    + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes) + noteTmdb
+    + (ambiances ? `<section class="groupe"><span class="surtitre">Quelle ambiance pour sortir ?</span>${puces("genres", CONFIG.ambiances)}</section>` : "")
+    + groupePuces("Tes abonnements", "plateformes", CONFIG.plateformes)
     + groupePuces("Tes consoles et appareils", "consoles", CONFIG.consoles);
 }
 
@@ -479,7 +470,7 @@ function ecranAccueil() {
         <button class="lien-discret" data-action="retour-bienvenue">${icone("arrow-left", 16)}Retour</button>
       </div>
       <h1 class="titre-1" style="font-size:34px;margin-top:40px">Dis-nous tout.</h1>
-      <p class="muet" style="margin:14px 0 0">Quelques questions sur tes goûts et tes envies du moment. Rien n'est obligatoire, à part ton prénom.</p>
+      <p class="muet" style="margin:14px 0 0">Ton profil, une fois pour toutes : tes goûts, ta ville et ce que tu possèdes. L'envie du moment se choisit ensuite dans les onglets. Seul ton prénom est obligatoire.</p>
       ${connus.length ? `<div class="reprendre">
           <span class="tres-muet petit">Déjà venu sur cet appareil ?</span>
           <div class="puces" style="margin-top:8px">${connus.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">
@@ -490,10 +481,7 @@ function ecranAccueil() {
         <input class="champ" id="champ-prenom" maxlength="30" autocomplete="given-name" placeholder="Ex. Chloé" value="${esc(etat.prenom)}">
       </section>
       ${sectionVille()}
-      ${groupeChoix("Ton énergie du moment", "energie", ENERGIES)}
-      ${groupeChoix("Pour quand ?", "horizon", CONFIG.horizons)}
-      ${groupeChoix("Côté curiosité", "decouverte", CURIOSITES)}
-      ${preferences({ ville: false })}
+      ${preferences({ ville: false, ambiances: false })}
     </div>
     <div class="barre-action">
       <button class="bouton-principal" data-action="commencer" ${etat.prenom.trim() ? "" : "disabled"}>Découvrir ma sélection ${icone("arrow-right", 18)}</button>
@@ -598,8 +586,16 @@ function ecranSorties() {
         data-groupe="categories" data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.categories.includes(c.id)}">
         ${icone(ICONES_CATEGORIE[c.id], 15)}${esc(c.nom)}</button>`).join("")}</div>
     ${instrument()}
-    <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:22px">
-      ${liste.length ? liste.map(carteSortie).join("") : d.chargement ? squelettesSorties(2) : videSorties()}
+    <div class="bascule-vue" role="tablist" aria-label="Affichage des sorties" style="--index:${etat.vueSorties === "carte" ? 1 : 0}">
+      <span class="paliers-pilule" aria-hidden="true"></span>
+      <button role="tab" data-action="vue-sorties" data-valeur="liste" aria-selected="${etat.vueSorties !== "carte"}">${icone("list", 15)}Liste</button>
+      <button role="tab" data-action="vue-sorties" data-valeur="carte" aria-selected="${etat.vueSorties === "carte"}">${icone("map", 15)}Carte</button>
+    </div>
+    <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:16px">
+      ${etat.vueSorties === "carte"
+        ? `<div id="carte-sorties" class="carte-leaflet verre" aria-label="Carte des sorties"></div>
+           <p class="tres-muet petit" style="margin:10px 2px 0">${liste.length} sortie${liste.length > 1 ? "s" : ""} sur la carte · touche un repère pour ouvrir la fiche.</p>`
+        : liste.length ? liste.map(carteSortie).join("") : d.chargement ? squelettesSorties(2) : videSorties()}
     </div>`;
 }
 
@@ -711,25 +707,31 @@ function formulairePublication() {
 function detailOeuvre(o) {
   const sortie = o.type === "sortie";
   const img = o.affiche ? `<img src="${esc(o.affiche)}" alt="" decoding="async" onerror="this.remove()">` : "";
+  const note = o.note ? `${String(o.note).replace(".", ",")} / ${o.type === "livre" ? 5 : 10}` : "";
   const infos = sortie
-    ? [libelleDate(o), [o.lieu, o.ville].filter(Boolean).join(", "), o.distance_km != null ? `à ${km(o.distance_km)}` : "", tarif(o)]
-    : o.type === "livre" ? [o.auteur, o.annee, (o.themes || []).map(nomTheme).join(", ")]
-      : o.type === "jeu" ? [o.studio, o.annee, (o.consoles || []).map((c) => NOMS_CONSOLES[c]).join(" · ")]
-        : [o.annee, genresFr(o, 3)];
-  // police mono seulement pour les chiffres (années, distances, tarifs)
-  const lignes = infos.filter(Boolean).map((t) => /^(\d{4}|à [\d,]+ km|Dès .*€|Gratuit.*|[\d,]+ €.*)$/.test(String(t))
-    ? `<span class="chiffre">${esc(t)}</span>` : `<span>${esc(t)}</span>`).join("");
+    ? [[libelleDate(o)], [o.distance_km != null ? `à ${km(o.distance_km)}` : "", true], [tarif(o), true]]
+    : o.type === "livre" ? [[o.auteur], [o.annee, true], [note, true]]
+      : o.type === "jeu" ? [[o.studio], [o.annee, true], [o.editeur && o.editeur !== o.studio ? `Édité par ${o.editeur}` : ""]]
+        : [[o.annee, true], [genresFr(o, 3)], [note, true]];
+  const lignes = infos.filter(([t]) => t).map(([t, nombre]) => nombre ? chiffre(t) : `<span>${esc(t)}</span>`).join("");
+  const badges = o.type === "jeu" ? ligneJeu(o)
+    : o.type === "livre" ? `<div class="plateformes">${(o.themes || []).map((t) => `<span class="plateforme">${esc(nomTheme(t))}</span>`).join("")}</div>`
+      : sortie ? "" : lignePlateformes(o);
+  const adresse = sortie ? [o.lieu, o.adresse, o.ville].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(", ") : "";
   return `<div class="detail ${sortie || o.type === "jeu" ? "detail-paysage" : ""}">
-      ${o.affiche || o.annee || o.ville ? `<div class="detail-visuel">${img}<span class="voile"></span></div>` : ""}
+      <div class="detail-visuel">${img}<span class="voile"></span>${tagDecouverte(o)}</div>
       <div class="detail-texte">
         <span class="surtitre">${esc(sortie ? o.categorie_libelle || "Sortie" : TYPES[o.type]?.nom || "")}</span>
         <h2 class="titre-detail">${esc(o.titre)}</h2>
         ${lignes ? `<div class="detail-infos">${lignes}</div>` : ""}
-        ${o.resume ? `<p class="detail-resume">${esc(o.resume)}</p>` : ""}
-        ${!sortie && TYPES[o.type] && o.annee !== undefined ? `<button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(o.type === "livre" ? "book-open" : o.type === "jeu" ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>` : ""}
-        ${o.url && lienSur(o.url) ? `<a class="lien-discret" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${icone("external-link", 14)}Voir la source</a>` : ""}
+        ${badges}
+        ${adresse ? `<div class="ligne-info">${icone("map-pin", 15)}<span>${esc(adresse)}</span></div>` : ""}
+        ${sortie && o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
+        ${!sortie && TYPES[o.type] ? `<button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(o.type === "livre" ? "book-open" : o.type === "jeu" ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>` : ""}
       </div>
-    </div>`;
+    </div>
+    ${o.resume ? `<section class="detail-synopsis"><span class="surtitre">${sortie ? "Description" : "Synopsis"}</span><p>${esc(o.resume)}</p></section>` : ""}
+    ${o.url && lienSur(o.url) ? `<a class="lien-discret" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${icone("external-link", 14)}${sortie ? "Voir l'événement" : "Voir la source"}</a>` : ""}`;
 }
 
 function rendreFeuille() {
@@ -861,20 +863,6 @@ function rendreContenu() {
 
 /** Après chaque rendu : curseurs noUiSlider, carrousels Swiper, apparition des cartes en cascade (GSAP). */
 function monterComposants(racine) {
-  const curseur = racine.querySelector?.("#curseur-ui") || (racine.id === "curseur-ui" ? racine : null);
-  if (curseur && !curseur.noUiSlider && noUiSlider) {
-    noUiSlider.create(curseur, {
-      start: Math.round(etat.decouverte * 100), connect: [true, false], step: 1, range: { min: 0, max: 100 },
-      pips: { mode: "values", values: [0, 50, 100], density: 10,
-        format: { to: (v) => ({ 0: "Confort", 50: "Équilibré", 100: "Découverte" })[Math.round(v)] || "" } },
-    });
-    curseur.noUiSlider.on("slide", ([v]) => {
-      etat.decouverte = Number(v) / 100;
-      $("#valeur-curseur").innerHTML = valeurCurseur(nbPepites());
-      chargerSiQuotaChange();
-    });
-    curseur.noUiSlider.on("change", sauvegarder);
-  }
   const rayon = racine.querySelector?.("#rayon-ui");
   if (rayon && !rayon.noUiSlider && noUiSlider) {
     noUiSlider.create(rayon, {
@@ -894,10 +882,50 @@ function monterComposants(racine) {
       grabCursor: true, slidesOffsetBefore: 0, slidesOffsetAfter: 0, watchSlidesProgress: true,
     }));
   }
+  const carte = racine.querySelector?.("#carte-sorties");
+  if (carte) monterCarte(carte);
   if (MOUVEMENT) {
     const cartes = [...(racine.querySelectorAll?.("[data-carte]") || [])].slice(0, 16);
     if (cartes.length) gsap.from(cartes, { opacity: 0, y: 16, duration: 0.5, stagger: 0.04, ease: "power3.out", clearProps: "opacity,transform" });
   }
+}
+
+/**
+ * Carte Leaflet : périmètre, repères minimalistes, clic = fiche de la sortie.
+ * Tuiles OpenStreetMap assombries en CSS (.tuiles-sombres) : CartoDB Dark Matter exige désormais
+ * une clé d'API (filigrane « API KEY REQUIRED » constaté), OpenStreetMap non.
+ */
+let carteLeaflet = null;
+function monterCarte(el) {
+  const L = window.L;
+  if (!L) { el.innerHTML = `<div class="vide">Carte indisponible.</div>`; return; }
+  if (carteLeaflet) { carteLeaflet.remove(); carteLeaflet = null; }
+  const v = etat.prefs.ville;
+  const sorties = (donnees.grille || []).filter((o) => o.lat != null && o.lon != null);
+  carteLeaflet = L.map(el, { zoomControl: false, attributionControl: true, scrollWheelZoom: false })
+    .setView(v ? [v.lat, v.lon] : [46.6, 2.4], v ? 11 : 5);
+  L.control.zoom({ position: "bottomright" }).addTo(carteLeaflet);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, className: "tuiles-sombres",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">contributeurs OpenStreetMap</a>',
+  }).addTo(carteLeaflet);
+  if (v) {
+    const cercle = L.circle([v.lat, v.lon], { radius: etat.prefs.rayon * 1000, color: "#A5B4FC", weight: 1, opacity: 0.6,
+      fillColor: "#818CF8", fillOpacity: 0.06, dashArray: "4 6" }).addTo(carteLeaflet);
+    L.circleMarker([v.lat, v.lon], { radius: 4, color: "#fff", weight: 2, fillColor: "#0B0F19", fillOpacity: 1 }).addTo(carteLeaflet);
+    carteLeaflet.fitBounds(cercle.getBounds(), { padding: [12, 12] });
+  } else if (sorties.length) {
+    carteLeaflet.fitBounds(L.latLngBounds(sorties.map((o) => [o.lat, o.lon])), { padding: [24, 24] });
+  }
+  sorties.forEach((o) => {
+    const repere = L.marker([o.lat, o.lon], {
+      icon: L.divIcon({ className: "repere", html: `<span class="repere-point ${o.origine === "decouverte" ? "repere-pepite" : ""}"></span>`, iconSize: [22, 22] }),
+      title: o.titre, keyboard: true,
+    }).addTo(carteLeaflet);
+    repere.bindTooltip(`${esc(o.titre)}<br><span class="tres-muet">${esc(libelleDate(o))}</span>`, { direction: "top", offset: [0, -10], className: "bulle" });
+    repere.on("click", () => ouvrirFeuille(o));
+  });
+  setTimeout(() => carteLeaflet?.invalidateSize(), 60);
 }
 
 function transitionEcran() {
@@ -941,10 +969,9 @@ async function charger({ partiel = false } = {}) {
   partiel ? $("#contenu")?.classList.add("chargement") : rendre();
   try {
     if (etat.onglet === "pour-vous") {
-      // univers Chez soi choisis à l'accueil ; aucun -> films et séries
-      const env = etat.prefs.categories;
-      const ecransChoisis = [...(env.includes("ecrans") || !env.some((c) => ["lecture", "jeux"].includes(c)) ? ["film", "serie"] : []),
-        ...(env.includes("lecture") ? ["livre"] : []), ...(env.includes("jeux") ? ["jeu"] : [])];
+      // composition déduite du profil durable : livres si des thèmes de lecture, jeux si des consoles
+      const ecransChoisis = ["film", "serie", ...(etat.prefs.themes.length ? ["livre"] : []),
+        ...(etat.prefs.consoles.length ? ["jeu"] : [])];
       const [ecrans, sorties, sessions] = await Promise.all([
         api("/api/recommandations", corps("tout", 10, ecransChoisis), signal),
         api("/api/recommandations", corps("sortie", 8), signal),
@@ -956,7 +983,7 @@ async function charger({ partiel = false } = {}) {
       donnees = { grille: await api("/api/recommandations",
         types.length === 1 ? corps(types[0], 20) : corps("tout", 20, types), signal) };
     } else if (etat.onglet === "sorties") {
-      const grille = await api("/api/recommandations", corps("sortie", 20), signal);
+      const grille = await api("/api/recommandations", corps("sortie", etat.vueSorties === "carte" ? 40 : 20), signal);
       donnees = { grille, couverture: await couvertureSiVide(grille, signal) };
     }
   } catch (e) {
@@ -1061,6 +1088,28 @@ const actions = {
     if (!etat.uid || etat.onglet === "profil") b.setAttribute("aria-pressed", etat.prefs[groupe].includes(valeur));
     else charger();
   },
+  "vue-sorties"(b) {
+    if (etat.vueSorties === b.dataset.valeur) return;
+    etat.vueSorties = b.dataset.valeur;
+    const bascule = b.closest(".bascule-vue");
+    bascule.style.setProperty("--index", etat.vueSorties === "carte" ? 1 : 0);
+    bascule.querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", x.dataset.valeur === etat.vueSorties));
+    sauvegarder();
+    charger({ partiel: true });
+  },
+  palier(b) {
+    const i = Number(b.dataset.index);
+    const groupe = b.closest(".paliers");
+    if (indexPalier() === i) return;
+    etat.decouverte = PALIERS[i].valeur;
+    groupe.style.setProperty("--index", i);
+    groupe.querySelectorAll("button").forEach((x, j) => x.setAttribute("aria-checked", j === i));
+    const aide = $("#paliers-aide");
+    if (MOUVEMENT) gsap.fromTo(aide, { opacity: 0, y: 4 }, { opacity: 1, y: 0, duration: 0.3 });
+    aide.textContent = PALIERS[i].aide;
+    sauvegarder();
+    charger({ partiel: true });
+  },
   "mode-jeu"(b) {
     if (etat.prefs.modeJeu === b.dataset.valeur) return;
     etat.prefs.modeJeu = b.dataset.valeur;
@@ -1102,10 +1151,7 @@ const actions = {
       const u = await api("/api/utilisateurs", { prenom, ville, prefs: { ...prefs, horizon: etat.horizon } });
       etat.uid = u.id;
       etat.prenom = u.prenom;
-      etat.onglet = ENERGIES.find((e) => e.id === etat.energie)?.onglet || "pour-vous";
-      // envie de séries sans envie de cinéma : Films & Séries s'ouvre sur les séries
-      const cats = etat.prefs.categories;
-      if (cats.includes("series") && !cats.includes("cinema")) etat.ecrans = "serie";
+      etat.onglet = "pour-vous";
       memoriserCompte(u.id, u.prenom);
       sauvegarder();
       haut();

@@ -242,6 +242,23 @@ def tarif(conditions: str):
     return None, None
 
 
+def texte_long(html, maxi=1200):
+    """Description longue OpenAgenda (HTML) -> texte brut, paragraphes conservés, coupé à la phrase."""
+    if not html:
+        return None
+    t = re.sub(r"<\s*(br|/p|/li|/h\d)\s*/?>", "\n", html, flags=re.I)
+    t = re.sub(r"<[^>]+>", "", t)
+    for ent, car in (("&nbsp;", " "), ("&amp;", "&"), ("&quot;", '"'), ("&#39;", "'"), ("&lt;", "<"), ("&gt;", ">")):
+        t = t.replace(ent, car)
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n\s*\n+", "\n\n", t).strip()
+    if len(t) > maxi:
+        coupe = t[:maxi]
+        fin = max(coupe.rfind(". "), coupe.rfind(".\n"))
+        t = coupe[:fin + 1] if fin > 300 else coupe.rsplit(" ", 1)[0] + "…"
+    return t or None
+
+
 def occurrences_futures(timings_json, maintenant, limite):
     """[début, fin] réels (ISO, fuseau conservé) des occurrences pas encore terminées et
     commençant avant `limite`. Une occurrence en cours garde son vrai début."""
@@ -266,7 +283,7 @@ def occurrences_futures(timings_json, maintenant, limite):
 # Collecte                                                             #
 # ------------------------------------------------------------------ #
 
-CHAMPS = ("uid,title_fr,description_fr,conditions_fr,keywords_fr,image,imagecredits,"
+CHAMPS = ("uid,title_fr,description_fr,longdescription_fr,conditions_fr,keywords_fr,image,imagecredits,"
           "firstdate_begin,lastdate_end,timings,location_name,location_address,location_city,"
           "location_coordinates,location_access_fr,canonicalurl,age_max,status")
 
@@ -310,6 +327,7 @@ def evenements_ville(ville, lat, lon, jours, maintenant):
             "id": f"oa-{e['uid']}",
             "titre": titre,
             "description": desc or None,
+            "description_longue": texte_long(e.get("longdescription_fr")),
             "categorie": categorie,
             "genres": genres_pour(categorie, texte),
             "ambiances": ambiances_pour(categorie, texte),

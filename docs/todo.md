@@ -3,12 +3,14 @@
 ## À faire
 - [ ] **Affiches de films** : fournir une clé TMDB (`.env`), ou relancer `enrich_affiches.py` avec `ENNUI_CONTACT` (Wikimedia limite à environ 100 films sans contact)
 - [ ] Relancer `enrich_affiches.py` (en pause pendant l'import des jeux, il reprend depuis son cache)
+- [ ] Terminer `enrich_resumes.py` (synopsis FR Wikipédia des films, séries, livres ; reprise automatique)
 - [ ] Résumés français des livres : Google Books renvoie 429 sans clé (option `--google-books` prête)
 - [ ] Vraie authentification si l'application sort du cadre de la démo
 - [ ] Modération des sorties publiées (signalement, suppression par l'auteur)
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Finitions : questionnaire réduit au profil durable, fiche détaillée (synopsis FR, adresse, badges), survol des cartes, fond bleu nuit, titres Outfit, contrôle segmenté à 4 paliers, carte Leaflet des sorties, plus de message « disponibilités en vérification », zéro émoji garanti
 - [x] Refonte design : Lucide, noUiSlider, Swiper, GSAP en local ; Inter / Plus Jakarta Sans / JetBrains Mono ; verre dépoli, halo, ratios stricts, bottom sheet détaillé
 - [x] Catégories nettoyées (2 univers, 6 envies), thèmes de lecture avec curseur Confort ↔ Découverte, filtre machine et mode de jeu
 - [x] Jeux vidéo : 3 279 jeux (2015+), consoles, genres et modes traduits, titres FR, résumés FR et jaquettes (Wikimedia), « Déjà joué », « Lancer une session », filtre Solo / Co-op & Multi

@@ -276,7 +276,13 @@ def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films, affiches_fi
     return noeuds
 
 
+def resumes_fr():
+    """Introductions Wikipédia FR (enrich_resumes.py) : jamais de texte anglais dans l'interface."""
+    return charger_json("resumes.json", {"films": {}, "series": {}, "livres": {}})
+
+
 def metadonnees_series(series, decalage, tmdb_series):
+    resumes = resumes_fr()["series"]
     noeuds = []
     for i, s in enumerate(series):
         info = tmdb_series.get(str(s["tvmaze_id"]))
@@ -294,7 +300,8 @@ def metadonnees_series(series, decalage, tmdb_series):
             # affiche TMDB si connue, sinon l'affiche TVmaze (vraie affiche elle aussi)
             "affiche": URL_AFFICHE + poster if poster else s["affiche"],
             "affiche_mini": None if poster else s["affiche_mini"],
-            "resume": (info or {}).get("overview") or s["resume"],
+            # TMDB (fr-FR) sinon Wikipédia FR ; le résumé TVmaze est en anglais : jamais affiché
+            "resume": (info or {}).get("overview") or resumes.get(str(s["tvmaze_id"])),
             "plateformes": info["plateformes"] if info else [],
             "plateformes_verifiees": info is not None,
         })
@@ -302,6 +309,7 @@ def metadonnees_series(series, decalage, tmdb_series):
 
 
 def metadonnees_livres(livres, decalage):
+    resumes = resumes_fr()["livres"]
     return [{
         "index": decalage + i,
         "id": f"livre:{l['id']}",
@@ -315,7 +323,7 @@ def metadonnees_livres(livres, decalage):
         "genres": l["genres"],
         "themes": l.get("themes", []),  # roman, polar, sff, essais, bd, bio (filtre de l'onglet Lecture)
         "affiche": l["couverture"],
-        "resume": l["resume"],          # uniquement s'il existe en français
+        "resume": l["resume"] or resumes.get(l["id"]),  # uniquement en français (Google Books ou Wikipédia FR)
         "francais": l["francais"],      # édition française trouvée
         "plateformes": [],
     } for i, l in enumerate(livres)]
@@ -365,7 +373,8 @@ def metadonnees_sorties(sorties, decalage):
             "occurrences": s["occurrences"],   # [[début ISO, fin ISO], ...]
             "affiche": s.get("image"),
             "credit_image": s.get("credit_image"),
-            "resume": s.get("description"),
+            # description complète (OpenAgenda, texte long) pour la fiche ; à défaut la description courte
+            "resume": s.get("description_longue") or s.get("description"),
             "url": s.get("url"),
             "source": s.get("source", "openagenda"),
             "propose_par": s.get("propose_par"),
@@ -395,6 +404,20 @@ def ecrire_atomique(chemin: Path, ecrire):
     os.replace(tmp, chemin)
 
 
+EMOJIS = re.compile("[\U0001F000-\U0001FAFF\U0001F1E6-\U0001F1FF\u2600-\u27BF\u2B00-\u2BFF\u2300-\u23FF\uFE0F\u200D\u20E3]")
+CHAMPS_TEXTE = ("titre", "resume", "lieu", "adresse", "acces", "tarif", "studio", "editeur", "auteur")
+
+
+def sans_emoji(noeud: dict) -> dict:
+    """Règle « zéro émoji » garantie à la source : les textes externes (OpenAgenda, Wikipédia…) en contiennent parfois."""
+    for champ in CHAMPS_TEXTE:
+        v = noeud.get(champ)
+        if isinstance(v, str) and EMOJIS.search(v):
+            v = re.sub(r"[ \t]{2,}", " ", EMOJIS.sub("", v))
+            noeud[champ] = re.sub(r"^\s+|\s+$", "", re.sub(r" *\n *", "\n", v)) or None
+    return noeud
+
+
 def assembler(S_films, noeuds_films, series, livres, jeux, sorties, tmdb_series, journal=print):
     """Films + séries + livres + jeux + sorties -> P, pi_star, noeuds.json (écritures atomiques)."""
     genres_films = [nd["genres"] for nd in noeuds_films]
@@ -411,6 +434,7 @@ def assembler(S_films, noeuds_films, series, livres, jeux, sorties, tmdb_series,
     noeuds += metadonnees_livres(livres, len(noeuds))
     noeuds += metadonnees_jeux(jeux, len(noeuds))
     noeuds += metadonnees_sorties(sorties, len(noeuds))
+    noeuds = [sans_emoji(nd) for nd in noeuds]
 
     SORTIE.mkdir(parents=True, exist_ok=True)
     # format .npz explicite : np.save / save_npz ajouteraient une extension au fichier .tmp
@@ -440,9 +464,11 @@ def reconstruire_externes(journal=print, sorties_supplementaires=()):
     noeuds_films = [nd for nd in noeuds if nd["type"] == "film"]
     assert len(noeuds_films) == S_films.shape[0], "S_films.npz et noeuds.json incohérents : relancer le build"
     tmdb, wiki = charger_tmdb(), charger_json("affiches.json", {"films": {}})["films"]
+    resumes = resumes_fr()["films"]
     for nd in noeuds_films:
         mid = nd["id"].split(":")[1]
         appliquer_affiches(nd, tmdb["films"].get(mid), wiki.get(mid))
+        nd["resume"] = (tmdb["films"].get(mid) or {}).get("overview") or resumes.get(mid)
     livres, jeux, sorties = externes_locaux(sorties_supplementaires)
     return assembler(S_films, noeuds_films, charger_json("series.json")["series"], livres, jeux, sorties,
                      tmdb["series"], journal)
@@ -469,6 +495,9 @@ def main():
           + ("" if tmdb["films"] else " (lancer enrich_tmdb.py : sans lui, aucune plateforme n'est affichée)"))
     affiches = charger_json("affiches.json", {"films": {}})["films"]
     noeuds_films = metadonnees_films(movie_ids, films, liens, nb_likes, tmdb["films"], affiches)
+    resumes = resumes_fr()["films"]
+    for nd in noeuds_films:
+        nd["resume"] = nd["resume"] or resumes.get(nd["id"].split(":")[1])
     print(f"Affiches de films : {sum(1 for n in noeuds_films if n['affiche'])}/{len(noeuds_films)}")
 
     SORTIE.mkdir(parents=True, exist_ok=True)

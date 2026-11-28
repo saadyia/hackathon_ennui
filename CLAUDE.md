@@ -67,7 +67,7 @@ uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 :
 uvicorn backend.main:app --host 0.0.0.0 --port 8000   # accessible depuis un téléphone sur le même Wi-Fi
 python3 backend/enrich_resumes.py        # synopsis FR (Wikipédia) des films, séries, livres (reprise possible)
 docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render / Railway / tunnel : docs/deploiement.md
-python3 scripts/record_demo.py          # vidéo de démo 390x844 (x2) ~2 min -> demo_output/ofk_demo.mp4 (pip : playwright imageio-ffmpeg ; base jetable)
+python3 scripts/record_demo.py          # vidéo de démo ~2 min : demo_output/ofk_demo.mp4 (780x1688) + ofk_demo_16x9.mp4 (iPhone centré) ; --16x9 = refaire seulement la 16:9
 # Tests : aucun pour l'instant
 ```
 

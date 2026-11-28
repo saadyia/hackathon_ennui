@@ -1,7 +1,6 @@
 # Tâches et avancement
 
 ## À faire
-- [ ] **Affiches de films** : fournir une clé TMDB (`.env`), ou relancer `enrich_affiches.py` avec `ENNUI_CONTACT` (Wikimedia limite à environ 100 films sans contact)
 - [ ] Relancer `enrich_affiches.py` (en pause pendant l'import des jeux, il reprend depuis son cache)
 - [ ] Résumés français des livres : Google Books renvoie 429 sans clé (option `--google-books` prête)
 - [ ] Vraie authentification si l'application sort du cadre de la démo
@@ -9,6 +8,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Plateformes TMDB (FR.flatrate) : 7 272 films et 220 séries vérifiés, 1 611 sur au moins une plateforme suivie, badges sur les cartes et fiches (abonnements de l'utilisateur en surbrillance) ; affiches TMDB : 7 336 / 7 363 films (28/11/2026)
 - [x] Hors écran : sous-onglet Tout, photos Unsplash locales (35, repli feutré), recettes complètes des 11 activités cuisine ; Sorties : sous-onglets Tout / Culture / Soirées / Nature, rencontres et sport mieux classés
 - [x] Onglet « Hors écran » (Créatif, Cuisine, Mouvement) : 35 activités, filtres Matériel / Mode, Confort ↔ Découverte, fiches avec étapes, Proposer à un ami, Mes envies, Choisir à ma place
 - [x] Comptes avec mot de passe (inscription / connexion, PBKDF2 salé, anti-essais) à la place de la reprise ouverte et du PIN ; curseur du périmètre natif et réparé sur mobile

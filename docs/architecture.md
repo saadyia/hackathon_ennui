@@ -233,6 +233,8 @@ Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétitio
 - **Gratuit retiré des plateformes** : ce n'est pas un abonnement `flatrate`. Le tarif « Gratuit » des sorties reste affiché.
 
 ## Limites connues
+- **Clé TMDB** : fournie le 28/11/2026, `tmdb.json` versionné (Render n'a pas besoin de la clé). Relancer
+  `enrich_tmdb.py` puis `build_graph.py` de temps en temps : les catalogues des plateformes changent chaque mois.
 - **Sans clé TMDB** : affiches typographiques pour les films, affiches TVmaze pour les séries, « Disponibilité non vérifiée » partout.
 - **Couverture des sorties** : 40 villes. Ailleurs, l'application propose la ville couverte la plus proche (ex. Bourges → Orléans, 95 km).
 - **Plafond de collecte** : 300 événements bruts par ville (Paris en a davantage). Le rayon de 50 km ne voit que ce qui a été collecté à 15 km des villes.

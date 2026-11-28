@@ -9,6 +9,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Avatars illustrés DiceBear en local (Notionists, Micah, Glass), studio connecté aux vrais paramètres, repli initiales, amis de démo redessinés
 - [x] Avatars SVG (studio, inscription, profil), humeur du moment en popover depuis son avatar, anneau lumineux, Pour vous orienté par l'humeur, 4 profils de démo avec avatar
 - [x] Amis : code `Prénom#123`, tiroir Amis (recherche, ajout, retrait), statut « Dispo » (12 h), avatars des amis disponibles, salut selon l'heure, 5 profils de démo marqués ; splash à ressort 1,4 s
 - [x] Rendu final : typographie sans empattement (Plus Jakarta Sans / Inter / JetBrains Mono), logo vectoriel « ofk? » (splash, en-tête, icônes PWA), splash animé, accent unique champagne, pilule glissante et fondu 220 ms dans Chez soi, filtres contextuels, Co-op fusionné dans Multijoueur, « Mes envies », états vides avec « Réinitialiser les filtres », 6 905 synopsis FR de films

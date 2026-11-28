@@ -1,126 +1,134 @@
-// Avatars vectoriels minimalistes : portrait éditorial en trait fin, duotone (fond sombre + blanc cassé).
-// Aucun fichier image : un petit objet JSON { bg, hair, accessory, expression } suffit (stocké en SQLite + localStorage).
+// Avatars illustrés DiceBear (styles dessinés par des artistes), rendus EN LOCAL :
+// frontend/vendor/dicebear (copie des modules ESM @dicebear 9.4.3), aucun appel réseau ni CDN.
+//   notionists : Zoish, CC0 1.0 · micah : Micah Lanier, CC BY 4.0 · glass : DiceBear, CC0 1.0 · core : MIT
+// Configuration enregistrée : { style, seed, bg, hair?, glasses?, brows?, mouth? }.
+// Repli instantané : initiales en Plus Jakarta Sans Bold si les modules ne se chargent pas.
 
-const BLANC = "#F8FAFC";
+let DB = null;  // { createAvatar, styles: { notionists, micah, glass } }
 
-export const AVATAR_OPTIONS = {
-  bg: [
-    { id: "ardoise", nom: "Ardoise", couleur: "#1E293B" },
-    { id: "indigo", nom: "Indigo", couleur: "#312E81" },
-    { id: "ambre", nom: "Ambre profond", couleur: "#78350F" },
-    { id: "emeraude", nom: "Émeraude sombre", couleur: "#064E3B" },
-    { id: "prune", nom: "Prune", couleur: "#4C1D95" },
-    { id: "acier", nom: "Acier", couleur: "#334155" },
-  ],
-  hair: [
-    { id: "court", nom: "Court" }, { id: "milong", nom: "Mi-long" }, { id: "boucle", nom: "Bouclé" },
-    { id: "chignon", nom: "Chignon" }, { id: "afro", nom: "Afro" }, { id: "frange", nom: "Frange" },
-    { id: "rase", nom: "Rasé" }, { id: "ondule", nom: "Ondulé" },
-  ],
-  accessory: [
-    { id: "aucun", nom: "Aucun" }, { id: "lunettes-rect", nom: "Lunettes fines" }, { id: "lunettes-rondes", nom: "Lunettes rondes" },
-    { id: "casque", nom: "Casque audio" }, { id: "bonnet", nom: "Bonnet" },
-  ],
-  expression: [
-    { id: "serein", nom: "Serein" }, { id: "sourire", nom: "Sourire léger" },
-    { id: "curieux", nom: "Curieux" }, { id: "concentre", nom: "Concentré" },
-  ],
-};
+/** À attendre une fois au démarrage (fichiers locaux : quelques millisecondes). Ne rejette jamais. */
+export const avatarsPrets = Promise.all([
+  import("../vendor/dicebear/core.js"),
+  import("../vendor/dicebear/notionists.js"),
+  import("../vendor/dicebear/micah.js"),
+  import("../vendor/dicebear/glass.js"),
+]).then(([core, notionists, micah, glass]) => {
+  DB = { createAvatar: core.createAvatar, styles: { notionists, micah, glass } };
+  return true;
+}).catch(() => false);
 
-const ids = (cle) => AVATAR_OPTIONS[cle].map((o) => o.id);
-const valide = (cfg) => cfg && Object.keys(AVATAR_OPTIONS).every((k) => ids(k).includes(cfg[k]));
+// Fonds : teintes pastel (lisibles sous un trait noir) ; « Aura » utilise la teinte sombre associée.
+export const FONDS = [
+  { id: "b6e3f4", nom: "Ciel", sombre: "1E293B" },
+  { id: "c0aede", nom: "Lavande", sombre: "4C1D95" },
+  { id: "d1d4f9", nom: "Pervenche", sombre: "312E81" },
+  { id: "ffd5dc", nom: "Rose poudré", sombre: "4C1D95" },
+  { id: "ffdfbf", nom: "Pêche", sombre: "78350F" },
+  { id: "c7ead8", nom: "Menthe", sombre: "064E3B" },
+];
 
-/** Hachage stable (FNV-1a) : un même prénom donne toujours le même avatar, sur tous les appareils. */
+const variantes = (n) => Array.from({ length: n }, (_, i) => `variant${String(i + 1).padStart(2, "0")}`);
+
+// Paramètres réels de chaque style DiceBear, exposés dans le studio.
+export const STYLES = [
+  {
+    id: "notionists", nom: "Éditorial Notion",
+    hair: variantes(63).concat("hat"),
+    glasses: ["aucune", ...variantes(11)],
+    brows: variantes(13),
+    mouth: variantes(30),
+    options: (c) => ({
+      ...(c.hair ? { hair: [c.hair] } : {}),
+      ...(c.glasses ? (c.glasses === "aucune" ? { glassesProbability: 0 } : { glasses: [c.glasses], glassesProbability: 100 }) : {}),
+      ...(c.brows ? { brows: [c.brows] } : {}),
+      ...(c.mouth ? { lips: [c.mouth] } : {}),
+      gestureProbability: 0, bodyIconProbability: 0,
+    }),
+  },
+  {
+    id: "micah", nom: "Portrait Moderne",
+    hair: ["fonze", "mrT", "dougFunny", "mrClean", "dannyPhantom", "full", "turban", "pixie"],
+    glasses: ["aucune", "round", "square"],
+    brows: ["up", "down", "eyelashesUp", "eyelashesDown"],
+    mouth: ["smile", "laughing", "smirk", "surprised", "nervous", "pucker", "sad", "frown"],
+    options: (c) => ({
+      ...(c.hair ? { hair: [c.hair] } : {}),
+      ...(c.glasses ? (c.glasses === "aucune" ? { glassesProbability: 0 } : { glasses: [c.glasses], glassesProbability: 100 }) : {}),
+      ...(c.brows ? { eyebrows: [c.brows] } : {}),
+      ...(c.mouth ? { mouth: [c.mouth] } : {}),
+      earringsProbability: 0,
+    }),
+  },
+  { id: "glass", nom: "Aura Abstraite", hair: [], glasses: [], brows: [], mouth: [], options: () => ({}) },
+];
+const styleDe = (id) => STYLES.find((s) => s.id === id) || STYLES[0];
+
+const NOMS_DETAILS = { round: "Rondes", square: "Carrées", aucune: "Aucune", up: "Hauts", down: "Bas", eyelashesUp: "Cils hauts",
+  eyelashesDown: "Cils bas", smile: "Sourire", laughing: "Rire", smirk: "En coin", surprised: "Surpris", nervous: "Gêné",
+  pucker: "Moue", sad: "Triste", frown: "Froncé", fonze: "Banane", mrT: "Crête", dougFunny: "Mèches", mrClean: "Rasé",
+  dannyPhantom: "Décoiffé", full: "Long", turban: "Turban", pixie: "Court", hat: "Chapeau" };
+/** Libellé court d'une valeur DiceBear (« variant07 » -> « 7 »). */
+export const nomValeur = (v) => NOMS_DETAILS[v] || (v.startsWith("variant") ? String(Number(v.slice(7))) : v);
+
+const CLES = ["hair", "glasses", "brows", "mouth"];
+function valide(c) {
+  if (!c || typeof c !== "object" || !STYLES.some((s) => s.id === c.style) || !FONDS.some((f) => f.id === c.bg)) return false;
+  if (typeof c.seed !== "string" || !c.seed) return false;
+  const s = styleDe(c.style);
+  return CLES.every((k) => c[k] == null || s[k].includes(c[k]));
+}
+
 function hachage(texte) {
   let h = 2166136261;
-  for (const c of String(texte || "")) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  for (const ch of String(texte || "")) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
   return h >>> 0;
 }
 
+/** Avatar par défaut, stable : même prénom = même portrait sur tous les appareils. */
 export function avatarDepuisPrenom(prenom) {
-  let h = hachage((prenom || "").trim().toLowerCase());
-  const tirer = (cle) => { const l = ids(cle); const v = l[h % l.length]; h = Math.floor(h / l.length) ^ 0x9e37; return v; };
-  return { bg: tirer("bg"), hair: tirer("hair"), accessory: h % 3 === 0 ? tirer("accessory") : "aucun", expression: tirer("expression") };
+  const seed = (prenom || "ofk").trim() || "ofk";
+  return { style: "notionists", seed, bg: FONDS[hachage(seed) % FONDS.length].id };
 }
 
+/** Nouveau seed aléatoire (les choix explicites sont remis à zéro) ; le style est conservé. */
 export function avatarAleatoire(actuel) {
-  const pick = (cle) => { const l = ids(cle); return l[Math.floor(Math.random() * l.length)]; };
-  let cfg;
-  do {
-    cfg = { bg: pick("bg"), hair: pick("hair"), accessory: Math.random() < 0.55 ? "aucun" : pick("accessory"), expression: pick("expression") };
-  } while (actuel && JSON.stringify(cfg) === JSON.stringify(actuel));
-  return cfg;
+  const seed = Math.random().toString(36).slice(2, 10);
+  return { style: actuel?.style || "notionists", seed, bg: FONDS[Math.floor(Math.random() * FONDS.length)].id };
 }
 
-/** Avatar d'une personne : sa configuration enregistrée, sinon celle dérivée de son prénom. */
 export const avatarDe = (p) => (valide(p?.avatar) ? p.avatar : avatarDepuisPrenom(p?.prenom));
 
-// ------------------------------------------------------------------ //
-// Dessin (viewBox 64 × 64 ; tête centrée en 32,31)                     //
-// ------------------------------------------------------------------ //
-const trait = (d, extra = "") => `<path d="${d}" fill="none" stroke="${BLANC}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ${extra}/>`;
-const plein = (d, extra = "") => `<path d="${d}" fill="${BLANC}" ${extra}/>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// Cheveux : [derrière la tête, devant la tête]
-const CHEVEUX = {
-  court: ["", plein("M20.6 29.5C19.8 19.5 25.4 15.2 32.2 15.2C39 15.2 44.6 19.6 43.6 29.5C42.4 24.6 39.4 22.4 35.4 22.1C32.6 23.6 27.8 24.2 24.2 23.4C22.4 24.6 21.2 26.6 20.6 29.5Z")],
-  milong: [plein("M19.6 44C18.4 36 18.6 27 20.4 22.5L43.8 22.5C45.6 27 45.8 36 44.6 44C43 44.8 41.6 44.6 40.6 43.6L40.8 30L23.4 30L23.6 43.6C22.6 44.6 21.2 44.8 19.6 44Z"),
-    plein("M20.4 30C19.6 19.6 25.6 15 32.2 15C38.8 15 44.8 19.6 44 30C42.2 25 38.8 22.4 32.2 22C29 24.6 24.6 26.6 20.4 30Z")],
-  boucle: ["", ["22.4,25.6,3.6", "24.2,20,3.8", "28.6,16.6,3.9", "34,15.6,4", "39.2,17.6,3.8", "42.2,22.4,3.6", "43.2,27.4,2.8", "21,30,2.6"]
-    .map((c) => { const [x, y, r] = c.split(","); return `<circle cx="${x}" cy="${y}" r="${r}" fill="${BLANC}"/>`; }).join("")],
-  chignon: [`<circle cx="32.2" cy="11.6" r="4.6" fill="${BLANC}"/>`,
-    plein("M20.8 29C20.4 19.6 25.6 15.6 32.2 15.6C38.8 15.6 44 19.6 43.6 29C41.6 23.2 37.6 20.6 32.2 20.6C26.8 20.6 22.8 23.2 20.8 29Z")],
-  afro: [`<circle cx="32.2" cy="25" r="16.2" fill="${BLANC}"/>`, ""],
-  frange: ["", plein("M20.4 31C19.6 20 25 15 32.2 15C39.4 15 44.8 20 44 31L42.6 25.2L21.8 25.2Z")],
-  rase: ["", plein("M21 27.6C21 19.8 26 16.4 32.2 16.4C38.4 16.4 43.4 19.8 43.4 27.6C41.4 22.6 37.2 21 32.2 21C27.2 21 23 22.6 21 27.6Z", 'opacity="0.45"')],
-  ondule: [plein("M18.8 43.4C16.8 38 21.2 35 19.2 29.4C17.6 20.4 24.4 14.6 32.2 14.6C40 14.6 46.8 20.4 45.2 29.4C43.2 35 47.6 38 45.6 43.4C44 44.4 42.2 44.2 41.2 43.2L41.4 30.4L23 30.4L23.2 43.2C22.2 44.2 20.4 44.4 18.8 43.4Z"),
-    plein("M20.8 29.6C21 21.4 26.2 17.4 32.2 17.4C38.2 17.4 43.4 21.4 43.6 29.6C41.8 25.8 39.4 23.2 36 22.6C34.4 24.2 31.6 24.6 29.4 23.6C26 24.4 22.6 26.4 20.8 29.6Z")],
-};
-
-const EXPRESSIONS = {
-  serein: trait("M25.9 30.6Q27.6 31.9 29.3 30.6") + trait("M35.1 30.6Q36.8 31.9 38.5 30.6") + trait("M29.9 38Q32.2 38.7 34.5 38"),
-  sourire: `<circle cx="27.6" cy="30.6" r="1" fill="${BLANC}"/><circle cx="36.8" cy="30.6" r="1" fill="${BLANC}"/>` + trait("M28.9 37.2Q32.2 40.2 35.5 37.2"),
-  curieux: `<circle cx="27.6" cy="30.8" r="1" fill="${BLANC}"/><circle cx="36.8" cy="30.8" r="1" fill="${BLANC}"/>`
-    + trait("M25.8 27.4Q27.6 26.4 29.4 27.2") + trait("M35 26.2Q36.8 24.8 38.6 25.9") + `<circle cx="32.2" cy="38.2" r="1.1" fill="none" stroke="${BLANC}" stroke-width="1.3"/>`,
-  concentre: `<circle cx="27.6" cy="31" r="1" fill="${BLANC}"/><circle cx="36.8" cy="31" r="1" fill="${BLANC}"/>`
-    + trait("M25.8 27.8L29.4 28.3") + trait("M35 28.3L38.6 27.8") + trait("M30.4 38.2L34 38.2"),
-};
-
-const ACCESSOIRES = {
-  aucun: "",
-  "lunettes-rect": trait("M24.2 28.6h6.4v4.4h-6.4z", 'stroke-width="1.3"') + trait("M33.8 28.6h6.4v4.4h-6.4z", 'stroke-width="1.3"')
-    + trait("M30.6 30.2Q32.2 29.4 33.8 30.2", 'stroke-width="1.2"') + trait("M24.2 29.6L21 28.8M40.2 29.6L43.4 28.8", 'stroke-width="1.2"'),
-  "lunettes-rondes": `<circle cx="27.6" cy="30.8" r="3.3" fill="none" stroke="${BLANC}" stroke-width="1.3"/><circle cx="36.8" cy="30.8" r="3.3" fill="none" stroke="${BLANC}" stroke-width="1.3"/>`
-    + trait("M30.9 30.4Q32.2 29.6 33.5 30.4", 'stroke-width="1.2"') + trait("M24.3 30.2L21 29.4M40.1 30.2L43.4 29.4", 'stroke-width="1.2"'),
-  casque: trait("M19.4 31C18.6 17.4 26 12.8 32.2 12.8C38.4 12.8 45.8 17.4 45 31", 'stroke-width="2.2"')
-    + `<rect x="16.6" y="27.4" width="5" height="9" rx="2.4" fill="${BLANC}"/><rect x="42.8" y="27.4" width="5" height="9" rx="2.4" fill="${BLANC}"/>`,
-  bonnet: plein("M20.2 25.4C20.2 15.6 25.6 11.8 32.2 11.8C38.8 11.8 44.2 15.6 44.2 25.4Z")
-    + `<rect x="19" y="23.2" width="26.4" height="4.6" rx="2.3" fill="${BLANC}"/><circle cx="32.2" cy="10.6" r="2.6" fill="${BLANC}"/>`,
-};
+/** Repli hors ligne : initiales sur la teinte sombre du fond. */
+function initiales(config, size, prenom) {
+  const fond = (FONDS.find((f) => f.id === config.bg) || FONDS[0]).sombre;
+  const texte = (prenom || config.seed || "?").split(/[\s-]+/).filter(Boolean).slice(0, 2).map((m) => m[0]).join("").toUpperCase();
+  return `<svg class="avatar-svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="#${fond}"/>
+    <text x="32" y="33" text-anchor="middle" dominant-baseline="central" fill="#F8FAFC"
+      font-family="'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif" font-weight="700" font-size="22" letter-spacing="-0.5">${esc(texte)}</text>
+  </svg>`;
+}
 
 /**
- * Portrait SVG. config = { bg, hair, accessory, expression } (valeurs inconnues : repli sur la première option).
- * size = côté en pixels. Le fond est un disque ; la tête est remplie de la couleur de fond (masque les cheveux arrière).
+ * Portrait SVG (chaîne) d'après une configuration. size en pixels ; zoom = gros plan sur le visage (vignettes du studio).
+ * Les identifiants internes du SVG sont rendus uniques à chaque appel (plusieurs avatars sur une page).
  */
-export function renderAvatarSVG(config, size = 48) {
-  const c = valide(config) ? config : avatarDepuisPrenom("");
-  const fond = AVATAR_OPTIONS.bg.find((b) => b.id === c.bg).couleur;
-  const [arriere, avant] = CHEVEUX[c.hair];
-  const bonnet = c.accessory === "bonnet";
-  const idClip = `av${Math.random().toString(36).slice(2, 8)}`;
-  return `<svg class="avatar-svg" width="${size}" height="${size}" viewBox="0 0 64 64" role="img" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <defs><clipPath id="${idClip}"><circle cx="32" cy="32" r="32"/></clipPath></defs>
-    <g clip-path="url(#${idClip})">
-      <rect width="64" height="64" fill="${fond}"/>
-      <circle cx="32" cy="22" r="26" fill="#FFFFFF" opacity="0.05"/>
-      ${arriere}
-      ${trait("M11 66C12.6 53.6 21 48.4 32.2 48.4C43.4 48.4 51.8 53.6 53.4 66")}
-      ${trait("M28.6 43.6L28.4 48.6M35.8 43.6L36 48.6")}
-      <ellipse cx="32.2" cy="31" rx="11.4" ry="13.4" fill="${fond}" stroke="${BLANC}" stroke-width="1.5"/>
-      ${bonnet ? "" : avant}
-      ${trait("M32.4 32.2L31.4 35.4L32.8 35.6", 'stroke-width="1.2"')}
-      ${EXPRESSIONS[c.expression]}
-      ${ACCESSOIRES[c.accessory]}
-    </g>
-  </svg>`;
+export function renderAvatarSVG(config, size = 48, prenom = "", { zoom = false } = {}) {
+  const c = valide(config) ? config : avatarDepuisPrenom(prenom || config?.seed);
+  if (!DB) return initiales(c, size, prenom);
+  try {
+    const style = styleDe(c.style);
+    const fond = FONDS.find((f) => f.id === c.bg) || FONDS[0];
+    const svg = DB.createAvatar(DB.styles[c.style], {
+      seed: c.seed, size, radius: 50, randomizeIds: true,
+      backgroundColor: [c.style === "glass" ? fond.sombre : fond.id],
+      ...(c.style === "glass" ? { scale: 110 } : zoom ? { scale: 150, translateY: 14 } : { scale: 100 }),
+      ...style.options(c),
+    }).toString();
+    return svg.replace("<svg ", '<svg class="avatar-svg" aria-hidden="true" ');
+  } catch (_) {
+    return initiales(c, size, prenom);
+  }
 }

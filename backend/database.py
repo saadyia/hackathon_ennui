@@ -105,20 +105,20 @@ COLONNES_UTILISATEURS = {
     "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
     "dispo_le": "TEXT",
     "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
-    "avatar": "TEXT",                    # JSON {bg, hair, accessory, expression} ; NULL = dérivé du prénom côté client
+    "avatar": "TEXT",                    # JSON DiceBear {style, seed, bg, hair?, glasses?, brows?, mouth?} ; NULL = dérivé du prénom
 }
 
 # Profils fictifs pour tester les interactions sociales tout de suite. Ils sont marqués « Démo »
 # dans l'interface et ne rejoignent aucun plan : on n'invente ni participants ni activité.
 PROFILS_DEMO = [
     ("demo-camille", "Camille", "Camille#101", "Rennes", 48.1113, -1.6800, "sortir",
-     {"bg": "prune", "hair": "chignon", "accessory": "lunettes-rondes", "expression": "sourire"}),
+     {"style": "notionists", "seed": "Camille", "bg": "c0aede", "hair": "variant47", "glasses": "variant03", "brows": "variant02", "mouth": "variant05"}),
     ("demo-lucas", "Lucas", "Lucas#214", "Rennes", 48.1113, -1.6800, "distance",
-     {"bg": "acier", "hair": "court", "accessory": "casque", "expression": "concentre"}),
+     {"style": "notionists", "seed": "Lucas", "bg": "b6e3f4", "hair": "variant20", "glasses": "aucune", "brows": "variant04", "mouth": "variant12"}),
     ("demo-ines", "Inès", "Inès#327", "Nantes", 47.2184, -1.5536, "sortir",
-     {"bg": "emeraude", "hair": "boucle", "accessory": "aucun", "expression": "curieux"}),
+     {"style": "notionists", "seed": "Inès", "bg": "ffd5dc", "hair": "variant59", "glasses": "aucune", "brows": "variant06", "mouth": "variant03"}),
     ("demo-thomas", "Thomas", "Thomas#438", "Lyon", 45.7640, 4.8357, "distance",
-     {"bg": "ambre", "hair": "frange", "accessory": "bonnet", "expression": "serein"}),
+     {"style": "micah", "seed": "Thomas", "bg": "ffdfbf", "hair": "dannyPhantom", "glasses": "square", "brows": "up", "mouth": "smile"}),
 ]
 DEMO_RETIRES = ("demo-yasmine",)  # anciens profils de démo (la liste en compte désormais 4)
 

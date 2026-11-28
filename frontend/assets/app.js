@@ -1,6 +1,6 @@
 // ennui. — application (JavaScript vanilla, module ES, aucune dépendance externe).
 // Librairies locales (frontend/vendor) chargées par index.html : lucide, noUiSlider, Swiper, gsap.
-import { renderAvatarSVG, AVATAR_OPTIONS, avatarDe, avatarAleatoire } from "./avatar.js";
+import { renderAvatarSVG, avatarDe, avatarAleatoire, avatarsPrets, STYLES, FONDS, nomValeur } from "./avatar.js";
 
 const { lucide, noUiSlider, Swiper, gsap } = window;
 const MOUVEMENT = !window.matchMedia("(prefers-reduced-motion: reduce)").matches && Boolean(gsap);
@@ -303,7 +303,7 @@ const moi = () => ({ prenom: etat.prenom, avatar: etat.avatar, dispo: etat.dispo
 
 /** Avatar SVG (renderAvatarSVG) avec anneau lumineux si la personne est active. */
 const avatar = (p, taille = 48, classe = "") => `<span class="avatar ${classe} ${actif(p.dispo) ? "anneau" : ""}" aria-hidden="true"
-    style="--taille:${taille}px">${renderAvatarSVG(avatarDe(p), taille)}</span>`;
+    style="--taille:${taille}px">${renderAvatarSVG(avatarDe(p), taille, p.prenom)}</span>`;
 
 /** Rangée sociale en haut de « Pour vous » : moi (humeur en un tap), puis les amis actifs, puis « Amis ». */
 function rangeeAvatars() {
@@ -374,8 +374,9 @@ function panneauAmis() {
     </section>`;
 }
 
-// ---------------- Studio d'avatar (tiroir) ----------------
-const ONGLETS_STUDIO = [["bg", "Fond"], ["hair", "Coupe"], ["accessory", "Accessoire"], ["expression", "Expression"]];
+// ---------------- Studio d'avatar (tiroir, paramètres réels DiceBear) ----------------
+const ONGLETS_STUDIO = [["style", "Style"], ["bg", "Fond"], ["hair", "Coiffure"], ["details", "Détails"]];
+const styleCourant = () => STYLES.find((x) => x.id === feuille.config.style) || STYLES[0];
 
 function panneauStudio() {
   const f = feuille;
@@ -386,7 +387,7 @@ function panneauStudio() {
       <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
       <div class="feuille-corps studio">
         <h2 class="titre-detail">Studio d'avatar</h2>
-        <div class="studio-apercu" id="studio-apercu">${renderAvatarSVG(f.config, 148)}</div>
+        <div class="studio-apercu" id="studio-apercu">${renderAvatarSVG(f.config, 148, etat.prenom)}</div>
         <button class="bouton-ligne studio-aleatoire" data-action="studio-aleatoire">${icone("shuffle", 14)}Aléatoire</button>
         <div class="segment segment-4 segment-pilule" role="tablist" aria-label="Réglages" style="--index:${index}">
           <span class="segment-indicateur" aria-hidden="true"></span>
@@ -394,23 +395,39 @@ function panneauStudio() {
         </div>
         <div class="studio-options" id="studio-options">${optionsStudio()}</div>
         <button class="bouton-principal" data-action="studio-enregistrer">${icone("check", 18)}Enregistrer</button>
+        <p class="studio-credits">Illustrations DiceBear : Notionists (Zoish, CC0), Avatar Illustration System (Micah Lanier, CC BY 4.0), Glass (CC0).</p>
       </div>
     </section>`;
 }
 
+/** Une vignette = l'avatar actuel avec une seule valeur changée (aperçu direct). */
+const vignette = (cle, valeur, nom, config) => `<button class="studio-option" data-action="studio-choix" data-cle="${cle}" data-valeur="${esc(valeur)}"
+    aria-pressed="${feuille.config[cle] === valeur}">${renderAvatarSVG(config, 58, etat.prenom, { zoom: cle !== "style" && cle !== "bg" })}<span>${esc(nom)}</span></button>`;
+
 function optionsStudio() {
   const { config, onglet } = feuille;
-  return AVATAR_OPTIONS[onglet].map((o) => `<button class="studio-option" data-action="studio-choix" data-cle="${onglet}" data-valeur="${o.id}"
-      aria-pressed="${config[onglet] === o.id}">${renderAvatarSVG({ ...config, [onglet]: o.id }, 58)}<span>${esc(o.nom)}</span></button>`).join("");
+  const style = styleCourant();
+  const base = { style: config.style, seed: config.seed, bg: config.bg };
+  if (onglet === "style") {
+    return STYLES.map((x) => vignette("style", x.id, x.nom, { ...base, style: x.id })).join("");
+  }
+  if (onglet === "bg") return FONDS.map((f) => vignette("bg", f.id, f.nom, { ...config, bg: f.id })).join("");
+  if (!style.hair.length) {
+    return `<p class="studio-vide">L'Aura Abstraite n'a ni coiffure ni détails : choisis Éditorial Notion ou Portrait Moderne dans Style.</p>`;
+  }
+  if (onglet === "hair") return style.hair.map((v) => vignette("hair", v, nomValeur(v), { ...config, hair: v })).join("");
+  const groupe = (titre, cle) => `<span class="studio-sous-titre">${titre}</span>`
+    + style[cle].map((v) => vignette(cle, v, nomValeur(v), { ...config, [cle]: v })).join("");
+  return groupe("Lunettes", "glasses") + groupe("Sourcils", "brows") + groupe("Bouche", "mouth");
 }
 
 function majStudio() {
-  $("#studio-apercu").innerHTML = renderAvatarSVG(feuille.config, 148);
+  $("#studio-apercu").innerHTML = renderAvatarSVG(feuille.config, 148, etat.prenom);
   $("#studio-options").innerHTML = optionsStudio();
 }
 
 function ouvrirStudio() {
-  feuille = { mode: "avatar", onglet: "bg", config: { ...avatarDe(moi()) } };
+  feuille = { mode: "avatar", onglet: "style", config: { ...avatarDe(moi()) } };
   rendreFeuille();
 }
 
@@ -1732,8 +1749,13 @@ const actions = {
     $("#studio-options").innerHTML = optionsStudio();
   },
   "studio-choix"(b) {
-    feuille.config = { ...feuille.config, [b.dataset.cle]: b.dataset.valeur };
+    const { cle, valeur } = b.dataset;
+    const c = feuille.config;
+    // changer de style remet à zéro les choix propres à l'ancien style (les valeurs DiceBear diffèrent)
+    feuille.config = cle === "style" ? { style: valeur, seed: c.seed, bg: c.bg } : { ...c, [cle]: valeur };
+    const defilement = $("#studio-options").scrollTop;
     majStudio();
+    $("#studio-options").scrollTop = defilement;
   },
   "studio-aleatoire"() {
     feuille.config = avatarAleatoire(feuille.config);
@@ -1948,7 +1970,7 @@ if ("serviceWorker" in navigator) {
   restaurer();
   try {
     [CONFIG, agenda, LOGO] = await Promise.all([api("/api/config"), api("/api/agenda"),
-      fetch("/icons/logo-ofk.svg").then((r) => r.text()).catch(() => "ofk?")]);
+      fetch("/icons/logo-ofk.svg").then((r) => r.text()).catch(() => "ofk?"), avatarsPrets]);
   } catch (_) {
     $("#ecran").innerHTML = `<div class="vide" style="margin-top:40vh">Serveur injoignable. Lance <code>uvicorn backend.main:app</code>.</div>`;
     return;

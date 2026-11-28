@@ -2,9 +2,9 @@
 // - page et code de l'appli : réseau d'abord (jamais de version périmée en développement), cache en secours
 // - librairies, polices, icônes : cache d'abord (fichiers figés)
 // - API : toujours le réseau (données fraîches, comptes, plans)
-const VERSION = "ofk-v5";  // avatars SVG : renouvelle le cache
+const VERSION = "ofk-v6";  // avatars DiceBear locaux : renouvelle le cache
 const COQUILLE = [
-  "/", "/assets/app.css", "/assets/app.js", "/assets/avatar.js", "/manifest.json",
+  "/", "/assets/app.css", "/assets/app.js", "/assets/avatar.js", "/manifest.json", "/vendor/dicebear/core.js", "/vendor/dicebear/notionists.js", "/vendor/dicebear/micah.js", "/vendor/dicebear/glass.js",
   "/vendor/lucide.min.js", "/vendor/nouislider.min.js", "/vendor/nouislider.min.css",
   "/vendor/swiper-bundle.min.js", "/vendor/swiper-bundle.min.css", "/vendor/gsap.min.js",
   "/vendor/leaflet/leaflet.js", "/vendor/leaflet/leaflet.css",

@@ -33,9 +33,10 @@
    ou code, ajout immédiat et réciproque). Accueil « Bonsoir Sadia, on fait quoi ? » avec une rangée d'avatars : le sien d'abord
    (menu flottant : Partant pour bouger, Chill à distance, Mode ermite ; expire après 12 h ; oriente Pour vous), puis les amis actifs
    (anneau lumineux). Splash à ressort de 1,4 s.
-9. **Avatars SVG** (`frontend/assets/avatar.js`, `renderAvatarSVG(config, size)`) : portrait en trait fin duotone depuis
-   `{bg, hair, accessory, expression}` (6 fonds, 8 coupes, 5 accessoires, 4 expressions), déduit du prénom à l'inscription
-   (« Personnaliser », « Aléatoire »), Studio d'avatar dans Profil ; enregistré en SQLite + `localStorage`.
+9. **Avatars illustrés DiceBear** (`frontend/assets/avatar.js`, modules locaux `frontend/vendor/dicebear/`, aucun appel réseau) :
+   styles Éditorial Notion (`notionists`), Portrait Moderne (`micah`), Aura Abstraite (`glass`) ; config
+   `{style, seed, bg, hair?, glasses?, brows?, mouth?}` ; 6 fonds pastel ; repli initiales (Plus Jakarta Sans Bold).
+   Déduit du prénom à l'inscription (« Personnaliser », « Aléatoire »), Studio d'avatar dans Profil ; SQLite + `localStorage`.
 
 ### Objectifs du hackathon
 - **Priorité absolue :** MVP fluide, sans latence, **aucune dépendance réseau bloquante pendant la démo**.
@@ -47,7 +48,7 @@
 |-------------|-------------|
 | Backend     | Python 3.9+, FastAPI, NumPy, SciPy, Pandas |
 | Données     | Pré-calculées en local : `P.npz` (creux), `pi_star.npy`, `noeuds.json` |
-| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main ; librairies locales `frontend/vendor/` : Lucide, noUiSlider, Swiper, GSAP ; polices Plus Jakarta Sans, Inter, JetBrains Mono |
+| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main ; librairies locales `frontend/vendor/` : Lucide, noUiSlider, Swiper, GSAP, Leaflet, DiceBear ; polices Plus Jakarta Sans, Inter, JetBrains Mono |
 | Sources     | MovieLens (films), TVmaze (séries), GoodReads CSV + OpenLibrary (livres), OpenAgenda (sorties France), API Adresse (communes), Wikidata + Wikipédia (affiches de films), TMDB (affiches + plateformes FR.flatrate) |
 
 ### Commandes (depuis la racine)

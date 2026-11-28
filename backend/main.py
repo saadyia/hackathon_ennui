@@ -133,11 +133,15 @@ class Ville(BaseModel):
 
 
 class Avatar(BaseModel):
-    """Portrait vectoriel minimaliste (rendu côté client par renderAvatarSVG)."""
-    bg: Literal["ardoise", "indigo", "ambre", "emeraude", "prune", "acier"]
-    hair: Literal["court", "milong", "boucle", "chignon", "afro", "frange", "rase", "ondule"]
-    accessory: Literal["aucun", "lunettes-rect", "lunettes-rondes", "casque", "bonnet"]
-    expression: Literal["serein", "sourire", "curieux", "concentre"]
+    """Avatar illustré DiceBear, rendu côté client (frontend/assets/avatar.js, modules locaux).
+    Les valeurs fines (coiffure, lunettes…) sont vérifiées par style côté client ; ici, format seulement."""
+    style: Literal["notionists", "micah", "glass"]
+    seed: str = Field(..., min_length=1, max_length=40)
+    bg: Literal["b6e3f4", "c0aede", "d1d4f9", "ffd5dc", "ffdfbf", "c7ead8"]
+    hair: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
+    glasses: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
+    brows: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
+    mouth: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
 
 
 class Profil(BaseModel):
@@ -411,7 +415,7 @@ def creer_utilisateur(p: Profil, taches: BackgroundTasks):
     if p.ville:  # ville hors couverture : collecte ciblée en arrière-plan
         taches.add_task(synchro.ajouter_ville, p.ville.nom, p.ville.lat, p.ville.lon)
     return database.creer_utilisateur(p.prenom, p.ville.model_dump() if p.ville else None, p.prefs,
-                                      p.avatar.model_dump() if p.avatar else None)
+                                      p.avatar.model_dump(exclude_none=True) if p.avatar else None)
 
 
 @app.get("/api/utilisateurs/moi")
@@ -430,7 +434,7 @@ class DemandeAmi(BaseModel):
 @app.put("/api/utilisateurs/moi/avatar")
 def changer_avatar(a: Avatar, x_utilisateur: Optional[str] = Header(None)):
     u = utilisateur_requis(x_utilisateur)
-    return database.changer_avatar(u["id"], a.model_dump())
+    return database.changer_avatar(u["id"], a.model_dump(exclude_none=True))
 
 
 @app.put("/api/utilisateurs/moi/dispo")

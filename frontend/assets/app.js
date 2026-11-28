@@ -809,7 +809,7 @@ function videSorties() {
 
 function videEcrans() {
   return `<div class="vide verre etat-vide">${icone("sparkles", 28, "tres-muet")}
-      <p><b>Rien ne correspond à ces filtres.</b><br>Élargis tes filtres : temps disponible, thèmes ou machines.</p>
+      <p><b>Rien ne correspond à ces filtres.</b><br>Élargis le budget, le temps disponible, les thèmes ou les machines.</p>
       <button class="bouton-ligne bouton-accent" style="margin-top:14px" data-action="reinitialiser-filtres">${icone("rotate-ccw", 14)}Réinitialiser les filtres</button></div>`;
 }
 
@@ -1015,6 +1015,7 @@ function zoneChezSoi() {
   const liste = d.grille || [];
   return `<div id="zone-chez-soi">
       ${filtresChezSoi()}
+      <div style="margin-top:12px">${selecteurBudget()}</div>
       ${dureeVisible() ? `<div style="margin-top:8px">${selecteurDuree()}</div>` : ""}
       <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:22px">
         ${liste.length ? `<div class="grille-affiches">${liste.map(carteOeuvre).join("")}</div>`
@@ -1656,7 +1657,7 @@ function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
     lon: v?.lon ?? null,
     rayon_km: etat.prefs.rayon,
     horizon: etat.horizon,
-    budget: etat.onglet === "ecrans" ? "tous" : etat.prefs.budget,  // Chez soi : déjà inclus dans les abonnements
+    budget: etat.prefs.budget,
     themes: etat.prefs.themes,
     duree: dureeVisible() ? etat.prefs.duree || "tout" : "tout",  // durée : Films & Séries et Sorties seulement
     categories: etat.prefs.categories,

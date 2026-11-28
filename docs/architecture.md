@@ -121,8 +121,6 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
   sinon `null`. 759 sorties sur 1 300 ont un prix connu, dont 449 gratuites.
 - Sorties : « Gratuit » = `prix_num == 0` strictement ; « < 10 € » / « < 25 € » = `prix_num ≤ plafond` **ou tarif non précisé**
   (gardé, affiché « Tarif non précisé »).
-- Chez soi n'affiche plus de filtre de prix (les requêtes de cet onglet envoient `budget: "tous"`) : films et séries sont
-  inclus dans les abonnements, livres et jeux déjà possédés ou empruntables. Le budget reste sur Pour vous et Sorties.
 - Films et séries : inclus dans les abonnements = 0 €. Avec des plateformes vérifiées (TMDB), seuls ceux présents sur un
   abonnement de l'utilisateur ou sur Arte ; sans données TMDB, tous restent visibles.
 - Livres et jeux : considérés comme déjà possédés ou empruntables, jamais exclus par le budget.

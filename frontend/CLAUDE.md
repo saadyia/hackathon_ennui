@@ -16,15 +16,19 @@ frontend/
 └── assets/
     ├── app.css            # design system (variables :root), composants, thèmes noUiSlider/Swiper
     ├── app.js             # état, écrans, actions, appels API
-    └── fonts/             # Outfit (titres), Inter (texte), JetBrains Mono (chiffres) — OFL
+    └── fonts/             # Plus Jakarta Sans (titres), Inter (texte), JetBrains Mono (chiffres) — OFL
 ```
 
 ## Règles de design (strictes)
 - **Zéro émoji.** Icônes : uniquement `icone(nom)` (données de `vendor/lucide.min.js`, SVG stroke 1.5, aucune passe DOM).
-- Fond : dégradé bleu nuit `#0B0F19` → `#121726` + halos radiaux indigo/violet (sur `.app`).
-- Typographie : `--police-titres` (Outfit, chasse resserrée), `--police-texte` (Inter), `.chiffre` / `--police-chiffres`
+- Fond : dégradé bleu nuit `#0B0F19` → `#121726` + léger halo neutre (sur `.app`). Plus aucun indigo : un seul accent.
+- Typographie 100 % sans empattement : `--police-titres` (Plus Jakarta Sans 600/700, `-0.025em`) pour le logo, les grands titres
+  et les titres de cartes ; `--police-texte` (Inter 400/500) pour tout le reste (boutons, filtres, navigation) ; `.chiffre` / `--police-chiffres`
   (JetBrains Mono, `tabular-nums`) **seulement** pour les nombres (km, tarifs, années, horaires, participants).
-- Couleurs via variables ; `--accent` (champagne) réservé à Pépite, Hors piste, curseurs et actions collaboratives.
+- Couleurs via variables ; **un seul accent** `--accent` (champagne) : éléments actifs, curseur 1–10, Pépite / Hors piste, marque-page actif, « ? » du logo.
+- Logo : `icons/logo-ofk.svg` (tracés vectoriels Plus Jakarta Sans Bold, lettres `currentColor`, « ? » en `var(--logo-accent)`),
+  injecté dans `.marque` au démarrage (`LOGO`) et en ligne dans le splash de `index.html`. Icônes PWA dérivées (`icone.svg`, PNG).
+- Splash : `#splash` dans `index.html` (zoom + fondu du logo, « ? » qui s'illumine), retiré par `fermerSplash()` après le premier rendu, 1,1 s minimum.
 - Profondeur : halo `.app::before`, verre dépoli `--verre` + `backdrop-filter`, bordures `--trait`.
 - Ratios stricts : `.visuel.affiche` 2/3 (films, séries, livres), `.visuel.paysage` 16/10 (sorties, jeux), `.voile` pour la lisibilité.
 
@@ -37,7 +41,14 @@ frontend/
 - PWA : `manifest.json`, `sw.js` (servis à la racine par FastAPI), `icons/` (SVG + PNG générés depuis `icone.svg`),
   balises Apple dans `index.html`. Service worker : réseau d'abord pour la page et le code, cache d'abord pour vendor/polices/icônes,
   jamais de cache pour `/api/`. Incrémenter `VERSION` dans `sw.js` si la liste des fichiers de la coquille change.
-- Cartes : survol/toucher = `translateY(-4px) scale(1.015)` + bordure lumineuse (`--lueur`) + ombre douce.
+- Cartes : survol/toucher = `translateY(-4px) scale(1.015)` + bordure claire + ombre douce ; arête supérieure éclairée ;
+  tous les boutons, onglets et puces : `:active { transform: scale(0.98) }`.
+- Chez soi : sous-onglets à pilule glissante (`.segment-pilule` + `.segment-indicateur`, `--index`) ; zone `#zone-chez-soi` à hauteur
+  verrouillée, fondu `opacity` + `translateY(6px)` 220 ms `cubic-bezier(0.22,1,0.36,1)` (`rendreZone`).
+- Filtres contextuels : « Temps disponible » seulement dans Films & Séries et Sorties (`dureeVisible()`) ; jeux : Solo / Multijoueur (co-op inclus).
+- « Mes envies » : marque-page (`boutonSauver`, action `sauver`) sur les cartes et dans la fiche ; `etat.envies` synchronisé avec le compte ;
+  section dans Profil ; fiche rouverte via `/api/oeuvre?id=` si l'élément n'est plus affiché.
+- États vides : `.etat-vide` + bouton « Réinitialiser les filtres » (budget, temps, mode, envies, horizon « Dans le mois »).
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).
   CartoDB Dark Matter exige désormais une clé (filigrane « API KEY REQUIRED ») : tuiles OpenStreetMap + `.tuiles-sombres`.
 - `monterComposants(racine)` après **chaque** rendu : noUiSlider (`#rayon-ui`), Swiper (`.swiper.rangee`), carte Leaflet,

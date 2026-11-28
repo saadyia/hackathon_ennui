@@ -98,7 +98,7 @@ THEMES_LIVRES = {"roman": "Roman & Fiction", "polar": "Thriller & Polar", "sff":
                  "essais": "Développement & Essais", "bd": "BD & Manga", "bio": "Biographie & Histoire"}
 DUREES = {"tout": "Tout", "express": "Express · < 45 min", "soiree": "Soirée · 1h30 – 2h30",
           "long": "Demi-journée / Week-end"}
-MODES_JEU = {"tous": "Tous les modes", "solo": "Solo", "coop": "Co-op", "multi": "Multijoueur"}
+MODES_JEU = {"tous": "Tous les modes", "solo": "Solo", "multi": "Multijoueur"}  # multijoueur = co-op ou en ligne
 GENRES = {  # libellé affiché -> genre MovieLens
     "Science-Fiction": "Sci-Fi", "Thriller": "Thriller", "Drame": "Drama", "Comédie": "Comedy",
     "Animation": "Animation", "Documentaire": "Documentary", "Horreur": "Horror", "Action": "Action",
@@ -320,6 +320,16 @@ def couverture(lat: float, lon: float):
         return 12742 * math.asin(math.sqrt(a))
     ville, coords = min(Catalogue.villes.items(), key=lambda kv: dist(kv[1]))
     return {"ville": ville, "lat": coords[0], "lon": coords[1], "distance_km": round(dist(coords), 1)}
+
+
+@app.get("/api/oeuvre")
+def oeuvre(id: str = Query(..., max_length=80)):
+    """Une œuvre ou une sortie par son identifiant (fiche de « Mes envies », de « Mes plans »)."""
+    m = Catalogue.moteur
+    i = m.index_par_id.get(id)
+    if i is None:
+        raise HTTPException(status_code=404, detail="Œuvre introuvable (sortie passée ou retirée du catalogue)")
+    return exposer(m.noeuds[i])
 
 
 @app.get("/api/oeuvres")

@@ -374,10 +374,8 @@ class Moteur:
             for c in consoles:
                 jouable |= self.masque_console[c]
             masque &= jouable | ~jeu
-        if mode_jeu == "multi":
-            masque &= self.jeu_multijoueur | ~jeu
-        elif mode_jeu == "coop":
-            masque &= self.jeu_coop | ~jeu
+        if mode_jeu in ("multi", "coop"):  # « Multijoueur » regroupe co-op et multijoueur en ligne
+            masque &= self.jeu_multi | ~jeu
         elif mode_jeu == "solo":
             masque &= self.jeu_solo | ~jeu
 

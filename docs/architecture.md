@@ -89,8 +89,8 @@ Avec une clé TMDB, ou une fois `enrich_affiches.py` terminé, les films passero
 - Genres : 309 genres anglais, traduits par environ 60 règles ordonnées vers une quarantaine de libellés français (RPG, Action-RPG,
   Tir à la première personne, Stratégie au tour par tour, Réflexion, Roman visuel…). Un genre non couvert est **ignoré**
   (119 jeux n'ont aucun genre affiché). Les termes d'usage dans la presse française sont conservés (RPG, Metroidvania, Roguelike, Battle royale).
-- Modes : `solo` / `coop` / `multi` → badge (« Solo », « Co-op », « Multijoueur », « Co-op · Multi ») ; filtre `mode_jeu`
-  (tous, solo, coop, multi) et filtre par machine dans l'onglet Jeux vidéo.
+- Modes : badge « Solo » ou « Multijoueur » (co-op et multijoueur en ligne regroupés) ; filtre `mode_jeu`
+  (tous, solo, multi ; `coop` accepté comme alias de `multi`) et filtre par machine dans l'onglet Jeux vidéo.
 - Données françaises, par lots : Wikidata `wbgetentities` (libellé FR, articles), extrait d'introduction de fr.wikipedia
   (2 phrases), jaquette = image principale de l'article anglais (`pilicense=any`).
 - Graphe : chaque genre français est aussi associé à des genres de l'application (ex. RPG → Fantasy + Adventure) pour relier les jeux aux films.

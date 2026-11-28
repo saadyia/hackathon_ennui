@@ -66,6 +66,7 @@ const ETAT_INITIAL = () => ({
   prefs: PREFS_INITIALES(),
   horizon: "semaine",
   dejaVus: [],          // [{ id, titre, type }]
+  envies: [],           // « Mes envies » : [{ id, titre, type, affiche, ... }] mis de côté
   decouverte: 0.3,
   energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
   onglet: "pour-vous",
@@ -73,6 +74,7 @@ const ETAT_INITIAL = () => ({
 });
 let etat = ETAT_INITIAL();
 let CONFIG = null;
+let LOGO = "ofk?";  // remplacé au démarrage par le logotype vectoriel (icons/logo-ofk.svg)
 let donnees = {};
 let controleur = null;
 let cleQuota = null;
@@ -100,6 +102,8 @@ function restaurer() {
   etat.prefs.categories = [...new Set(etat.prefs.categories.map((c) => MIGRATION_ENVIES[c] || c))];
   if (!["tout", "ecrans", "livre", "jeu"].includes(etat.ecrans)) etat.ecrans = "tout";
   etat.decouverte = versDecouverte(cran());
+  if (etat.prefs.modeJeu === "coop") etat.prefs.modeJeu = "multi";  // Co-op fusionné dans Multijoueur
+  if (!Array.isArray(etat.envies)) etat.envies = [];
   if (!["liste", "carte"].includes(etat.vueSorties)) etat.vueSorties = "liste";
 }
 
@@ -107,7 +111,7 @@ function restaurer() {
 const synchroniserProfil = debounce(() => {
   if (!etat.uid) return;
   const { ville, ...prefs } = etat.prefs;
-  api("/api/utilisateurs/moi", { prenom: etat.prenom, ville, prefs: { ...prefs, horizon: etat.horizon, dejaVus: etat.dejaVus } }, undefined, "PUT")
+  api("/api/utilisateurs/moi", { prenom: etat.prenom, ville, prefs: { ...prefs, horizon: etat.horizon, dejaVus: etat.dejaVus, envies: etat.envies } }, undefined, "PUT")
     .catch(() => { /* hors ligne : le navigateur reste la référence */ });
 }, 800);
 
@@ -221,7 +225,7 @@ function affiche(o) {
   const srcset = o.affiche_mini ? ` srcset="${esc(o.affiche_mini)} 210w, ${esc(o.affiche)} 680w" sizes="180px"` : "";
   const img = o.affiche ? `<img src="${esc(o.affiche_mini || o.affiche)}"${srcset} alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
   const format = o.type === "jeu" ? "paysage" : "affiche";  // affiches et livres 2/3, jeux 16/10
-  return `<div class="visuel ${format}" data-action="ouvrir-plans" data-id="${esc(o.id)}">${typo}${img}<span class="voile"></span>${tagDecouverte(o)}</div>`;
+  return `<div class="visuel ${format}" data-action="ouvrir-plans" data-id="${esc(o.id)}">${typo}${img}<span class="voile"></span>${tagDecouverte(o)}${boutonSauver(o)}</div>`;
 }
 
 function visuelSortie(o, format = "paysage") {
@@ -229,7 +233,7 @@ function visuelSortie(o, format = "paysage") {
   const img = o.affiche ? `<img src="${esc(o.affiche)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "";
   const credit = o.affiche && o.credit_image ? `<span class="credit">© ${esc(o.credit_image)}</span>` : "";
   return `<div class="visuel ${format}" style="${fond}" data-action="ouvrir-plans" data-id="${esc(o.id)}">
-      <div class="visuel-icone">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 40)}</div>${img}<span class="voile"></span>${credit}${tagDecouverte(o)}
+      <div class="visuel-icone">${icone(ICONES_CATEGORIE[o.categorie] || "compass", 40)}</div>${img}<span class="voile"></span>${credit}${tagDecouverte(o)}${o.id ? boutonSauver(o) : ""}
     </div>`;
 }
 
@@ -273,10 +277,16 @@ function ligneCollab(o, { compacte = false } = {}) {
 function ligneJeu(o) {
   const consoles = (o.consoles || []).map((c) =>
     `<span class="plateforme ${etat.prefs.consoles.includes(c) ? "possedee" : ""}">${esc(NOMS_CONSOLES[c] || c)}</span>`).join("");
-  const modes = o.modes || [];
-  const mode = modes.includes("coop") && modes.includes("multi") ? "Co-op · Multi" : modes.includes("coop") ? "Co-op"
-    : modes.includes("multi") ? "Multijoueur" : "Solo";
+  const mode = estMulti(o) ? "Multijoueur" : "Solo";  // co-op et en ligne regroupés
   return `<div class="plateformes"><span class="tag tag-discret tag-mode">${mode}</span>${consoles}</div>`;
+}
+
+const estSauvegarde = (id) => etat.envies.some((e) => e.id === id);
+function boutonSauver(o, { texte = false } = {}) {
+  const actif = estSauvegarde(o.id);
+  const libelle = actif ? "Sauvegardé" : "Sauvegarder";
+  return `<button class="${texte ? "bouton-ligne" : "bouton-sauver"}" data-action="sauver" data-id="${esc(o.id)}" aria-pressed="${actif}"
+      aria-label="${libelle}" title="${libelle}">${icone(actif ? "bookmark-check" : "bookmark", texte ? 14 : 16)}${texte ? libelle : ""}</button>`;
 }
 
 const nomTheme = (id) => (CONFIG.themes.find((t) => t.id === id) || {}).nom || id;
@@ -421,7 +431,7 @@ function entete(surtitre, titre) {
   const tirage = ["pour-vous", "ecrans", "sorties"].includes(etat.onglet);
   return `<header class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <span class="marque">ofk<span> ?</span></span>
+        <span class="marque">${LOGO}</span>
         ${tirage ? `<button class="bouton-tirage" data-action="choisir-pour-moi">${icone("shuffle", 15)}Choisir à ma place</button>`
           : `<span class="surtitre">${esc(surtitre)}</span>`}
       </div>
@@ -438,12 +448,15 @@ function videSorties() {
   const suggestion = c && etat.prefs.ville && c.ville !== etat.prefs.ville.nom
     ? `<button class="bouton-ligne" style="margin-top:14px" data-action="aller-ville" data-ville="${esc(JSON.stringify(c))}">
         ${icone("compass", 14)}Voir ${esc(c.ville)} · à ${km(c.distance_km)}</button>` : "";
-  const budget = etat.prefs.budget !== "tous" ? " Le filtre budget écarte aussi les sorties sans tarif publié." : "";
-  return `<div class="vide">Aucune sortie à venir avec ces filtres. Élargis le rayon, l'horizon ou le budget.${budget}<br>${suggestion}</div>`;
+  return `<div class="vide verre etat-vide">${icone("compass", 28, "tres-muet")}
+      <p><b>Aucune sortie avec ces filtres.</b><br>Élargis le périmètre ou le moment, ou repars de zéro.</p>
+      <div class="etat-vide-actions"><button class="bouton-ligne bouton-accent" style="margin-top:14px" data-action="reinitialiser-filtres">${icone("rotate-ccw", 14)}Réinitialiser les filtres</button>${suggestion}</div></div>`;
 }
 
 function videEcrans() {
-  return `<div class="vide verre">Rien ne correspond à ces filtres pour l'instant. Élargis le budget, les thèmes ou les machines.</div>`;
+  return `<div class="vide verre etat-vide">${icone("sparkles", 28, "tres-muet")}
+      <p><b>Rien ne correspond à ces filtres.</b><br>Élargis le budget, le temps disponible, les thèmes ou les machines.</p>
+      <button class="bouton-ligne bouton-accent" style="margin-top:14px" data-action="reinitialiser-filtres">${icone("rotate-ccw", 14)}Réinitialiser les filtres</button></div>`;
 }
 
 // ------------------------------------------------------------------ //
@@ -490,7 +503,7 @@ function groupeChoix(titre, cle, options) {
 
 function ecranBienvenue() {
   return `<div class="bienvenue apparition">
-      <span class="marque">ofk<span> ?</span></span>
+      <span class="marque">${LOGO}</span>
       <div class="bienvenue-centre">
         <h1 class="titre-1 bienvenue-titre">Salut !<br>On fait quoi aujourd'hui ?</h1>
         <p class="muet bienvenue-texte">Pas besoin de savoir : laisse-toi guider selon ton énergie, tes goûts et ce qu'il se passe près de chez toi.</p>
@@ -503,7 +516,7 @@ function ecranAccueil() {
   const connus = comptes();
   return `<div class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="marque">ofk<span> ?</span></span>
+        <span class="marque">${LOGO}</span>
         <button class="lien-discret" data-action="retour-bienvenue">${icone("arrow-left", 16)}Retour</button>
       </div>
       <h1 class="titre-1" style="font-size:34px;margin-top:40px">Dis-nous tout.</h1>
@@ -557,7 +570,7 @@ function ecranPourVous() {
   return `${entete(dateDuJour(), `Salut ${etat.prenom}, qu'est-ce qu'on fait aujourd'hui ?`)}
     ${instrument()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
-    <div style="margin-top:8px">${selecteurDuree()}</div>
+
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
       ${titre("Pépites du moment", "ecrans")}
       ${ecrans.length ? rangee(ecrans.map(carteOeuvre), "rangee-affiches")
@@ -593,23 +606,51 @@ function filtresChezSoi() {
   return "";
 }
 
-function ecranEcrans() {
+const SEGMENTS_CHEZ_SOI = [["tout", "Tout"], ["ecrans", "Films & Séries"], ["livre", "Lecture"], ["jeu", "Jeux vidéo"]];
+const dureeVisible = () => (etat.onglet === "ecrans" && etat.ecrans === "ecrans") || etat.onglet === "sorties";
+
+/** Partie de « Ce soir au chaud » qui change avec le sous-onglet : filtres + résultats. */
+function zoneChezSoi() {
   const d = donnees;
   const liste = d.grille || [];
-  const segments = [["tout", "Tout"], ["ecrans", "Films & Séries"], ["livre", "Lecture"], ["jeu", "Jeux vidéo"]];
-  const surtitre = Object.fromEntries(segments)[etat.ecrans];
-  return `${entete(surtitre === "Tout" ? "Chez soi" : surtitre, "Ce soir, au chaud")}
-    <div class="segment segment-4" role="group" aria-label="Univers chez soi">
-      ${segments.map(([v, nom]) => `<button data-action="segment" data-valeur="${v}" aria-pressed="${etat.ecrans === v}">${nom}</button>`).join("")}
-    </div>
-    ${filtresChezSoi()}
-    <div style="margin-top:12px">${selecteurBudget()}</div>
-    <div style="margin-top:8px">${selecteurDuree()}</div>
-    ${instrument()}
-    <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:26px">
-      ${liste.length ? `<div class="grille-affiches">${liste.map(carteOeuvre).join("")}</div>`
-        : d.chargement ? squelettesAffiches(4) : videEcrans()}
+  return `<div id="zone-chez-soi">
+      ${filtresChezSoi()}
+      <div style="margin-top:12px">${selecteurBudget()}</div>
+      ${dureeVisible() ? `<div style="margin-top:8px">${selecteurDuree()}</div>` : ""}
+      <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:22px">
+        ${liste.length ? `<div class="grille-affiches">${liste.map(carteOeuvre).join("")}</div>`
+          : d.chargement ? squelettesAffiches(4) : videEcrans()}
+      </div>
     </div>`;
+}
+
+function ecranEcrans() {
+  const actif = SEGMENTS_CHEZ_SOI.findIndex(([v]) => v === etat.ecrans);
+  const nom = SEGMENTS_CHEZ_SOI[actif][1];
+  return `${entete(nom === "Tout" ? "Chez soi" : nom, "Ce soir, au chaud")}
+    <div class="segment segment-4 segment-pilule" role="tablist" aria-label="Univers chez soi" style="--index:${actif}">
+      <span class="segment-indicateur" aria-hidden="true"></span>
+      ${SEGMENTS_CHEZ_SOI.map(([v, n]) => `<button role="tab" data-action="segment" data-valeur="${v}" aria-pressed="${etat.ecrans === v}">${n}</button>`).join("")}
+    </div>
+    ${instrument()}
+    ${zoneChezSoi()}`;
+}
+
+/** Remplace la zone de Chez soi : hauteur verrouillée, fondu + translateY(6px) en 220 ms. */
+function rendreZone() {
+  const zone = $("#zone-chez-soi");
+  if (!zone) return rendre();
+  const tmp = document.createElement("div");
+  tmp.innerHTML = zoneChezSoi();
+  const nouvelle = tmp.firstElementChild;
+  nouvelle.style.minHeight = `${zone.offsetHeight}px`;
+  zone.replaceWith(nouvelle);
+  monterComposants(nouvelle);
+  const fin = () => { nouvelle.style.minHeight = ""; };
+  if (MOUVEMENT && nouvelle.animate) {
+    nouvelle.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }],
+      { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }).onfinish = fin;
+  } else fin();
 }
 
 function ecranSorties() {
@@ -651,6 +692,18 @@ function ecranProfil() {
         <button class="puce" data-action="nouveau-compte">${icone("plus", 14)}Nouveau compte</button>
       </div>
     </div>
+    <section class="groupe">
+      <span class="surtitre">Mes envies · ${etat.envies.length}</span>
+      ${etat.envies.length ? rangee(etat.envies.map((e) => `<article class="carte-envie" data-carte="${esc(e.id)}">
+          <button class="envie-visuel ${e.type === "sortie" || e.type === "jeu" ? "paysage" : ""}" data-action="ouvrir-plans" data-id="${esc(e.id)}"
+            data-titre="${esc(e.titre)}" data-type="${esc(e.type)}" aria-label="${esc(e.titre)}">
+            ${e.affiche ? `<img src="${esc(e.affiche)}" alt="" loading="lazy" onerror="this.remove()">` : icone(TYPES[e.type]?.icone || "bookmark", 22)}
+          </button>
+          <span class="type-oeuvre">${esc(TYPES[e.type]?.nom || "")}</span>
+          <h3>${esc(e.titre)}</h3>
+        </article>`), "rangee-envies")
+        : `<div class="liste-vus"><div class="vide">Touche le marque-page d'une carte pour mettre de côté un film, une série, un livre, un jeu ou une sortie.</div></div>`}
+    </section>
     <section class="groupe">
       <span class="surtitre">Mes plans</span>
       ${mesPlans === undefined ? `<div class="squelette" style="height:64px"></div>`
@@ -768,7 +821,8 @@ function detailOeuvre(o) {
         ${badges}
         ${adresse ? `<div class="ligne-info">${icone("map-pin", 15)}<span>${esc(adresse)}</span></div>` : ""}
         ${sortie && o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
-        ${!sortie && TYPES[o.type] ? `<button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(o.type === "livre" ? "book-open" : o.type === "jeu" ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>` : ""}
+        <div class="detail-actions">${boutonSauver(o, { texte: true })}
+        ${!sortie && TYPES[o.type] ? `<button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(o.type === "livre" ? "book-open" : o.type === "jeu" ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>` : ""}</div>
       </div>
     </div>
     ${o.resume ? `<section class="detail-synopsis"><span class="surtitre">${sortie ? "Description" : "Synopsis"}</span><p>${esc(o.resume)}</p></section>` : ""}
@@ -905,10 +959,11 @@ function rendreContenu() {
   if (MOUVEMENT) nouvelle.style.minHeight = `${hauteur}px`;
   zone.replaceWith(nouvelle);
   monterComposants(nouvelle);
-  if (MOUVEMENT) {
-    gsap.fromTo(nouvelle, { opacity: 0.35 }, { opacity: 1, duration: 0.35, ease: "power2.out",
-      onComplete: () => { nouvelle.style.minHeight = ""; } });
-  }
+  const fin = () => { nouvelle.style.minHeight = ""; };
+  if (MOUVEMENT && nouvelle.animate) {
+    nouvelle.animate([{ opacity: 0.25, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }],
+      { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }).onfinish = fin;
+  } else fin();
 }
 
 /** Après chaque rendu : curseurs noUiSlider, carrousels Swiper, apparition des cartes en cascade (GSAP). */
@@ -1063,7 +1118,7 @@ function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
     horizon: etat.horizon,
     budget: etat.prefs.budget,
     themes: etat.prefs.themes,
-    duree: etat.prefs.duree || "tout",
+    duree: dureeVisible() ? etat.prefs.duree || "tout" : "tout",  // durée : Films & Séries et Sorties seulement
     categories: etat.prefs.categories,
     consoles: etat.prefs.consoles,
     mode_jeu: etat.prefs.modeJeu,
@@ -1076,7 +1131,7 @@ async function couvertureSiVide(sorties, signal) {
   try { return await api(`/api/couverture?lat=${v.lat}&lon=${v.lon}`, undefined, signal); } catch (_) { return null; }
 }
 
-async function charger({ partiel = false } = {}) {
+async function charger({ partiel = false, zone = false } = {}) {
   if (!etat.uid) return;
   if (etat.onglet === "profil") { rendre(); chargerMesPlans(); return; }
   controleur?.abort();
@@ -1084,7 +1139,8 @@ async function charger({ partiel = false } = {}) {
   const signal = controleur.signal;
   cleQuota = `${etat.onglet}:${etat.ecrans}:${nbPepites()}`;
   donnees = { ...donnees, chargement: true };
-  partiel ? $("#contenu")?.classList.add("chargement") : rendre();
+  if (zone) $("#zone-chez-soi")?.classList.add("chargement");
+  else partiel ? $("#contenu")?.classList.add("chargement") : rendre();
   try {
     if (etat.onglet === "pour-vous") {
       // composition déduite du profil durable : livres si des thèmes de lecture, jeux si des consoles
@@ -1109,7 +1165,8 @@ async function charger({ partiel = false } = {}) {
     donnees = { erreur: true };
     toast("Le serveur ne répond pas.");
   }
-  partiel ? rendreContenu() : rendre();
+  if (zone && etat.onglet === "ecrans") rendreZone();
+  else partiel ? rendreContenu() : rendre();
 }
 
 async function chargerMesPlans() {
@@ -1180,9 +1237,11 @@ async function changerCompte(uid) {
     prenom: u?.prenom || local?.prenom || "",
     prefs: { ...PREFS_INITIALES(), ...(local?.prefs || {}), ...(local ? {} : prefsServeur), ville: u?.ville ?? local?.prefs?.ville ?? null },
     dejaVus: local?.dejaVus || prefsServeur.dejaVus || [],
+    envies: local?.envies || prefsServeur.envies || [],
     horizon: local?.horizon || prefsServeur.horizon || "semaine",
   };
   delete etat.prefs.dejaVus;
+  delete etat.prefs.envies;
   delete etat.prefs.horizon;
   normaliserHorizon();
   memoriserCompte(uid, etat.prenom);
@@ -1339,13 +1398,17 @@ const actions = {
   },
   segment(b) {
     if (etat.ecrans === b.dataset.valeur) return;
-    const ordre = ["tout", "ecrans", "livre", "jeu"];
-    const direction = Math.sign(ordre.indexOf(b.dataset.valeur) - ordre.indexOf(etat.ecrans));
     etat.ecrans = b.dataset.valeur;
+    const groupe = b.closest(".segment-pilule");
+    groupe.style.setProperty("--index", SEGMENTS_CHEZ_SOI.findIndex(([v]) => v === etat.ecrans));
+    groupe.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    const zone = $("#zone-chez-soi");
+    if (zone) { zone.style.minHeight = `${zone.offsetHeight}px`; zone.classList.add("chargement"); }
+    $("#ecran").querySelector(".surtitre-entete, header .surtitre")?.replaceChildren(
+      document.createTextNode(SEGMENTS_CHEZ_SOI.find(([v]) => v === etat.ecrans)[1].replace("Tout", "Chez soi")));
     sauvegarder();
     donnees = {};
-    charger();
-    transitionEcran(direction);
+    charger({ zone: true });
   },
   "deja-vu"(b) {
     const id = b.dataset.id;
@@ -1357,9 +1420,37 @@ const actions = {
     toast(`« ${o.titre} » ajouté à tes ${{ livre: "déjà lus", jeu: "déjà joués" }[o.type] || "déjà vus"} · sélection ajustée`);
     setTimeout(() => charger({ partiel: true }), 260);
   },
-  "ouvrir-plans"(b) {
-    const o = trouver(b.dataset.id) || { id: b.dataset.id, titre: b.dataset.titre, type: b.dataset.type };
+  async "ouvrir-plans"(b) {
+    let o = trouver(b.dataset.id);
+    if (!o) {  // élément hors de la liste affichée (Mes envies, Mes plans) : fiche complète depuis l'API
+      try { o = await api(`/api/oeuvre?id=${encodeURIComponent(b.dataset.id)}`); } catch (_) {
+        o = etat.envies.find((e) => e.id === b.dataset.id) || { id: b.dataset.id, titre: b.dataset.titre, type: b.dataset.type };
+      }
+    }
     ouvrirFeuille(o);
+  },
+  sauver(b) {
+    const id = b.dataset.id;
+    const o = trouver(id) || feuille?.oeuvre || etat.envies.find((e) => e.id === id);
+    if (!o) return;
+    const actif = !estSauvegarde(id);
+    etat.envies = actif
+      ? [{ id, titre: o.titre, type: o.type, affiche: o.affiche || null, annee: o.annee || null, auteur: o.auteur || null,
+           studio: o.studio || null, categorie: o.categorie || null, ville: o.ville || null, genres: (o.genres || []).slice(0, 2) },
+         ...etat.envies].slice(0, 60)
+      : etat.envies.filter((e) => e.id !== id);
+    sauvegarder();
+    document.querySelectorAll(`[data-action="sauver"][data-id="${CSS.escape(id)}"]`).forEach((el) => {
+      el.outerHTML = boutonSauver(o, { texte: el.classList.contains("bouton-ligne") });
+    });
+    toast(actif ? "Ajouté à Mes envies" : "Retiré de Mes envies");
+    if (etat.onglet === "profil" && !feuille) rendre();
+  },
+  "reinitialiser-filtres"() {
+    Object.assign(etat.prefs, { budget: "tous", duree: "tout", modeJeu: "tous", categories: [] });
+    etat.horizon = "mois";
+    sauvegarder();
+    charger();
   },
   "fermer-feuille"() { fermerFeuille(); },
   "ouvrir-publication"() {
@@ -1509,6 +1600,18 @@ document.documentElement.classList.toggle("anime", MOUVEMENT);
 // ------------------------------------------------------------------ //
 // Démarrage                                                            //
 // ------------------------------------------------------------------ //
+/** Écran de démarrage (index.html) : animé en CSS, il glisse vers l'application après 1,1 s. */
+const debutSplash = performance.now();
+function fermerSplash() {
+  const splash = document.getElementById("splash");
+  if (!splash) return;
+  const reste = Math.max(0, (MOUVEMENT ? 1100 : 300) - (performance.now() - debutSplash));
+  setTimeout(() => {
+    splash.classList.add("splash-sortie");
+    setTimeout(() => splash.remove(), 650);
+  }, reste);
+}
+
 // PWA : service worker minimal (coquille hors ligne) ; ignoré si non pris en charge
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
@@ -1517,7 +1620,8 @@ if ("serviceWorker" in navigator) {
 (async function demarrer() {
   restaurer();
   try {
-    [CONFIG, agenda] = await Promise.all([api("/api/config"), api("/api/agenda")]);
+    [CONFIG, agenda, LOGO] = await Promise.all([api("/api/config"), api("/api/agenda"),
+      fetch("/icons/logo-ofk.svg").then((r) => r.text()).catch(() => "ofk?")]);
   } catch (_) {
     $("#ecran").innerHTML = `<div class="vide" style="margin-top:40vh">Serveur injoignable. Lance <code>uvicorn backend.main:app</code>.</div>`;
     return;
@@ -1529,5 +1633,6 @@ if ("serviceWorker" in navigator) {
     try { await api("/api/utilisateurs/moi"); } catch (_) { etat = { ...etat, uid: null }; }
   }
   if (etat.uid) charger(); else rendre();
+  fermerSplash();
   setInterval(rafraichirAgenda, 60000);  // « il y a X min » reste juste
 })();

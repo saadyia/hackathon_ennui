@@ -21,6 +21,10 @@ Hors ligne : préfixe parmi les villes couvertes.
 ## `GET /api/couverture?lat=&lon=`
 Ville couverte la plus proche : `{"ville", "lat", "lon", "distance_km"}`. Utilisé quand une recherche de sorties est vide.
 
+## `GET /api/oeuvre?id=<identifiant>`
+Fiche complète d'un seul nœud (même format qu'une recommandation). 404 si l'œuvre n'est plus au catalogue (sortie passée).
+Sert à rouvrir un élément de « Mes envies » ou de « Mes plans » qui n'est pas dans la liste affichée.
+
 ## `GET /api/oeuvres?q=<texte>`
 Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
 
@@ -31,7 +35,7 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
   "horizon": "semaine", "categories": ["scene"], "k": 10 }
 ```
 - `type` : `film` | `serie` | `livre` | `jeu` | `tout` | `sortie`
-- `consoles` (jeux) : `pc`, `mac`, `playstation`, `xbox`, `switch`, `mobile` ; `mode_jeu` : `tous` | `solo` | `coop` | `multi`
+- `consoles` (jeux) : `pc`, `mac`, `playstation`, `xbox`, `switch`, `mobile` ; `mode_jeu` : `tous` | `solo` | `multi` (`coop` = alias de `multi`)
 - `duree` : `tout` | `express` | `soiree` | `long` ; `budget` : coût marginal (voir architecture)
 - `themes` (livres) : `roman`, `polar`, `sff`, `essais`, `bd`, `bio`
 - `categories` : envies de sorties `culture` | `soirees` | `nature` (les envies Chez soi sont ignorées pour les sorties)

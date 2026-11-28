@@ -2,14 +2,14 @@
 // - page et code de l'appli : réseau d'abord (jamais de version périmée en développement), cache en secours
 // - librairies, polices, icônes : cache d'abord (fichiers figés)
 // - API : toujours le réseau (données fraîches, comptes, plans)
-const VERSION = "ofk-v2";  // nouveau nom : renouvelle le cache
+const VERSION = "ofk-v3";  // logo vectoriel, polices : renouvelle le cache
 const COQUILLE = [
   "/", "/assets/app.css", "/assets/app.js", "/manifest.json",
   "/vendor/lucide.min.js", "/vendor/nouislider.min.js", "/vendor/nouislider.min.css",
   "/vendor/swiper-bundle.min.js", "/vendor/swiper-bundle.min.css", "/vendor/gsap.min.js",
   "/vendor/leaflet/leaflet.js", "/vendor/leaflet/leaflet.css",
-  "/assets/fonts/outfit-latin.woff2", "/assets/fonts/inter-latin.woff2", "/assets/fonts/jetbrains-mono-latin.woff2",
-  "/icons/icone-192.png", "/icons/apple-touch-icon.png",
+  "/assets/fonts/plus-jakarta-sans-latin.woff2", "/assets/fonts/inter-latin.woff2", "/assets/fonts/jetbrains-mono-latin.woff2",
+  "/icons/icone-192.png", "/icons/icone-512.png", "/icons/apple-touch-icon.png", "/icons/logo-ofk.svg",
 ];
 
 self.addEventListener("install", (e) => {

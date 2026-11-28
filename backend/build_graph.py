@@ -42,7 +42,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from scipy import sparse
 
 SEUIL = 3.5            # note minimale pour "aimé"
@@ -70,6 +69,7 @@ URL_AFFICHE = "https://image.tmdb.org/t/p/w342"
 # ------------------------------------------------------------------ #
 
 def charger(chemin: Path):
+    import pandas as pd  # seulement pour le build complet (MovieLens) : inutile au serveur en production
     evals = pd.read_csv(chemin / "ratings.csv")
     films = pd.read_csv(chemin / "movies.csv")
     liens = pd.read_csv(chemin / "links.csv")
@@ -77,8 +77,9 @@ def charger(chemin: Path):
     return evals, films, liens
 
 
-def matrice_cooccurrence(evals: pd.DataFrame):
+def matrice_cooccurrence(evals: "pd.DataFrame"):
     """S_ij = nb d'utilisateurs ayant aimé i ET j, S_ii = 0."""
+    import pandas as pd
     u = pd.Categorical(evals["userId"])
     f = pd.Categorical(evals["movieId"])
     A = sparse.csr_matrix(
@@ -247,6 +248,7 @@ def appliquer_affiches(noeud: dict, info_tmdb: dict, info_wiki: dict) -> dict:
 
 
 def metadonnees_films(movie_ids, films, liens, nb_likes, tmdb_films, affiches_films=None):
+    import pandas as pd
     films = films.set_index("movieId")
     liens = liens.set_index("movieId")
     noeuds = []

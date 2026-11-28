@@ -1,7 +1,16 @@
 .git
+.gitignore
 .env
+.env.*
+.venv
+.claude
 **/__pycache__
+**/*.pyc
+**/.DS_Store
 backend/data/raw
 backend/data/*.sqlite3*
 backend/data/*.tmp
+backend/requirements-build.txt
 docs
+*.md
+render.yaml

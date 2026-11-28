@@ -2,15 +2,18 @@
 # Lien public en HTTPS, nécessaire pour installer la PWA sur iPhone avec son service worker.
 services:
   - type: web
-    name: on-fait-koi
-    runtime: docker
+    name: ofk
+    runtime: docker            # utilise le Dockerfile à la racine (PORT fourni par Render)
     plan: free
     healthCheckPath: /api/sante
+    autoDeploy: true
     envVars:
       - key: ENNUI_SYNC          # synchronisation OpenAgenda toutes les 6 h (0 pour la couper)
         value: "1"
+      - key: ENNUI_ORIGINES      # CORS : origines autorisées, séparées par des virgules (« * » = toutes)
+        value: "*"
       # - key: TMDB_API_KEY      # facultatif, à saisir dans le tableau de bord Render (jamais dans le dépôt)
       #   sync: false
-    # Attention : le disque du plan gratuit est éphémère. Les comptes et plans (SQLite) repartent
-    # de zéro à chaque redéploiement. Pour les garder : ajouter un disque persistant monté sur
-    # /app/backend/data (plan payant) ou passer à une base gérée.
+    # Plan gratuit : le service s'endort après 15 min sans visite (réveil ~30 à 60 s) ; ouvrir le lien avant la démo.
+    # Le disque est éphémère : comptes, amis et plans (SQLite) repartent de zéro à chaque redéploiement.
+    # Pour les garder : disque persistant monté sur /app/backend/data (plan payant).

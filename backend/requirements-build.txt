@@ -1,0 +1,3 @@
+# Calcul complet hors ligne (build_graph.py --movielens, import_books.py) : serveur + pandas.
+-r requirements.txt
+pandas>=2.0,<3

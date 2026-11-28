@@ -54,7 +54,7 @@
 
 ### Commandes (depuis la racine)
 ```bash
-pip install -r backend/requirements.txt
+pip install -r backend/requirements-build.txt   # serveur + pandas (scripts hors ligne) ; production : backend/requirements.txt
 python3 backend/fetch_france.py          # rafraîchit les événements à venir (réseau, ~1 min) — à refaire avant la démo
 python3 backend/fetch_series.py          # optionnel : rafraîchit les séries (réseau, ~10 s)
 python3 backend/import_books.py --csv ~/Downloads/GoodReadsData.csv  # livres (OpenLibrary, ~40 min, reprise possible)
@@ -65,7 +65,7 @@ python3 backend/build_graph.py --movielens /chemin/ml-latest-small   # pré-calc
 uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 : pas de synchro auto)
 uvicorn backend.main:app --host 0.0.0.0 --port 8000   # accessible depuis un téléphone sur le même Wi-Fi
 python3 backend/enrich_resumes.py        # synopsis FR (Wikipédia) des films, séries, livres (reprise possible)
-docker build -t on-fait-koi . && docker run -p 8000:8000 on-fait-koi   # image prête (voir aussi render.yaml)
+docker build -t ofk . && docker run -p 8000:8000 ofk   # image prête ; Render / Railway / tunnel : docs/deploiement.md
 # Tests : aucun pour l'instant
 ```
 
@@ -112,5 +112,6 @@ docker build -t on-fait-koi . && docker run -p 8000:8000 on-fait-koi   # image p
 - Architecture, données et modèle mathématique : @docs/architecture.md
 - Tâches et avancement : @docs/todo.md
 - Contrat d'API (lu à la demande) : `docs/api.md`
+- Déploiement (Render, Railway, tunnel, variables) : `docs/deploiement.md`
 - Contexte frontend : `frontend/CLAUDE.md`
 - Contexte backend : `backend/CLAUDE.md`

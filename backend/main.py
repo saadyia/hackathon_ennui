@@ -9,6 +9,7 @@ Variables : ENNUI_SYNC=0 désactive la synchronisation automatique de l'agenda.
 
 import json
 import math
+import os
 import unicodedata
 import urllib.parse
 import urllib.request
@@ -20,6 +21,7 @@ from typing import Dict, List, Literal, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -71,6 +73,12 @@ async def cycle_de_vie(_app):
 
 
 app = FastAPI(title="hackathon_ennui", lifespan=cycle_de_vie)
+# CORS : le frontend est servi par cette même application (même origine), mais on autorise aussi des origines
+# externes (autre front, test depuis un autre domaine). ENNUI_ORIGINES = liste séparée par des virgules, « * » par défaut.
+# Pas de cookies : l'identité passe par l'en-tête X-Utilisateur, donc allow_credentials reste à False.
+ORIGINES = [o.strip() for o in os.environ.get("ENNUI_ORIGINES", "*").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINES, allow_credentials=False,
+                   allow_methods=["GET", "POST", "PUT", "OPTIONS"], allow_headers=["Content-Type", "X-Utilisateur"])
 app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
 app.mount("/vendor", StaticFiles(directory=FRONTEND / "vendor"), name="vendor")  # librairies UI locales
 app.mount("/icons", StaticFiles(directory=FRONTEND / "icons"), name="icons")
@@ -590,7 +598,6 @@ async def synchroniser():
 if __name__ == "__main__":
     # Lancement direct : écoute sur toutes les interfaces (téléphone sur le même Wi-Fi, conteneur, hébergeur).
     # PORT est fourni par les hébergeurs (Render, Railway, Fly…).
-    import os
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))

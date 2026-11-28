@@ -7,7 +7,7 @@ Python 3.9+, FastAPI, NumPy, SciPy (matrices creuses), Pandas (scripts hors lign
 
 ## Commandes (depuis la racine du dépôt)
 ```bash
-pip install -r backend/requirements.txt
+pip install -r backend/requirements-build.txt     # scripts hors ligne (pandas) ; le serveur seul : requirements.txt
 python3 backend/fetch_france.py [--jours 35]        # réseau : OpenAgenda (40 villes)
 python3 backend/fetch_series.py [--nb 220]          # réseau : TVmaze
 python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB_API_KEY (env ou .env)
@@ -46,6 +46,8 @@ backend/
 ```
 
 ## Conventions
+- **pandas n'est jamais importé par le serveur** : seulement dans les fonctions du build complet (`build_graph.charger`, …).
+  `requirements.txt` = exécution (image Docker légère) ; `requirements-build.txt` = scripts hors ligne.
 - Réglages du moteur : constantes en tête de `moteur.py` (`CONFORT`, `DECOUVERTE`, `FILMS_PAR_GENRE`, `PART_DEJA_VUS`, `EPS_AFFINITE`).
 - Après une modification d'un `fetch_*` ou de `build_graph.py` : relancer le build, puis vérifier la latence (< 20 ms) et la variété des résultats selon les genres.
 - `noeuds.json` est **dans l'ordre des indices de P** (films, séries, sorties) : ne jamais le trier ni le filtrer à part.

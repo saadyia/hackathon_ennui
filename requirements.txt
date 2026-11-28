@@ -1,0 +1,2 @@
+# Point d'entrée pour les hébergeurs qui détectent requirements.txt à la racine (Render natif, Railway).
+-r backend/requirements.txt

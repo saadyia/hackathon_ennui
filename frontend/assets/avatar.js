@@ -1,36 +1,92 @@
-// Avatars « Aura lumineuse » : dégradé atmosphérique multi-couches + monogramme ou glyphe géométrique, en SVG pur.
-// Aucune illustration, aucune dépendance. Option : photo importée (DataURL 200 × 200 compressée côté client).
-// Configuration enregistrée (SQLite + localStorage) : { atmo, signature, photo? }.
+// Personnages illustrés DiceBear harmonisés avec la DA sombre de « ofk? », rendus EN LOCAL :
+// frontend/vendor/dicebear (modules ESM @dicebear 9.4.3), aucun appel réseau ni CDN.
+//   lorelei : Lisa Wischofsky, CC0 1.0 · micah : Micah Lanier, CC BY 4.0 · core : MIT
+// Fonds sombres feutrés, couleurs désaturées (blanc cassé, gris perle, noir d'encre, pastels très doux).
+// Configuration enregistrée : { style, seed, bg, hair?, glasses?, mouth?, eyes? }.
+// Repli instantané : initiales en Plus Jakarta Sans Bold sur fond ardoise (chargement, hors ligne).
 
-const BLANC = "#F8FAFC";
+let DB = null;  // { createAvatar, styles: { lorelei, micah } }
 
-/** 8 palettes harmonisées avec le fond nuit : base (ombre), coeur (couleur), lueur (source de lumière). */
-export const ATMOSPHERES = [
-  { id: "indigo", nom: "Indigo Nocturne", base: "#0D1030", coeur: "#3B37B8", lueur: "#A5B4FC" },
-  { id: "ambre", nom: "Ambre Solaire", base: "#1C1206", coeur: "#B45309", lueur: "#FCD9A0" },
-  { id: "emeraude", nom: "Émeraude Abyssal", base: "#03140F", coeur: "#047857", lueur: "#86EFC5" },
-  { id: "carmin", nom: "Carmin Sombre", base: "#1A060B", coeur: "#9F1239", lueur: "#FDA4B4" },
-  { id: "cyan", nom: "Cyan Polaire", base: "#03131A", coeur: "#0E7490", lueur: "#A5F0FC" },
-  { id: "violet", nom: "Violet Astral", base: "#130A26", coeur: "#6D28D9", lueur: "#DCC2FE" },
-  { id: "titane", nom: "Titane", base: "#0E1116", coeur: "#4B5563", lueur: "#E5E9F0" },
-  { id: "cuivre", nom: "Cuivre", base: "#170B06", coeur: "#9A3E12", lueur: "#FDC49A" },
+/** À attendre une fois au démarrage (fichiers locaux). Ne rejette jamais. */
+export const avatarsPrets = Promise.all([
+  import("../vendor/dicebear/core.js"),
+  import("../vendor/dicebear/lorelei.js"),
+  import("../vendor/dicebear/micah.js"),
+]).then(([core, lorelei, micah]) => {
+  DB = { createAvatar: core.createAvatar, styles: { lorelei, micah } };
+  return true;
+}).catch(() => false);
+
+export const FONDS = [
+  { id: "1e293b", nom: "Ardoise" },
+  { id: "27294a", nom: "Indigo nuit" },
+  { id: "422b18", nom: "Ambre sombre" },
+  { id: "13382e", nom: "Émeraude profond" },
+  { id: "351f47", nom: "Prune nuit" },
+  { id: "293548", nom: "Acier" },
 ];
 
-export const SIGNATURES = [
-  { id: "initiale", nom: "Initiale" },
-  { id: "double", nom: "Double initiale" },
-  { id: "anneau", nom: "Anneau" },
-  { id: "etoile", nom: "Étoile" },
-  { id: "onde", nom: "Onde" },
-  { id: "prisme", nom: "Prisme" },
+// Palette éditoriale désaturée (jamais de fluo) : le seed choisit dedans, toujours de façon stable.
+const CHEVEUX = ["ece8e1", "cfc8bd", "a89f94", "2b2724", "4a3b32", "6e5a4b", "d8cde6", "c9d5e3"];  // blanc cassé, perle, taupe, encre, bruns, lilas, bleu brume
+const PEAUX = ["f3ddd0", "e4c1aa", "c99d82", "a6765c", "7c5543"];
+const VETEMENTS = ["ece8e1", "c7ced8", "8e99a8", "2b313c", "e3d7c8", "cfd3ee"];
+const LUNETTES = ["ece8e1", "a8b0bb", "1c1f26"];
+
+const variantes = (n) => Array.from({ length: n }, (_, i) => `variant${String(i + 1).padStart(2, "0")}`);
+const LORELEI_BOUCHES = [...Array.from({ length: 18 }, (_, i) => `happy${String(i + 1).padStart(2, "0")}`),
+  ...Array.from({ length: 9 }, (_, i) => `sad${String(i + 1).padStart(2, "0")}`)];
+
+// Paramètres réels de chaque style DiceBear exposés dans le studio.
+export const STYLES = [
+  {
+    id: "lorelei", nom: "Éditorial",
+    hair: variantes(48), glasses: ["aucune", ...variantes(5)], mouth: LORELEI_BOUCHES, eyes: variantes(24),
+    options: (c) => ({
+      hairColor: CHEVEUX, skinColor: PEAUX, glassesColor: LUNETTES,
+      eyebrowsColor: ["1c1f26"], eyesColor: ["1c1f26"], mouthColor: ["1c1f26"], noseColor: ["1c1f26"],
+      earringsProbability: 0, hairAccessoriesProbability: 0, frecklesProbability: 0, beardProbability: 0,
+      ...(c.hair ? { hair: [c.hair] } : {}),
+      ...(c.glasses ? (c.glasses === "aucune" ? { glassesProbability: 0 } : { glasses: [c.glasses], glassesProbability: 100 }) : {}),
+      ...(c.mouth ? { mouth: [c.mouth] } : {}),
+      ...(c.eyes ? { eyes: [c.eyes] } : {}),
+    }),
+  },
+  {
+    id: "micah", nom: "Portrait Studio",
+    hair: ["fonze", "mrT", "dougFunny", "mrClean", "dannyPhantom", "full", "turban", "pixie"],
+    glasses: ["aucune", "round", "square"],
+    mouth: ["smile", "laughing", "smirk", "surprised", "nervous", "pucker", "sad", "frown"],
+    eyes: ["eyes", "round", "smiling", "eyesShadow", "smilingShadow"],
+    options: (c) => ({
+      baseColor: PEAUX, hairColor: CHEVEUX, shirtColor: VETEMENTS, glassesColor: LUNETTES,
+      eyeShadowColor: ["e6e1ec"], earringsProbability: 0, facialHairProbability: 0,
+      ...(c.hair ? { hair: [c.hair] } : {}),
+      ...(c.glasses ? (c.glasses === "aucune" ? { glassesProbability: 0 } : { glasses: [c.glasses], glassesProbability: 100 }) : {}),
+      ...(c.mouth ? { mouth: [c.mouth] } : {}),
+      ...(c.eyes ? { eyes: [c.eyes] } : {}),
+    }),
+  },
 ];
+const styleDe = (id) => STYLES.find((s) => s.id === id) || STYLES[0];
 
-const PHOTO_VALIDE = /^data:image\/(webp|jpeg);base64,[A-Za-z0-9+/=]+$/;
-const TAILLE_MAX_PHOTO = 80000;  // caractères (~60 Ko), une image 200 × 200 compressée en fait ~10 à 20
+const NOMS = { aucune: "Aucune", round: "Rondes", square: "Carrées", smile: "Sourire", laughing: "Rire", smirk: "En coin",
+  surprised: "Surpris", nervous: "Gêné", pucker: "Moue", sad: "Triste", frown: "Froncé", eyes: "Naturels", smiling: "Rieurs",
+  eyesShadow: "Ombrés", smilingShadow: "Rieurs ombrés", fonze: "Banane", mrT: "Crête", dougFunny: "Mèches", mrClean: "Rasé",
+  dannyPhantom: "Décoiffé", full: "Long", turban: "Turban", pixie: "Court" };
+/** Libellé court d'une valeur DiceBear (« variant07 » -> « 7 », « happy03 » -> « Joie 3 »). */
+export function nomValeur(v) {
+  if (NOMS[v]) return NOMS[v];
+  const m = /^(variant|happy|sad)(\d+)$/.exec(v);
+  if (!m) return v;
+  return `${m[1] === "happy" ? "Joie " : m[1] === "sad" ? "Calme " : ""}${Number(m[2])}`;
+}
 
+const CLES = ["hair", "glasses", "mouth", "eyes"];
 function valide(c) {
-  return Boolean(c && typeof c === "object" && ATMOSPHERES.some((a) => a.id === c.atmo) && SIGNATURES.some((s) => s.id === c.signature)
-    && (c.photo == null || (typeof c.photo === "string" && c.photo.length <= TAILLE_MAX_PHOTO && PHOTO_VALIDE.test(c.photo))));
+  if (!c || typeof c !== "object" || !STYLES.some((s) => s.id === c.style) || !FONDS.some((f) => f.id === c.bg)) return false;
+  if (typeof c.seed !== "string" || !c.seed) return false;
+  const s = styleDe(c.style);
+  return CLES.every((k) => c[k] == null || s[k].includes(c[k]));
 }
 
 function hachage(texte) {
@@ -39,101 +95,47 @@ function hachage(texte) {
   return h >>> 0;
 }
 
-/** Aura par défaut, stable : même prénom = même atmosphère sur tous les appareils. */
+/** Personnage par défaut, stable : même prénom = même personnage sur tous les appareils. */
 export function avatarDepuisPrenom(prenom) {
-  return { atmo: ATMOSPHERES[hachage((prenom || "").trim().toLowerCase()) % ATMOSPHERES.length].id, signature: "initiale" };
+  const seed = (prenom || "ofk").trim() || "ofk";
+  return { style: "lorelei", seed, bg: FONDS[hachage(seed) % FONDS.length].id };
 }
 
-/** Change d'atmosphère (jamais la même), garde la signature et la photo. */
+/** Nouveau personnage : nouveau seed, fond au hasard, choix explicites remis à zéro ; le style est conservé. */
 export function avatarAleatoire(actuel) {
-  const autres = ATMOSPHERES.filter((a) => a.id !== actuel?.atmo);
-  return { ...(valide(actuel) ? actuel : { signature: "initiale" }), atmo: autres[Math.floor(Math.random() * autres.length)].id };
+  return { style: actuel?.style || "lorelei", seed: Math.random().toString(36).slice(2, 10),
+    bg: FONDS[Math.floor(Math.random() * FONDS.length)].id };
 }
 
 export const avatarDe = (p) => (valide(p?.avatar) ? p.avatar : avatarDepuisPrenom(p?.prenom));
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/** « Sadia » -> S / SA ; « Jean-Marc Dupont » -> J / JD. */
-function monogramme(prenom, double) {
-  const mots = String(prenom || "").trim().split(/[\s-]+/).filter(Boolean);
-  if (!mots.length) return "";
-  if (!double) return mots[0][0].toUpperCase();
-  return (mots.length > 1 ? mots[0][0] + mots[1][0] : mots[0].slice(0, 2)).toUpperCase();
-}
-
-// Glyphes en trait fin (viewBox 100), centrés
-const GLYPHES = {
-  anneau: `<circle cx="50" cy="50" r="17" fill="none" stroke="${BLANC}" stroke-width="2.4"/><circle cx="50" cy="50" r="2.6" fill="${BLANC}"/>`,
-  etoile: `<path d="M50 27C51.6 43.4 56.6 48.4 73 50C56.6 51.6 51.6 56.6 50 73C48.4 56.6 43.4 51.6 27 50C43.4 48.4 48.4 43.4 50 27Z" fill="none" stroke="${BLANC}" stroke-width="2.2" stroke-linejoin="round"/>`,
-  onde: `<path d="M26 50C30 40 34 40 38 50S46 60 50 50S58 40 62 50S70 60 74 50" fill="none" stroke="${BLANC}" stroke-width="2.4" stroke-linecap="round"/>`,
-  prisme: `<path d="M50 29L71 67H29Z" fill="none" stroke="${BLANC}" stroke-width="2.2" stroke-linejoin="round"/><path d="M50 29L50 67" stroke="${BLANC}" stroke-width="1.4" opacity="0.55"/>`,
-};
-
-let compteur = 0;
-
-/**
- * Avatar circulaire (chaîne SVG). config = { atmo, signature, photo? } ; prenom sert au monogramme.
- * Couches : base sombre, source de lumière haute, coeur coloré bas, halo central doux, vignettage, reflet vitré.
- */
-export function renderAvatar(config, size = 48, prenom = "") {
-  const c = valide(config) ? config : avatarDepuisPrenom(prenom);
-  const a = ATMOSPHERES.find((x) => x.id === c.atmo);
-  const id = `au${(compteur++).toString(36)}`;
-  let centre = "";
-  if (c.photo) {
-    centre = `<image href="${c.photo}" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id}c)"/>
-      <circle cx="50" cy="50" r="50" fill="url(#${id}v)" opacity="0.55"/>`;
-  } else if (GLYPHES[c.signature]) {
-    centre = GLYPHES[c.signature];
-  } else {
-    const texte = monogramme(prenom, c.signature === "double") || "?";
-    centre = `<text x="50" y="51" text-anchor="middle" dominant-baseline="central" fill="${BLANC}"
-      font-family="'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif" font-weight="700"
-      font-size="${texte.length > 1 ? 31 : 38}" letter-spacing="${texte.length > 1 ? -1.4 : -0.8}" opacity="0.96">${esc(texte)}</text>`;
-  }
-  return `<svg class="avatar-svg" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <clipPath id="${id}c"><circle cx="50" cy="50" r="50"/></clipPath>
-      <radialGradient id="${id}h" cx="28%" cy="18%" r="85%"><stop offset="0" stop-color="${a.lueur}" stop-opacity="0.55"/><stop offset="0.38" stop-color="${a.coeur}" stop-opacity="0.42"/><stop offset="1" stop-color="${a.coeur}" stop-opacity="0"/></radialGradient>
-      <radialGradient id="${id}b" cx="82%" cy="92%" r="78%"><stop offset="0" stop-color="${a.coeur}" stop-opacity="0.75"/><stop offset="0.6" stop-color="${a.coeur}" stop-opacity="0.18"/><stop offset="1" stop-color="${a.coeur}" stop-opacity="0"/></radialGradient>
-      <radialGradient id="${id}m" cx="50%" cy="50%" r="42%"><stop offset="0" stop-color="${a.lueur}" stop-opacity="0.14"/><stop offset="1" stop-color="${a.lueur}" stop-opacity="0"/></radialGradient>
-      <radialGradient id="${id}v" cx="50%" cy="45%" r="58%"><stop offset="0.55" stop-color="#05070D" stop-opacity="0"/><stop offset="1" stop-color="#05070D" stop-opacity="0.55"/></radialGradient>
-      <linearGradient id="${id}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/><stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
-    </defs>
-    <g clip-path="url(#${id}c)">
-      <rect width="100" height="100" fill="${a.base}"/>
-      <rect width="100" height="100" fill="url(#${id}b)"/>
-      <rect width="100" height="100" fill="url(#${id}h)"/>
-      <rect width="100" height="100" fill="url(#${id}m)"/>
-      <rect width="100" height="100" fill="url(#${id}v)"/>
-      ${centre}
-      <rect width="100" height="40" fill="url(#${id}r)"/>
-    </g>
+/** Repli : initiales en Plus Jakarta Sans Bold sur fond ardoise. */
+function initiales(size, prenom, seed) {
+  const texte = (prenom || seed || "?").split(/[\s-]+/).filter(Boolean).slice(0, 2).map((m) => m[0]).join("").toUpperCase() || "?";
+  return `<svg class="avatar-svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="#1E293B"/>
+    <text x="32" y="33" text-anchor="middle" dominant-baseline="central" fill="#F8FAFC"
+      font-family="'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif" font-weight="700" font-size="${texte.length > 1 ? 21 : 25}" letter-spacing="-0.5">${esc(texte)}</text>
   </svg>`;
 }
 
 /**
- * Photo importée -> DataURL carrée 200 × 200 (recadrage centré, WebP si possible, sinon JPEG), < 80 000 caractères.
+ * Personnage SVG (chaîne). size en pixels ; prenom pour le repli ; zoom = gros plan sur le visage (vignettes du studio).
+ * Les identifiants internes du SVG sont rendus uniques à chaque appel.
  */
-export async function photoVersDataUrl(fichier) {
-  if (!fichier || !/^image\//.test(fichier.type)) throw new Error("Choisis une image.");
-  const url = URL.createObjectURL(fichier);
+export function renderAvatar(config, size = 48, prenom = "", { zoom = false } = {}) {
+  const c = valide(config) ? config : avatarDepuisPrenom(prenom || config?.seed);
+  if (!DB) return initiales(size, prenom, c.seed);
   try {
-    const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error("Image illisible.")); i.src = url; });
-    const cote = Math.min(img.naturalWidth, img.naturalHeight);
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 200;
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, (img.naturalWidth - cote) / 2, (img.naturalHeight - cote) / 2, cote, cote, 0, 0, 200, 200);
-    for (const q of [0.82, 0.7, 0.55]) {
-      let d = canvas.toDataURL("image/webp", q);
-      if (!d.startsWith("data:image/webp")) d = canvas.toDataURL("image/jpeg", q);  // Safari ancien : pas de WebP
-      if (d.length <= TAILLE_MAX_PHOTO) return d;
-    }
-    throw new Error("Image trop lourde.");
-  } finally {
-    URL.revokeObjectURL(url);
+    const svg = DB.createAvatar(DB.styles[c.style], {
+      seed: c.seed, size, radius: 50, randomizeIds: true, backgroundColor: [c.bg],
+      ...(zoom ? { scale: 135, translateY: c.style === "micah" ? 8 : 6 } : { scale: 104, translateY: 2 }),
+      ...styleDe(c.style).options(c),
+    }).toString();
+    return svg.replace("<svg ", '<svg class="avatar-svg" aria-hidden="true" ');
+  } catch (_) {
+    return initiales(size, prenom, c.seed);
   }
 }

@@ -1,0 +1,6 @@
+DiceBear 9.4.3 — modules ESM copiés en local (jsDelivr « +esm »), imports réécrits vers ./core.js. Aucun appel réseau.
+
+@dicebear/core     : MIT (Florian Körner), voir LICENSE-core-MIT.txt
+@dicebear/lorelei  : style « Lorelei » par Lisa Wischofsky — CC0 1.0 (https://www.figma.com/community/file/1198749693280469639)
+@dicebear/micah    : « Avatar Illustration System » par Micah Lanier — CC BY 4.0
+                     (https://www.figma.com/community/file/829741575478342595) ; attribution affichée dans le studio d'avatar

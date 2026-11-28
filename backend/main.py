@@ -133,11 +133,15 @@ class Ville(BaseModel):
 
 
 class Avatar(BaseModel):
-    """Avatar « aura lumineuse » rendu côté client (frontend/assets/avatar.js) : atmosphère + signature,
-    ou photo importée (DataURL WebP / JPEG 200 × 200 compressée sur l'appareil)."""
-    atmo: Literal["indigo", "ambre", "emeraude", "carmin", "cyan", "violet", "titane", "cuivre"]
-    signature: Literal["initiale", "double", "anneau", "etoile", "onde", "prisme"]
-    photo: Optional[str] = Field(None, max_length=80000, pattern=r"^data:image/(webp|jpeg);base64,[A-Za-z0-9+/=]+$")
+    """Personnage illustré DiceBear (lorelei / micah), rendu côté client avec les modules locaux (frontend/vendor/dicebear).
+    Les valeurs fines (coiffure, lunettes, expression, regard) sont vérifiées par style côté client ; ici, format seulement."""
+    style: Literal["lorelei", "micah"]
+    seed: str = Field(..., min_length=1, max_length=40)
+    bg: Literal["1e293b", "27294a", "422b18", "13382e", "351f47", "293548"]
+    hair: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
+    glasses: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
+    mouth: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
+    eyes: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9]{1,24}$")
 
 
 class Profil(BaseModel):

@@ -1119,6 +1119,10 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 .studio-aleatoire { margin-top: 10px; }
 .studio-options { grid-template-columns: repeat(4, 1fr); max-height: none; }
 .studio-option svg { width: 58px; height: 58px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10); border-radius: 50%; }
-.studio-photo { grid-column: 1 / -1; display: grid; justify-items: center; gap: 12px; padding: 8px 4px 4px; text-align: center; }
-.studio-photo p { margin: 0; max-width: 34ch; line-height: 1.5; }
-.studio-import { cursor: pointer; }
+
+/* Personnages illustrés : fin liseré translucide, fonds sombres feutrés */
+.avatar { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 6px 18px -8px rgba(0, 0, 0, 0.7); }
+.avatar::after { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.10); }
+.avatar.anneau { box-shadow: 0 0 0 2px var(--fond), 0 0 0 3.5px rgba(232, 217, 181, 0.9), 0 0 18px 2px rgba(232, 217, 181, 0.28); }
+.studio-option svg { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.studio-options { max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }

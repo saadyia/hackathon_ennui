@@ -105,20 +105,20 @@ COLONNES_UTILISATEURS = {
     "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
     "dispo_le": "TEXT",
     "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
-    "avatar": "TEXT",                    # JSON {atmo, signature, photo?} (aura lumineuse) ; NULL = dérivée du prénom
+    "avatar": "TEXT",                    # JSON DiceBear {style, seed, bg, hair?, glasses?, mouth?, eyes?} ; NULL = dérivé du prénom
 }
 
 # Profils fictifs pour tester les interactions sociales tout de suite. Ils sont marqués « Démo »
 # dans l'interface et ne rejoignent aucun plan : on n'invente ni participants ni activité.
 PROFILS_DEMO = [
     ("demo-camille", "Camille", "Camille#101", "Rennes", 48.1113, -1.6800, "sortir",
-     {"atmo": "indigo", "signature": "initiale"}),
+     {"style": "lorelei", "seed": "Camille", "bg": "351f47", "glasses": "variant04", "mouth": "happy03"}),
     ("demo-lucas", "Lucas", "Lucas#214", "Rennes", 48.1113, -1.6800, "distance",
-     {"atmo": "emeraude", "signature": "initiale"}),
+     {"style": "micah", "seed": "Lucas", "bg": "13382e", "hair": "dougFunny", "mouth": "smile", "eyes": "smiling", "glasses": "aucune"}),
     ("demo-ines", "Inès", "Inès#327", "Nantes", 47.2184, -1.5536, "sortir",
-     {"atmo": "ambre", "signature": "initiale"}),
+     {"style": "lorelei", "seed": "Inès", "bg": "422b18", "mouth": "happy08", "glasses": "aucune"}),
     ("demo-thomas", "Thomas", "Thomas#438", "Lyon", 45.7640, 4.8357, "distance",
-     {"atmo": "cyan", "signature": "initiale"}),
+     {"style": "lorelei", "seed": "Thomas", "bg": "293548", "hair": "variant05", "glasses": "variant02", "mouth": "happy01"}),
 ]
 DEMO_RETIRES = ("demo-yasmine",)  # anciens profils de démo (la liste en compte désormais 4)
 

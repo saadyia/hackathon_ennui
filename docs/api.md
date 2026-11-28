@@ -61,8 +61,8 @@ Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `pl
   (« Prénom#123 », change avec le prénom) et `dispo` (statut actuel)
 - `PUT /api/utilisateurs/moi/dispo` `{statut: indispo | sortir | distance}` : humeur du moment (Mode ermite, Partant pour bouger,
   Chill à distance), revient à `indispo` après 12 h
-- `PUT /api/utilisateurs/moi/avatar` `{atmo: indigo | ambre | emeraude | carmin | cyan | violet | titane | cuivre,
-  signature: initiale | double | anneau | etoile | onde | prisme, photo?: "data:image/(webp|jpeg);base64,…" (≤ 80 000 caractères)}` ;
+- `PUT /api/utilisateurs/moi/avatar` `{style: lorelei | micah, seed, bg: 1e293b | 27294a | 422b18 | 13382e | 351f47 | 293548,
+  hair?, glasses?, mouth?, eyes?}` (valeurs DiceBear ; `glasses: "aucune"` pour forcer sans lunettes) ;
   `POST /api/utilisateurs` accepte aussi `avatar`. `avatar: null` = avatar déduit du prénom côté client.
 
 ## Amis (compte requis ; un profil public = `{code, prenom, ville, dispo, demo, ami, avatar}`, jamais l'`id`)

@@ -9,6 +9,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Avatars « Aura lumineuse » (8 atmosphères, monogrammes et 4 glyphes, photo importée 200 × 200) à la place des illustrations ; DiceBear retiré
 - [x] Avatars illustrés DiceBear en local (Notionists, Micah, Glass), studio connecté aux vrais paramètres, repli initiales, amis de démo redessinés
 - [x] Avatars SVG (studio, inscription, profil), humeur du moment en popover depuis son avatar, anneau lumineux, Pour vous orienté par l'humeur, 4 profils de démo avec avatar
 - [x] Amis : code `Prénom#123`, tiroir Amis (recherche, ajout, retrait), statut « Dispo » (12 h), avatars des amis disponibles, salut selon l'heure, 5 profils de démo marqués ; splash à ressort 1,4 s

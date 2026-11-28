@@ -142,10 +142,11 @@ balayage animé qui ralentit, puis fiche ouverte avec le badge « Sélectionné 
 - Amitié sans demande à accepter (outil de démo) : deux lignes `amities` (a → b, b → a), retrait des deux sens.
 - Humeur `indispo` (Mode ermite) | `sortir` (Partant pour bouger) | `distance` (Chill à distance) + date ; considérée `indispo`
   12 h après le choix. Elle ordonne Pour vous (sorties d'abord, ou « Ce soir au chaud » d'abord). Amis rechargés toutes les 60 s.
-- Avatars : colonne `avatar` (JSON DiceBear), rendu 100 % client avec les modules DiceBear 9 copiés dans `frontend/vendor/dicebear`
-  (pas d'API ni de CDN : hors ligne et sans latence, ~0,2 ms par avatar). Sans configuration : style Notion, `seed` = prénom,
-  fond choisi par hachage FNV-1a, identique partout. Si les modules ne se chargent pas : initiales sur la teinte sombre du fond.
-  Licences : core MIT, Notionists CC0, Micah CC BY 4.0 (crédit dans le studio), Glass CC0 (`vendor/dicebear/LICENCES.txt`).
+- Avatars : colonne `avatar` (JSON `{atmo, signature, photo?}`), rendu 100 % client en SVG pur (`avatar.js`, viewBox 100) :
+  base sombre, coeur coloré (bas droite), lueur (haut gauche), halo central, vignettage, reflet vitré ; monogramme Plus Jakarta Sans
+  Bold ou glyphe en trait fin ; ou photo (`<image>` recadrée, même liseré). Sans configuration : atmosphère par hachage FNV-1a du
+  prénom, initiale. Photo : canvas 200 × 200 côté client, WebP (JPEG si non pris en charge), validée par motif et taille côté serveur.
+  Les photos sont visibles par les amis (profil public).
 - 4 profils de démonstration (`demo-*`) avec avatar et humeur active, proposés en suggestions et marqués « Démo ».
 
 ## Espace collaboratif

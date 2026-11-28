@@ -33,10 +33,11 @@
    ou code, ajout immédiat et réciproque). Accueil « Bonsoir Sadia, on fait quoi ? » avec une rangée d'avatars : le sien d'abord
    (menu flottant : Partant pour bouger, Chill à distance, Mode ermite ; expire après 12 h ; oriente Pour vous), puis les amis actifs
    (anneau lumineux). Splash à ressort de 1,4 s.
-9. **Avatars illustrés DiceBear** (`frontend/assets/avatar.js`, modules locaux `frontend/vendor/dicebear/`, aucun appel réseau) :
-   styles Éditorial Notion (`notionists`), Portrait Moderne (`micah`), Aura Abstraite (`glass`) ; config
-   `{style, seed, bg, hair?, glasses?, brows?, mouth?}` ; 6 fonds pastel ; repli initiales (Plus Jakarta Sans Bold).
-   Déduit du prénom à l'inscription (« Personnaliser », « Aléatoire »), Studio d'avatar dans Profil ; SQLite + `localStorage`.
+9. **Avatars « Aura lumineuse »** (`frontend/assets/avatar.js`, `renderAvatar(config, size, prenom)`, SVG pur, aucun visage dessiné) :
+   dégradé atmosphérique multi-couches (8 atmosphères : Indigo Nocturne, Ambre Solaire, Émeraude Abyssal, Carmin Sombre,
+   Cyan Polaire, Violet Astral, Titane, Cuivre) + signature (initiale, double initiale, Anneau, Étoile, Onde, Prisme)
+   ou photo importée (recadrée en 200 × 200 WebP/JPEG sur l'appareil). Config `{atmo, signature, photo?}` ; déduite du prénom
+   à l'inscription (« Personnaliser », « Aléatoire »), Studio d'avatar dans Profil ; SQLite + `localStorage`.
 
 ### Objectifs du hackathon
 - **Priorité absolue :** MVP fluide, sans latence, **aucune dépendance réseau bloquante pendant la démo**.
@@ -48,7 +49,7 @@
 |-------------|-------------|
 | Backend     | Python 3.9+, FastAPI, NumPy, SciPy, Pandas |
 | Données     | Pré-calculées en local : `P.npz` (creux), `pi_star.npy`, `noeuds.json` |
-| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main ; librairies locales `frontend/vendor/` : Lucide, noUiSlider, Swiper, GSAP, Leaflet, DiceBear ; polices Plus Jakarta Sans, Inter, JetBrains Mono |
+| Frontend    | `frontend/index.html` + `assets/app.css` + `assets/app.js` (module ES), CSS écrit à la main ; librairies locales `frontend/vendor/` : Lucide, noUiSlider, Swiper, GSAP, Leaflet ; polices Plus Jakarta Sans, Inter, JetBrains Mono |
 | Sources     | MovieLens (films), TVmaze (séries), GoodReads CSV + OpenLibrary (livres), OpenAgenda (sorties France), API Adresse (communes), Wikidata + Wikipédia (affiches de films), TMDB (affiches + plateformes FR.flatrate) |
 
 ### Commandes (depuis la racine)
@@ -99,7 +100,7 @@ docker build -t on-fait-koi . && docker run -p 8000:8000 on-fait-koi   # image p
 - **Fiche détaillée :** synopsis en français seulement (TMDB fr-FR, Wikipédia FR via `enrich_resumes.py`, description longue
   OpenAgenda) ; les résumés TVmaze (anglais) ne sont jamais affichés.
 - **Honnêteté des données :** ne jamais inventer de prix, d'horaires, de dates, de plateformes ni de participants. Plus aucune donnée simulée.
-  Seule exception, demandée : 4 profils d'étudiants fictifs (`database.PROFILS_DEMO`, Camille, Lucas, Inès, Thomas, avec avatar) pour tester
+  Seule exception, demandée : 4 profils d'étudiants fictifs (`database.PROFILS_DEMO`, Camille, Lucas, Inès, Thomas, avec leur aura) pour tester
   les amis ; marqués « Démo » dans l'interface, ils ne rejoignent aucun plan.
 - **Identifiant public :** les autres utilisateurs ne voient que le code `Prénom#123`, jamais le jeton `id` (il vaut connexion).
 - **Langue :** code, commentaires et interface en français.

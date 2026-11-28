@@ -105,20 +105,20 @@ COLONNES_UTILISATEURS = {
     "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
     "dispo_le": "TEXT",
     "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
-    "avatar": "TEXT",                    # JSON DiceBear {style, seed, bg, hair?, glasses?, brows?, mouth?} ; NULL = dérivé du prénom
+    "avatar": "TEXT",                    # JSON {atmo, signature, photo?} (aura lumineuse) ; NULL = dérivée du prénom
 }
 
 # Profils fictifs pour tester les interactions sociales tout de suite. Ils sont marqués « Démo »
 # dans l'interface et ne rejoignent aucun plan : on n'invente ni participants ni activité.
 PROFILS_DEMO = [
     ("demo-camille", "Camille", "Camille#101", "Rennes", 48.1113, -1.6800, "sortir",
-     {"style": "notionists", "seed": "Camille", "bg": "c0aede", "hair": "variant47", "glasses": "variant03", "brows": "variant02", "mouth": "variant05"}),
+     {"atmo": "indigo", "signature": "initiale"}),
     ("demo-lucas", "Lucas", "Lucas#214", "Rennes", 48.1113, -1.6800, "distance",
-     {"style": "notionists", "seed": "Lucas", "bg": "b6e3f4", "hair": "variant20", "glasses": "aucune", "brows": "variant04", "mouth": "variant12"}),
+     {"atmo": "emeraude", "signature": "initiale"}),
     ("demo-ines", "Inès", "Inès#327", "Nantes", 47.2184, -1.5536, "sortir",
-     {"style": "notionists", "seed": "Inès", "bg": "ffd5dc", "hair": "variant59", "glasses": "aucune", "brows": "variant06", "mouth": "variant03"}),
+     {"atmo": "ambre", "signature": "initiale"}),
     ("demo-thomas", "Thomas", "Thomas#438", "Lyon", 45.7640, 4.8357, "distance",
-     {"style": "micah", "seed": "Thomas", "bg": "ffdfbf", "hair": "dannyPhantom", "glasses": "square", "brows": "up", "mouth": "smile"}),
+     {"atmo": "cyan", "signature": "initiale"}),
 ]
 DEMO_RETIRES = ("demo-yasmine",)  # anciens profils de démo (la liste en compte désormais 4)
 

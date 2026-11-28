@@ -1102,3 +1102,23 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 .studio-vide { grid-column: 1 / -1; margin: 8px 4px; font-size: 13px; color: var(--texte-2); text-align: center; }
 .studio-credits { margin: 12px 4px 0; font-size: 10.5px; line-height: 1.4; color: var(--texte-3); text-align: center; }
 .studio-apercu .avatar-svg { width: 148px; height: 148px; }
+
+/* ================================================================== */
+/* Avatars « aura lumineuse » : liseré lumineux et reflet vitré        */
+/* ================================================================== */
+.avatar { position: relative; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10), 0 6px 18px -8px rgba(0, 0, 0, 0.7); }
+.avatar::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.avatar-ajout::after { display: none; }
+.avatar.anneau { box-shadow: 0 0 0 2px var(--fond), 0 0 0 3.5px rgba(232, 217, 181, 0.9), 0 0 18px 2px rgba(232, 217, 181, 0.28); }
+.studio-apercu { margin-top: 18px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 30px 70px -24px rgba(0, 0, 0, 0.85); }
+.studio-apercu .avatar-svg { width: 148px; height: 148px; }
+.studio-nom { margin-top: 12px; font-size: 13px; font-weight: 500; color: var(--texte-2); letter-spacing: -0.005em; }
+.studio-aleatoire { margin-top: 10px; }
+.studio-options { grid-template-columns: repeat(4, 1fr); max-height: none; }
+.studio-option svg { width: 58px; height: 58px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10); border-radius: 50%; }
+.studio-photo { grid-column: 1 / -1; display: grid; justify-items: center; gap: 12px; padding: 8px 4px 4px; text-align: center; }
+.studio-photo p { margin: 0; max-width: 34ch; line-height: 1.5; }
+.studio-import { cursor: pointer; }

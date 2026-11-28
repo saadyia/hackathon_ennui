@@ -12,8 +12,7 @@ frontend/
 │   ├── nouislider.min.*   # curseurs : Confort ↔ Découverte (1 à 10) et périmètre (MIT)
 │   ├── swiper-bundle.min.*# carrousels de « Pour vous » (MIT)
 │   ├── gsap.min.js        # animations (GreenSock Standard License, gratuite)
-│   ├── leaflet/           # carte des sorties (BSD-2) — tuiles OpenStreetMap assombries en CSS
-│   └── dicebear/          # avatars illustrés (core MIT ; notionists CC0, micah CC BY 4.0, glass CC0) — LICENCES.txt
+│   └── leaflet/           # carte des sorties (BSD-2) — tuiles OpenStreetMap assombries en CSS
 └── assets/
     ├── app.css            # design system (variables :root), composants, thèmes noUiSlider/Swiper
     ├── app.js             # état, écrans, actions, appels API
@@ -31,9 +30,10 @@ frontend/
   injecté dans `.marque` au démarrage (`LOGO`) et en ligne dans le splash de `index.html`. Icônes PWA dérivées (`icone.svg`, PNG).
 - Splash : `#splash` dans `index.html` (« ofk » glisse vers le haut en fondu, le « ? » rebondit en `cubic-bezier(0.34,1.56,0.64,1)` et luit,
   sous-titre « On fait quoi ? » à 0,8 s), retiré par `fermerSplash()` après le premier rendu, 1,4 s minimum.
-- Avatars : module `assets/avatar.js` (DiceBear local : `avatarsPrets` attendu au démarrage, `renderAvatarSVG(config, size, prenom, {zoom})`,
-  `STYLES` avec les vraies valeurs `hair` / `glasses` / `brows` / `mouth`, `FONDS`, `avatarDe`, `avatarDepuisPrenom`, `avatarAleatoire`),
-  importé par `app.js`. Studio : onglets Style / Fond / Coiffure / Détails + Aléatoire (nouveau `seed`), vignettes zoomées sur le visage. `etat.avatar` (null = déduit du prénom) ; anneau lumineux `.avatar.anneau` si l'humeur est active.
+- Avatars « aura lumineuse » : module `assets/avatar.js` (`renderAvatar(config, size, prenom)`, `ATMOSPHERES`, `SIGNATURES`,
+  `avatarDe`, `avatarDepuisPrenom`, `avatarAleatoire`, `photoVersDataUrl`), importé par `app.js`. Liseré et reflet vitré en CSS
+  (`.avatar::after`, `inset 0 1px 1px rgba(255,255,255,.22)`). Studio : onglets Atmosphère / Signature / Photo + Aléatoire
+  (change d'atmosphère) ; import via `<input type=file id=import-photo>` (écouteur `change`). `etat.avatar` (null = déduit du prénom) ; anneau lumineux `.avatar.anneau` si l'humeur est active.
 - Amis : `social` (code, amis, suggestions) + `etat.dispo` chargés par `chargerSocial()` (démarrage, connexion, toutes les 60 s),
   mis à jour en place (`rafraichirSocial`). `rangeeAvatars()` en haut de Pour vous : moi (badge +, popover `#popover-humeur`),
   amis actifs (tap = étiquette d'humeur), « Amis ». `blocsPourVous()` ordonne les rangées selon l'humeur. Tiroirs

@@ -1,7 +1,0 @@
-DiceBear 9.4.3 — modules ESM copiés en local (jsDelivr « +esm »), imports réécrits vers ./core.js.
-
-@dicebear/core        : MIT (Florian Körner), voir LICENSE-core-MIT.txt
-@dicebear/notionists  : style « Notionists » par Zoish — CC0 1.0 (https://heyzoish.gumroad.com/l/notionists)
-@dicebear/micah       : « Avatar Illustration System » par Micah Lanier — CC BY 4.0
-                        (https://www.figma.com/community/file/829741575478342595) ; attribution affichée dans le studio d'avatar
-@dicebear/glass       : style « Glass » par DiceBear — CC0 1.0

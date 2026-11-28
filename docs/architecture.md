@@ -149,6 +149,21 @@ balayage animé qui ralentit, puis fiche ouverte avec le badge « Sélectionné 
   studio) — `vendor/dicebear/LICENCES.txt`.
 - 4 profils de démonstration (`demo-*`) avec avatar et humeur active, proposés en suggestions et marqués « Démo ».
 
+## Temps réel (smart polling)
+- `GET /api/sync` : amis (humeur, avatar), plans de l'entourage avec participants, humeur actuelle ; empreinte SHA-1
+  du contenu (`v`) : réponse minimale si rien n'a changé. Participants et messages lus en une requête par lot.
+- Client : toutes les 12 s si `document.visibilityState === "visible"`, immédiatement sur `visibilitychange`, `focus`
+  et `pageshow`. Premier passage = mémorisation sans alerte ; ensuite nouveau plan d'un ami ou nouvel arrivant :
+  toast, pastille « Nouveau » (carte de session, ligne « Avec … », fiche, point sur l'onglet Pour vous) jusqu'à
+  l'ouverture de la fiche. Mises à jour ciblées (rangée des sessions avec position conservée, lignes des cartes,
+  fiche ouverte avec défilement conservé), reportées si une saisie ou le menu d'humeur est actif.
+
+## Billetterie des sorties (OpenAgenda)
+- `fetch_france.billetterie()` : `complet` (statut OpenAgenda id 5), `libre` (conditions explicites : entrée libre,
+  sans réservation…), `reservation` (lien / téléphone d'inscription publié, ou conditions qui le disent), sinon rien.
+  Jamais déduit du prix. Lien `reservation_url` (https uniquement) et `reservation_tel`.
+- Mesuré (28/11/2026) : 1 299 sorties, 810 sur réservation (718 avec lien), 118 entrée libre, 4 complet, 367 sans information.
+
 ## Espace collaboratif
 - Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre. Le créateur est inscrit d'office.
 - Le titre et le type de l'œuvre sont copiés dans le plan : il reste lisible si l'événement sort du catalogue.

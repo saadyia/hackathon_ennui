@@ -7,6 +7,7 @@ Lancement (depuis la racine du dépôt) :
 Variables : ENNUI_SYNC=0 désactive la synchronisation automatique de l'agenda.
 """
 
+import hashlib
 import json
 import math
 import os
@@ -539,14 +540,31 @@ def message(plan_id: int, msg: Message, x_utilisateur: Optional[str] = Header(No
 @app.get("/api/plans/a-venir")
 def plans_a_venir(limite: int = Query(12, ge=1, le=40), x_utilisateur: Optional[str] = Header(None)):
     """Watch-parties, sessions et sorties à plusieurs à venir (toutes œuvres), avec le visuel de l'œuvre."""
+    return avec_visuel(database.plans_a_venir(limite, x_utilisateur))
+
+
+def avec_visuel(plans: List[dict]) -> List[dict]:
     m = Catalogue.moteur
     out = []
-    for p in database.plans_a_venir(limite, x_utilisateur):
+    for p in plans:
         i = m.index_par_id.get(p["oeuvre_id"])
         noeud = m.noeuds[i] if i is not None else {}
-        out.append({**p, "affiche": noeud.get("affiche"), "categorie": noeud.get("categorie"),
-                    "ville": noeud.get("ville")})
+        out.append({**p, "affiche": noeud.get("affiche"), "categorie": noeud.get("categorie"), "ville": noeud.get("ville")})
     return out
+
+
+@app.get("/api/sync")
+def synchroniser_client(v: Optional[str] = Query(None, max_length=40), x_utilisateur: Optional[str] = Header(None)):
+    """Synchronisation légère (appelée toutes les 12 s par l'appli visible) : humeurs et avatars des amis,
+    plans à venir de moi et de mes amis (participants inscrits). Si la version `v` du client est à jour,
+    la réponse ne contient que {v, inchange} (quelques octets)."""
+    u = utilisateur_requis(x_utilisateur)
+    donnees = {"amis": database.amis(u["id"]), "plans": avec_visuel(database.plans_entourage(u["id"])),
+               "dispo": database.lire_utilisateur(u["id"])["dispo"]}
+    version = hashlib.sha1(json.dumps(donnees, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    if v == version:
+        return {"v": version, "inchange": True}
+    return {"v": version, "inchange": False, **donnees}
 
 
 @app.get("/api/mes-plans")

@@ -84,7 +84,10 @@ let controleur = null;
 let cleQuota = null;
 let feuille = null;     // feuille collaborative ouverte : { oeuvre, plans }
 let agenda = null;      // état de la synchronisation de l'agenda
-let social = { moi: null, amis: [], suggestions: [] };  // code, statut « Dispo », amis (serveur)
+let social = { moi: null, amis: [], suggestions: [] };
+// Synchronisation temps réel (/api/sync) : version, plans connus { id -> participants }, plans signalés « Nouveau » { id -> oeuvre_id }
+let synchro = { v: null, connus: null, enCours: false };
+const nouveaux = new Map();  // code, statut « Dispo », amis (serveur)
 let etape = "bienvenue"; // "bienvenue" à chaque ouverture, puis "questionnaire" (sans compte) ou "application"
 
 const stock = {
@@ -255,6 +258,30 @@ function avecQui(plan) {
   return `Avec ${noms.slice(0, 2).join(", ")} et ${noms.length - 2} autre${noms.length > 3 ? "s" : ""}`;
 }
 
+// ---------------- Billetterie (OpenAgenda : statut, inscription, conditions publiées) ----------------
+const BILLETS = { libre: ["Entrée libre", "door-open"], reservation: ["Sur réservation", "ticket"], complet: ["Complet", "circle-slash"] };
+const tagBillet = (o) => {
+  const b = BILLETS[o.billetterie];
+  return b ? `<span class="tag-billet billet-${o.billetterie}">${icone(b[1], 12)}${b[0]}</span>` : "";
+};
+function lienReservation(o) {
+  if (o.billetterie === "complet") return "";
+  if (o.reservation_url && lienSur(o.reservation_url)) {
+    return `<a class="bouton-ligne bouton-accent" href="${esc(o.reservation_url)}" target="_blank" rel="noopener noreferrer">${icone("external-link", 14)}Réserver</a>`;
+  }
+  if (o.reservation_tel) {
+    return `<a class="bouton-ligne" href="tel:${esc(o.reservation_tel.replace(/[^\d+]/g, ""))}">${icone("phone", 14)}<span class="chiffre">${esc(o.reservation_tel)}</span></a>`;
+  }
+  return "";
+}
+
+// ---------------- Participants et nouveautés (synchronisation) ----------------
+/** Pile d'avatars des participants d'un plan (personnages, jamais d'identifiant). */
+const pileMembres = (p, taille = 22) => (p.membres || []).length ? `<span class="pile-membres" aria-hidden="true">${p.membres.slice(0, 4)
+  .map((m) => avatar({ ...m, dispo: "indispo" }, taille)).join("")}${p.membres.length > 4 ? `<span class="pile-plus chiffre">+${p.membres.length - 4}</span>` : ""}</span>` : "";
+const pastilleNouveau = (actif) => actif ? `<span class="pastille-nouveau">Nouveau</span>` : "";
+const oeuvreANouveau = (id) => [...nouveaux.values()].some((oid) => oid === id);
+
 /** Ligne collaborative d'une carte : remplace l'ancien compteur. */
 function ligneCollab(o, { compacte = false } = {}) {
   const plan = (o.plans || [])[0];
@@ -272,8 +299,8 @@ function ligneCollab(o, { compacte = false } = {}) {
     : `<button class="bouton-ligne bouton-accent" data-action="rejoindre" data-plan="${plan.id}" data-id="${id}">${icone("users", 14)}Rejoindre</button>`;
   return `<div class="collab ${compacte ? "compacte" : ""}">
       <button class="collab-texte" data-action="ouvrir-plans" data-id="${id}">
-        <span class="collab-quand">${esc(quand)}${esc(autres)}</span>
-        <span class="tres-muet">${esc(avecQui(plan))}</span>
+        <span class="collab-quand">${esc(quand)}${esc(autres)}${pastilleNouveau(oeuvreANouveau(o.id))}</span>
+        <span class="collab-avec">${pileMembres(plan, 18)}<span class="tres-muet">${esc(avecQui(plan))}</span></span>
       </button>
       ${bouton}
     </div>`;
@@ -458,6 +485,95 @@ function rafraichirSocial() {
   }
 }
 
+// ------------------------------------------------------------------ //
+// Temps réel : smart polling (12 s, onglet visible) + réveil immédiat  //
+// ------------------------------------------------------------------ //
+const INTERVALLE_SYNC = 12000;
+/** Une saisie ou un menu ouvert : on reporte les mises à jour du DOM (jamais de saisie coupée). */
+const occupe = () => {
+  const actif = document.activeElement;
+  return (actif && /^(INPUT|TEXTAREA|SELECT)$/.test(actif.tagName)) || ($("#popover-humeur") && !$("#popover-humeur").hidden);
+};
+
+function marquerOngletNouveau() {
+  const b = document.querySelector('#onglets [data-onglet="pour-vous"]');
+  if (b) b.classList.toggle("a-nouveau", nouveaux.size > 0 && etat.onglet !== "pour-vous");
+}
+
+async function synchroniser() {
+  if (!etat.uid || synchro.enCours || document.visibilityState !== "visible" || etape !== "application") return;
+  synchro.enCours = true;
+  try {
+    const r = await api(`/api/sync${synchro.v ? `?v=${synchro.v}` : ""}`);
+    synchro.v = r.v;
+    if (r.inchange) return;
+    const avant = synchro.connus;
+    const connus = new Map(r.plans.map((p) => [p.id, p.membres.map((m) => m.prenom)]));
+    const changes = new Set();  // oeuvres dont les plans ont bougé
+    if (avant) {  // premier passage : on mémorise sans rien signaler
+      for (const p of r.plans) {
+        const anciens = avant.get(p.id);
+        if (!anciens) {
+          changes.add(p.oeuvre_id);
+          if (!p.est_auteur) { nouveaux.set(p.id, p.oeuvre_id); toast(`${p.auteur} propose « ${p.oeuvre_titre} »`); }
+        } else if (anciens.length !== p.membres.length || anciens.some((n, i) => n !== p.membres[i]?.prenom)) {
+          changes.add(p.oeuvre_id);
+          const arrive = p.membres.find((m) => !m.moi && !anciens.includes(m.prenom));
+          if (arrive) { nouveaux.set(p.id, p.oeuvre_id); toast(`${arrive.prenom} rejoint « ${p.oeuvre_titre} »`); }
+        }
+      }
+      for (const [id] of avant) if (!connus.has(id)) changes.add((r.plans.find((p) => p.id === id) || {}).oeuvre_id);
+    }
+    synchro.connus = connus;
+    // humeurs et avatars des amis
+    const amisAvant = JSON.stringify(social.amis.map((a) => [a.code, a.dispo, a.avatar]));
+    social.amis = r.amis;
+    if (r.dispo && r.dispo !== etat.dispo) etat.dispo = r.dispo;  // expiration après 12 h côté serveur
+    if (JSON.stringify(r.amis.map((a) => [a.code, a.dispo, a.avatar])) !== amisAvant && !occupe()) rafraichirSocial();
+    if (changes.size) await appliquerChangementsPlans([...changes].filter(Boolean));
+    marquerOngletNouveau();
+  } catch (_) { /* hors ligne : on réessaiera */ } finally {
+    synchro.enCours = false;
+  }
+}
+
+/** Met à jour en douceur ce qui est affiché : rangée des sessions, lignes « Avec … » des cartes, fiche ouverte. */
+async function appliquerChangementsPlans(oeuvres) {
+  if (occupe()) { synchro.v = null; return; }  // on recommencera au prochain passage
+  if (etat.onglet === "pour-vous" && $("#bloc-sessions")) {
+    try {
+      const sessions = await api("/api/plans/a-venir?limite=10");
+      donnees.sessions = sessions;
+      const bloc = $("#bloc-sessions");
+      const position = bloc.querySelector(".swiper")?.swiper?.translate || 0;
+      bloc.innerHTML = blocSessions(sessions);
+      monterComposants(bloc);
+      const sw = bloc.querySelector(".swiper")?.swiper;
+      if (sw && position) { sw.setTranslate(Math.max(position, sw.maxTranslate())); sw.updateProgress(); }
+    } catch (_) { /* on garde l'affichage */ }
+  }
+  for (const id of oeuvres) {
+    const carte = document.querySelector(`[data-carte="${CSS.escape(id)}"] .collab`);
+    const o = trouver(id);
+    if (carte && o) {
+      try {
+        o.plans = await api(`/api/plans?oeuvre_id=${encodeURIComponent(id)}`);
+        carte.outerHTML = ligneCollab(o, { compacte: carte.classList.contains("compacte") });
+      } catch (_) { /* rien */ }
+    }
+  }
+  if (feuille?.oeuvre && oeuvres.includes(feuille.oeuvre.id) && !feuille.mode) {
+    const panneau = $("#feuille .feuille-panneau");
+    const defilement = panneau?.scrollTop || 0;
+    try { feuille.plans = await api(`/api/plans?oeuvre_id=${encodeURIComponent(feuille.oeuvre.id)}`); } catch (_) { return; }
+    if (!occupe()) { rendreFeuille(); const p = $("#feuille .feuille-panneau"); if (p) p.scrollTop = defilement; }
+  }
+}
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") synchroniser(); });
+window.addEventListener("focus", () => synchroniser());
+window.addEventListener("pageshow", () => synchroniser());
+
 async function chargerSocial() {
   if (!etat.uid) return;
   try {
@@ -528,7 +644,7 @@ function carteSortie(o, i = 0) {
         <div class="ligne-info">${icone("map-pin", 15)}<span>${esc(lieu)}</span></div>
         ${o.propose_par ? `<div class="ligne-info">${icone("user", 15)}<span>Proposée par ${esc(o.propose_par)}</span></div>` : ""}
         ${o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
-        <div class="ligne-info">${icone("ticket", 15)}<span class="tarif chiffre">${esc(tarif(o))}</span></div>
+        <div class="ligne-info">${icone("ticket", 15)}<span class="tarif chiffre">${esc(tarif(o))}</span>${tagBillet(o)}</div>
         <div class="carte-sortie-pied">${ligneCollab(o)}</div>
       </div>
     </article>`;
@@ -751,10 +867,10 @@ function carteSession(p) {
   return `<article class="carte-session verre" data-carte="${esc(p.oeuvre_id)}">
       <button class="vignette" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">${vignette}</button>
       <div class="carte-session-corps">
-        <span class="surtitre">${esc(TYPES[p.oeuvre_type]?.collectif || "Sortie à plusieurs")}</span>
+        <span class="surtitre">${esc(TYPES[p.oeuvre_type]?.collectif || "Sortie à plusieurs")}${pastilleNouveau(nouveaux.has(p.id))}</span>
         <h3>${esc(p.oeuvre_titre)}</h3>
         <div class="petit"><span class="chiffre">${esc(libelleInstant(new Date(p.debut)))}</span></div>
-        <div class="tres-muet petit">${esc(avecQui(p))}</div>
+        <div class="collab-avec">${pileMembres(p)}<span class="tres-muet petit">${esc(avecQui(p))}</span></div>
         ${p.je_participe
           ? `<button class="bouton-ligne" aria-pressed="true" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">${icone("check", 14)}Inscrit</button>`
           : `<button class="bouton-ligne bouton-accent" data-action="rejoindre" data-plan="${p.id}" data-id="${esc(p.oeuvre_id)}">${icone("users", 14)}Rejoindre</button>`}
@@ -777,6 +893,9 @@ function blocsPourVous(titre, ecrans, sorties, rayon) {
   return note + (etat.dispo === "sortir" ? blocSorties + blocEcrans : blocEcrans + blocSorties);
 }
 
+const blocSessions = (sessions) => sessions.length ? rangee(sessions.map(carteSession), "rangee-sessions")
+  : `<div class="vide verre">Aucune session prévue pour l'instant. Lance la première depuis une carte : « Organiser », « Lancer une session » ou « Club de lecture ».</div>`;
+
 function ecranPourVous() {
   const d = donnees;
   const ecrans = d.ecrans || [];
@@ -792,8 +911,7 @@ function ecranPourVous() {
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
       ${blocsPourVous(titre, ecrans, sorties, rayon)}
       ${titre("Watch-parties & sessions en cours")}
-      ${sessions.length ? rangee(sessions.map(carteSession), "rangee-sessions")
-        : `<div class="vide verre">Aucune session prévue pour l'instant. Lance la première depuis une carte : « Organiser », « Lancer une session » ou « Club de lecture ».</div>`}
+      <div id="bloc-sessions">${blocSessions(sessions)}</div>
     </div>`;
 }
 
@@ -1034,7 +1152,8 @@ function detailOeuvre(o) {
         ${badges}
         ${adresse ? `<div class="ligne-info">${icone("map-pin", 15)}<span>${esc(adresse)}</span></div>` : ""}
         ${sortie && o.acces ? `<div class="ligne-info">${icone("train-front", 15)}<span>${esc(o.acces)}</span></div>` : ""}
-        <div class="detail-actions">${boutonSauver(o, { texte: true })}
+        ${sortie && o.billetterie ? `<div class="ligne-info">${tagBillet(o)}</div>` : ""}
+        <div class="detail-actions">${boutonSauver(o, { texte: true })}${sortie ? lienReservation(o) : ""}
         ${!sortie && TYPES[o.type] ? `<button class="bouton-ligne" data-action="deja-vu" data-id="${esc(o.id)}">${icone(o.type === "livre" ? "book-open" : o.type === "jeu" ? "gamepad-2" : "eye", 14)}${TYPES[o.type].vu}</button>` : ""}</div>
       </div>
     </div>
@@ -1073,8 +1192,8 @@ function rendreFeuille() {
     : plans.length ? plans.map((p) => `<div class="plan">
         <div class="plan-tete">
           <div>
-            <div class="plan-quand">${esc(libelleInstant(new Date(p.debut)))}</div>
-            <div class="tres-muet petit">${esc(avecQui(p))} · proposé par ${esc(p.auteur)}</div>
+            <div class="plan-quand">${esc(libelleInstant(new Date(p.debut)))}${pastilleNouveau(nouveaux.has(p.id))}</div>
+            <div class="collab-avec">${pileMembres(p)}<span class="tres-muet petit">${esc(avecQui(p))} · proposé par ${esc(p.auteur)}</span></div>
           </div>
           <button class="bouton-ligne ${p.je_participe ? "" : "bouton-accent"}" data-action="${p.je_participe ? "quitter" : "rejoindre"}" data-plan="${p.id}" data-id="${esc(o.id)}"
             ${p.je_participe ? 'aria-pressed="true"' : ""}>${icone(p.je_participe ? "check" : "users", 14)}${p.je_participe ? "Inscrit" : "Rejoindre"}</button>
@@ -1170,6 +1289,7 @@ function rendre() {
   ecran.className = "ecran";
   nav.innerHTML = ONGLETS.map((o) => `<button class="onglet" data-action="onglet" data-onglet="${o.id}"
       ${etat.onglet === o.id ? 'aria-current="page"' : ""}>${icone(o.icone, 22)}<span>${o.nom}</span></button>`).join("");
+  marquerOngletNouveau();
   ecran.innerHTML = ECRANS[etat.onglet]();
   monterComposants(ecran);
 }
@@ -1594,6 +1714,7 @@ const actions = {
     etape = etat.uid ? "application" : "questionnaire";  // compte connu : directement à la sélection
     haut();
     rendre();
+    synchroniser();
   },
   "retour-bienvenue"() {
     etape = "bienvenue";
@@ -1656,6 +1777,8 @@ const actions = {
     setTimeout(() => charger({ partiel: true }), 260);
   },
   async "ouvrir-plans"(b) {
+    for (const [pid, oid] of nouveaux) if (oid === b.dataset.id) nouveaux.delete(pid);
+    marquerOngletNouveau();
     let o = trouver(b.dataset.id);
     if (!o) {  // élément hors de la liste affichée (Mes envies, Mes plans) : fiche complète depuis l'API
       try { o = await api(`/api/oeuvre?id=${encodeURIComponent(b.dataset.id)}`); } catch (_) {
@@ -1982,5 +2105,6 @@ if ("serviceWorker" in navigator) {
   if (etat.uid) { charger(); chargerSocial(); } else rendre();
   fermerSplash();
   setInterval(rafraichirAgenda, 60000);  // « il y a X min » reste juste
-  setInterval(chargerSocial, 60000);     // statuts des amis
+  setInterval(synchroniser, INTERVALLE_SYNC);  // amis, humeurs, plans : seulement si l'appli est visible
+  setTimeout(synchroniser, 1500);
 })();

@@ -285,7 +285,45 @@ def occurrences_futures(timings_json, maintenant, limite):
 
 CHAMPS = ("uid,title_fr,description_fr,longdescription_fr,conditions_fr,keywords_fr,image,imagecredits,"
           "firstdate_begin,lastdate_end,timings,location_name,location_address,location_city,"
-          "location_coordinates,location_access_fr,canonicalurl,age_max,status")
+          "location_coordinates,location_access_fr,canonicalurl,age_max,status,registration")
+
+
+# ------------------------------------------------------------------ #
+# Billetterie : uniquement ce que l'organisateur a publié              #
+# ------------------------------------------------------------------ #
+LIBRE = re.compile(r"entr[ée]e\s+libre|acc[eè]s\s+libre|libre\s+acc[eè]s|entr[ée]e\s+gratuite\s+sans|sans\s+r[ée]servation|sans\s+inscription")
+RESERVATION = re.compile(r"r[ée]servation|r[ée]server|sur\s+inscription|inscription\s+(obligatoire|conseill[ée]e|requise|gratuite|pr[ée]alable)"
+                         r"|billetterie|places?\s+limit[ée]es|nombre\s+de\s+places")
+
+
+def _json(valeur):
+    if isinstance(valeur, str):
+        try:
+            return json.loads(valeur)
+        except ValueError:
+            return None
+    return valeur
+
+
+def billetterie(e: dict):
+    """(etat, url, tel) avec etat = « complet » (statut OpenAgenda 5), « libre » (conditions explicites),
+    « reservation » (lien ou contact d'inscription publié, ou conditions qui le disent), sinon None.
+    Rien n'est déduit du prix : un événement gratuit peut être sur réservation."""
+    statut = _json(e.get("status")) or {}
+    inscription = _json(e.get("registration")) or []
+    url = next((r.get("value") for r in inscription if isinstance(r, dict) and r.get("type") == "link"
+                and str(r.get("value", "")).startswith("https://")), None)
+    tel = next((r.get("value") for r in inscription if isinstance(r, dict) and r.get("type") == "phone"), None)
+    conditions = (e.get("conditions_fr") or "").lower()
+    if isinstance(statut, dict) and statut.get("id") == 5:
+        etat = "complet"
+    elif LIBRE.search(conditions) and not re.search(r"r[ée]servation\s+(obligatoire|indispensable|requise)", conditions):
+        etat = "libre"
+    elif url or tel or RESERVATION.search(conditions):
+        etat = "reservation"
+    else:
+        etat = None
+    return etat, url, (str(tel)[:30] if tel else None)
 
 
 def evenements_ville(ville, lat, lon, jours, maintenant):
@@ -323,6 +361,7 @@ def evenements_ville(ville, lat, lon, jours, maintenant):
         fin = datetime.fromisoformat(e["lastdate_end"]).astimezone(PARIS)
         premiere = max(datetime.fromisoformat(occ[0][0]), maintenant).astimezone(PARIS)
         prix, libelle = tarif(e.get("conditions_fr"))
+        billet, url_resa, tel_resa = billetterie(e)
         retenus.append({
             "id": f"oa-{e['uid']}",
             "titre": titre,
@@ -346,6 +385,10 @@ def evenements_ville(ville, lat, lon, jours, maintenant):
             "image": e.get("image"),
             "credit_image": e.get("imagecredits"),
             "url": e.get("canonicalurl"),
+            "conditions": (e.get("conditions_fr") or "").strip()[:300] or None,  # aussi pour prix_num (build_graph)
+            "billetterie": billet,          # complet | libre | reservation | None
+            "reservation_url": url_resa,    # lien publié par l'organisateur (https uniquement)
+            "reservation_tel": tel_resa,
         })
     return retenus, len(bruts)
 

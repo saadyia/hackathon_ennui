@@ -1126,3 +1126,38 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
 .avatar.anneau { box-shadow: 0 0 0 2px var(--fond), 0 0 0 3.5px rgba(232, 217, 181, 0.9), 0 0 18px 2px rgba(232, 217, 181, 0.28); }
 .studio-option svg { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .studio-options { max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+
+/* ================================================================== */
+/* Billetterie, participants, nouveautés en temps réel                 */
+/* ================================================================== */
+.tag-billet {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 2px 8px; border-radius: 999px;
+  font-family: var(--police-texte); font-size: 11px; font-weight: 500; letter-spacing: 0; white-space: nowrap;
+  color: var(--texte-2); border: 1px solid var(--trait-fort); background: rgba(255, 255, 255, 0.03);
+}
+.ligne-info > .tag-billet:first-child { margin-left: 0; }
+.billet-libre { color: var(--texte); }
+.billet-reservation { color: var(--texte); border-color: rgba(255, 255, 255, 0.24); }
+.billet-complet { color: var(--texte-3); background: rgba(255, 255, 255, 0.06); text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.25); }
+.detail-actions a.bouton-ligne { text-decoration: none; }
+
+.collab-avec { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.collab-avec .tres-muet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pile-membres { display: inline-flex; flex: none; align-items: center; }
+.pile-membres .avatar { margin-left: -6px; box-shadow: 0 0 0 1.5px var(--fond-2); }
+.pile-membres .avatar:first-child { margin-left: 0; }
+.pile-membres .avatar::after { display: none; }
+.pile-plus { margin-left: 4px; font-size: 10.5px; color: var(--texte-3); }
+
+.pastille-nouveau {
+  display: inline-flex; align-items: center; margin-left: 8px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+  font-family: var(--police-texte); font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: none;
+  color: var(--fond); background: var(--accent); animation: pastille-arrivee 0.5s var(--ressort) both;
+}
+@keyframes pastille-arrivee { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+.onglet.a-nouveau { position: relative; }
+.onglet.a-nouveau::after {
+  content: ""; position: absolute; top: 8px; left: calc(50% + 8px); width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--fond), 0 0 10px rgba(232, 217, 181, 0.6);
+}
+@media (prefers-reduced-motion: reduce) { .pastille-nouveau { animation: none; } }

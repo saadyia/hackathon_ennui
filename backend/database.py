@@ -399,21 +399,37 @@ def _plans(con, where: str, params: Iterable, uid: Optional[str], avec_messages:
     rows = con.execute(f"""
         SELECT p.*, u.prenom AS auteur_prenom FROM plans p JOIN utilisateurs u ON u.id = p.auteur_id
         WHERE {where} AND p.debut >= ? ORDER BY p.debut""", (*params, _limite_passe())).fetchall()
+    if not rows:
+        return []
+    # participants de tous les plans en UNE requête (important avec une base distante : Neon)
+    ids = [r["id"] for r in rows]
+    membres: Dict[int, list] = {i: [] for i in ids}
+    for m in con.execute(f"""SELECT pa.plan_id, u.id, u.prenom, u.avatar FROM participants pa
+                             JOIN utilisateurs u ON u.id = pa.utilisateur_id
+                             WHERE pa.plan_id IN ({",".join("?" * len(ids))})
+                             ORDER BY pa.rejoint_le, pa.utilisateur_id""", ids).fetchall():
+        membres[m["plan_id"]].append(m)
+    messages: Dict[int, list] = {i: [] for i in ids}
+    if avec_messages:
+        for m in con.execute(f"""SELECT m.plan_id, u.prenom, m.texte, m.cree_le FROM messages m
+                                 JOIN utilisateurs u ON u.id = m.utilisateur_id
+                                 WHERE m.plan_id IN ({",".join("?" * len(ids))}) ORDER BY m.id""", ids).fetchall():
+            messages[m["plan_id"]].append({"prenom": m["prenom"], "texte": m["texte"], "cree_le": m["cree_le"]})
     plans = []
     for r in rows:
-        parts = con.execute("""SELECT u.id, u.prenom FROM participants pa JOIN utilisateurs u ON u.id = pa.utilisateur_id
-                               WHERE pa.plan_id = ? ORDER BY pa.rejoint_le, pa.utilisateur_id""", (r["id"],)).fetchall()
+        parts = membres[r["id"]]
         plan = {
             "id": r["id"], "oeuvre_id": r["oeuvre_id"], "oeuvre_titre": r["oeuvre_titre"],
             "oeuvre_type": r["oeuvre_type"], "debut": r["debut"], "rendez_vous": r["rendez_vous"],
             "message": r["message"], "auteur": r["auteur_prenom"], "est_auteur": r["auteur_id"] == uid,
+            "cree_le": r["cree_le"],
             "participants": [p["prenom"] for p in parts],
+            # avatars des participants (jamais leur identifiant : il vaut connexion)
+            "membres": [{"prenom": p["prenom"], "avatar": json.loads(p["avatar"] or "null"), "moi": p["id"] == uid} for p in parts],
             "je_participe": any(p["id"] == uid for p in parts),
         }
         if avec_messages:
-            plan["messages"] = [dict(m) for m in con.execute(
-                """SELECT u.prenom, m.texte, m.cree_le FROM messages m JOIN utilisateurs u ON u.id = m.utilisateur_id
-                   WHERE m.plan_id = ? ORDER BY m.id""", (r["id"],)).fetchall()]
+            plan["messages"] = messages[r["id"]]
         plans.append(plan)
     return plans
 
@@ -439,6 +455,14 @@ def plans_detail(oeuvre_id: str, uid: Optional[str]) -> List[dict]:
 def plans_a_venir(limite: int, uid: Optional[str]) -> List[dict]:
     with connexion() as con:
         return _plans(con, "p.debut >= ? AND 1 = 1", (maintenant_iso(),), uid, avec_messages=False)[:limite]
+
+
+def plans_entourage(uid: str) -> List[dict]:
+    """Plans à venir où je suis inscrit ou où un de mes amis est inscrit (créés ou rejoints)."""
+    with connexion() as con:
+        return _plans(con, """p.id IN (SELECT pa.plan_id FROM participants pa WHERE pa.utilisateur_id = ?
+                                 OR pa.utilisateur_id IN (SELECT ami_id FROM amities WHERE utilisateur_id = ?))""",
+                      (uid, uid), uid, avec_messages=False)
 
 
 def mes_plans(uid: str) -> List[dict]:

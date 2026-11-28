@@ -381,6 +381,9 @@ def metadonnees_sorties(sorties, decalage):
             # description complète (OpenAgenda, texte long) pour la fiche ; à défaut la description courte
             "resume": s.get("description_longue") or s.get("description"),
             "url": s.get("url"),
+            "billetterie": s.get("billetterie"),          # complet | libre | reservation | None (fetch_france.billetterie)
+            "reservation_url": s.get("reservation_url"),
+            "reservation_tel": s.get("reservation_tel"),
             "source": s.get("source", "openagenda"),
             "propose_par": s.get("propose_par"),
             "plateformes": [],

@@ -59,6 +59,11 @@ frontend/
 - Filtres contextuels : « Temps disponible » seulement dans Films & Séries et Sorties (`dureeVisible()`) ; jeux : Solo / Multijoueur (co-op inclus).
 - « Mes envies » : marque-page (`boutonSauver`, action `sauver`) sur les cartes et dans la fiche ; `etat.envies` synchronisé avec le compte ;
   section dans Profil ; fiche rouverte via `/api/oeuvre?id=` si l'élément n'est plus affiché.
+- Temps réel : `synchroniser()` (12 s, onglet visible, réveil sur `visibilitychange` / `focus` / `pageshow`),
+  `appliquerChangementsPlans()` (mises à jour ciblées, reportées si `occupe()`), `nouveaux` (Map plan -> œuvre) ->
+  `pastilleNouveau()`, `marquerOngletNouveau()` ; `pileMembres()` (avatars des participants).
+- Billetterie des sorties : `tagBillet(o)` (Entrée libre, Sur réservation, Complet) sur les cartes et la fiche,
+  `lienReservation(o)` (« Réserver » en https, ou téléphone).
 - États vides : `.etat-vide` + bouton « Réinitialiser les filtres » (budget, temps, mode, envies, horizon « Dans le mois »).
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).
   CartoDB Dark Matter exige désormais une clé (filigrane « API KEY REQUIRED ») : tuiles OpenStreetMap + `.tuiles-sombres`.

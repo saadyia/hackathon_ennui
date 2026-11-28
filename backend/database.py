@@ -105,17 +105,22 @@ COLONNES_UTILISATEURS = {
     "dispo": "TEXT NOT NULL DEFAULT 'indispo'",
     "dispo_le": "TEXT",
     "demo": "INTEGER NOT NULL DEFAULT 0",  # profil de démonstration (fictif, signalé comme tel)
+    "avatar": "TEXT",                    # JSON {bg, hair, accessory, expression} ; NULL = dérivé du prénom côté client
 }
 
 # Profils fictifs pour tester les interactions sociales tout de suite. Ils sont marqués « Démo »
 # dans l'interface et ne rejoignent aucun plan : on n'invente ni participants ni activité.
 PROFILS_DEMO = [
-    ("demo-camille", "Camille", "Camille#101", "Rennes", 48.1113, -1.6800, "sortir"),
-    ("demo-lucas", "Lucas", "Lucas#214", "Rennes", 48.1113, -1.6800, "distance"),
-    ("demo-ines", "Inès", "Inès#327", "Nantes", 47.2184, -1.5536, "sortir"),
-    ("demo-thomas", "Thomas", "Thomas#438", "Lyon", 45.7640, 4.8357, "indispo"),
-    ("demo-yasmine", "Yasmine", "Yasmine#549", "Paris", 48.8566, 2.3522, "distance"),
+    ("demo-camille", "Camille", "Camille#101", "Rennes", 48.1113, -1.6800, "sortir",
+     {"bg": "prune", "hair": "chignon", "accessory": "lunettes-rondes", "expression": "sourire"}),
+    ("demo-lucas", "Lucas", "Lucas#214", "Rennes", 48.1113, -1.6800, "distance",
+     {"bg": "acier", "hair": "court", "accessory": "casque", "expression": "concentre"}),
+    ("demo-ines", "Inès", "Inès#327", "Nantes", 47.2184, -1.5536, "sortir",
+     {"bg": "emeraude", "hair": "boucle", "accessory": "aucun", "expression": "curieux"}),
+    ("demo-thomas", "Thomas", "Thomas#438", "Lyon", 45.7640, 4.8357, "distance",
+     {"bg": "ambre", "hair": "frange", "accessory": "bonnet", "expression": "serein"}),
 ]
+DEMO_RETIRES = ("demo-yasmine",)  # anciens profils de démo (la liste en compte désormais 4)
 
 
 def initialiser(chemin: Path = None):
@@ -130,11 +135,14 @@ def initialiser(chemin: Path = None):
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS utilisateurs_code ON utilisateurs(code COLLATE NOCASE)")
         for (uid, prenom) in con.execute("SELECT id, prenom FROM utilisateurs WHERE code IS NULL").fetchall():
             con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, prenom), uid))
-        for uid, prenom, code, ville, lat, lon, dispo in PROFILS_DEMO:
-            con.execute("""INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, dispo, dispo_le, demo)
-                           VALUES (?, ?, ?, '{}', ?, ?, ?, NULL, 1)
-                           ON CONFLICT(id) DO UPDATE SET dispo = excluded.dispo, demo = 1""",
-                        (uid, prenom, json.dumps({"nom": ville, "lat": lat, "lon": lon}), maintenant_iso(), code, dispo))
+        for uid, prenom, code, ville, lat, lon, dispo, avatar in PROFILS_DEMO:
+            con.execute("""INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, dispo, dispo_le, demo, avatar)
+                           VALUES (?, ?, ?, '{}', ?, ?, ?, NULL, 1, ?)
+                           ON CONFLICT(id) DO UPDATE SET dispo = excluded.dispo, avatar = excluded.avatar, demo = 1""",
+                        (uid, prenom, json.dumps({"nom": ville, "lat": lat, "lon": lon}), maintenant_iso(), code, dispo,
+                         json.dumps(avatar)))
+        for uid in DEMO_RETIRES:  # amitiés supprimées en cascade
+            con.execute("DELETE FROM utilisateurs WHERE id = ?", (uid,))
 
 
 def _nouveau_code(con, prenom: str) -> str:
@@ -168,21 +176,23 @@ def dispo_actuelle(row) -> str:
 def _utilisateur(row) -> dict:
     return {"id": row["id"], "prenom": row["prenom"], "ville": json.loads(row["ville"] or "null"),
             "prefs": json.loads(row["prefs"]), "cree_le": row["cree_le"],
-            "code": row["code"], "dispo": dispo_actuelle(row)}
+            "code": row["code"], "dispo": dispo_actuelle(row), "avatar": json.loads(row["avatar"] or "null")}
 
 
 def _public(row, ami: bool = False) -> dict:
     """Ce que les autres voient d'un profil : jamais le jeton id (il vaut authentification)."""
     ville = json.loads(row["ville"] or "null") or {}
     return {"code": row["code"], "prenom": row["prenom"], "ville": ville.get("nom"),
-            "dispo": dispo_actuelle(row), "demo": bool(row["demo"]), "ami": ami}
+            "dispo": dispo_actuelle(row), "demo": bool(row["demo"]), "ami": ami,
+            "avatar": json.loads(row["avatar"] or "null")}
 
 
-def creer_utilisateur(prenom: str, ville: Optional[dict], prefs: dict) -> dict:
+def creer_utilisateur(prenom: str, ville: Optional[dict], prefs: dict, avatar: Optional[dict] = None) -> dict:
     uid = secrets.token_urlsafe(16)
     with connexion() as con:
-        con.execute("INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code) VALUES (?, ?, ?, ?, ?, ?)",
-                    (uid, prenom, json.dumps(ville), json.dumps(prefs), maintenant_iso(), _nouveau_code(con, prenom)))
+        con.execute("INSERT INTO utilisateurs (id, prenom, ville, prefs, cree_le, code, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (uid, prenom, json.dumps(ville), json.dumps(prefs), maintenant_iso(), _nouveau_code(con, prenom),
+                     json.dumps(avatar) if avatar else None))
     return lire_utilisateur(uid)
 
 
@@ -199,6 +209,12 @@ def mettre_a_jour_utilisateur(uid: str, prenom: str, ville: Optional[dict], pref
                     (prenom, json.dumps(ville), json.dumps(prefs), uid))
         if ancien and ancien["prenom"] != prenom:  # le code suit le prénom
             con.execute("UPDATE utilisateurs SET code = ? WHERE id = ?", (_nouveau_code(con, prenom), uid))
+    return lire_utilisateur(uid)
+
+
+def changer_avatar(uid: str, avatar: dict) -> Optional[dict]:
+    with connexion() as con:
+        con.execute("UPDATE utilisateurs SET avatar = ? WHERE id = ?", (json.dumps(avatar), uid))
     return lire_utilisateur(uid)
 
 

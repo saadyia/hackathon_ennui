@@ -59,9 +59,12 @@ Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `pl
 - `POST /api/utilisateurs` `{prenom, ville, prefs}` → `{id, prenom, ville, prefs, cree_le}`
 - `GET /api/utilisateurs/moi` · `PUT /api/utilisateurs/moi` `{prenom, ville, prefs}` (compte requis) ; la réponse inclut `code`
   (« Prénom#123 », change avec le prénom) et `dispo` (statut actuel)
-- `PUT /api/utilisateurs/moi/dispo` `{statut: indispo | sortir | distance}` : statut du moment, revient à `indispo` après 12 h
+- `PUT /api/utilisateurs/moi/dispo` `{statut: indispo | sortir | distance}` : humeur du moment (Mode ermite, Partant pour bouger,
+  Chill à distance), revient à `indispo` après 12 h
+- `PUT /api/utilisateurs/moi/avatar` `{bg, hair, accessory, expression}` (valeurs fermées, voir `Avatar` dans `main.py`) ;
+  `POST /api/utilisateurs` accepte aussi `avatar`. `avatar: null` = avatar déduit du prénom côté client.
 
-## Amis (compte requis ; un profil public = `{code, prenom, ville, dispo, demo, ami}`, jamais l'`id`)
+## Amis (compte requis ; un profil public = `{code, prenom, ville, dispo, demo, ami, avatar}`, jamais l'`id`)
 - `GET /api/amis` → `{amis: [...], suggestions: [...]}` (amis triés : dispo pour sortir, à distance, indisponibles ; suggestions = profils de démo non ajoutés)
 - `GET /api/amis/recherche?q=` : code exact (`Camille#101`, sans casse ni accents) ou début de prénom ; soi-même exclu ; 10 au plus
 - `POST /api/amis` `{code}` : amitié immédiate et réciproque (404 si code inconnu) · `POST /api/amis/retirer` `{code}`

@@ -30,10 +30,13 @@ frontend/
   injecté dans `.marque` au démarrage (`LOGO`) et en ligne dans le splash de `index.html`. Icônes PWA dérivées (`icone.svg`, PNG).
 - Splash : `#splash` dans `index.html` (« ofk » glisse vers le haut en fondu, le « ? » rebondit en `cubic-bezier(0.34,1.56,0.64,1)` et luit,
   sous-titre « On fait quoi ? » à 0,8 s), retiré par `fermerSplash()` après le premier rendu, 1,4 s minimum.
-- Amis : `social` (code, statut, amis, suggestions) chargé par `chargerSocial()` (démarrage, connexion, toutes les 60 s) et mis à jour
-  en place (`rafraichirSocial`) ; `rangeeAvatars()` (initiales dans des cercles translucides, pastille de statut) + `selecteurDispo()`
-  en haut de Pour vous, salut `salutation()` (Bonjour / Bonsoir dès 18 h) ; tiroir `feuille.mode === "amis"` (`panneauAmis`) ;
-  `blocCode()` dans Profil (« Copier mon code »).
+- Avatars : module `assets/avatar.js` (`renderAvatarSVG`, `AVATAR_OPTIONS`, `avatarDe`, `avatarDepuisPrenom`, `avatarAleatoire`),
+  importé par `app.js`. `etat.avatar` (null = déduit du prénom) ; anneau lumineux `.avatar.anneau` si l'humeur est active.
+- Amis : `social` (code, amis, suggestions) + `etat.dispo` chargés par `chargerSocial()` (démarrage, connexion, toutes les 60 s),
+  mis à jour en place (`rafraichirSocial`). `rangeeAvatars()` en haut de Pour vous : moi (badge +, popover `#popover-humeur`),
+  amis actifs (tap = étiquette d'humeur), « Amis ». `blocsPourVous()` ordonne les rangées selon l'humeur. Tiroirs
+  `feuille.mode` `"amis"` (`panneauAmis`) et `"avatar"` (`panneauStudio` : aperçu, Aléatoire, onglets Fond / Coupe / Accessoire /
+  Expression). `blocCode()` dans Profil ; `apercuInscription()` dans le questionnaire.
 - Profondeur : halo `.app::before`, verre dépoli `--verre` + `backdrop-filter`, bordures `--trait`.
 - Ratios stricts : `.visuel.affiche` 2/3 (films, séries, livres), `.visuel.paysage` 16/10 (sorties, jeux), `.voile` pour la lisibilité.
 

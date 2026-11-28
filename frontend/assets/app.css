@@ -1012,3 +1012,83 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
   color: var(--texte-2); border: 1px solid var(--trait-fort); vertical-align: 1px; }
 .ligne-ami-nom { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ligne-ami-nom .tag-demo { margin-left: 0; flex: none; }
+
+/* ================================================================== */
+/* Avatars SVG, humeur du moment, studio                               */
+/* ================================================================== */
+.avatar {
+  width: var(--taille, 48px); height: var(--taille, 48px); padding: 0; font-size: 0;
+  background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transition: box-shadow 0.4s var(--ressort);
+}
+.avatar .avatar-svg { display: block; width: 100%; height: 100%; border-radius: 50%; }
+/* Anneau lumineux : la personne est active (Partant pour bouger, Chill à distance) */
+.avatar.anneau {
+  box-shadow: 0 0 0 2px var(--fond), 0 0 0 3.5px rgba(232, 217, 181, 0.9), 0 0 18px 2px rgba(232, 217, 181, 0.28);
+}
+.avatar-ajout { display: grid; place-items: center; color: var(--texte-2); box-shadow: none;
+  border: 1px dashed rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.03); }
+
+.zone-sociale { position: relative; z-index: 5; }
+.rangee-avatars { gap: 12px; margin: 18px -4px 4px; padding: 6px 4px 2px; }
+.ami-bulle { width: 62px; gap: 7px; }
+.avatar-cadre { position: relative; display: block; }
+.badge-plus {
+  position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--fond); background: #F4F4F5; box-shadow: 0 0 0 2px var(--fond);
+}
+.badge-plus .icone { stroke-width: 2; }
+.ami-tag { display: none; max-width: 76px; margin-top: -3px; padding: 2px 7px; border-radius: 999px; font-size: 10px; line-height: 1.3;
+  color: var(--accent); border: 1px solid rgba(232, 217, 181, 0.35); background: rgba(232, 217, 181, 0.08); text-align: center; }
+.ami-bulle.montre-tag .ami-tag { display: block; animation: apparition 0.25s var(--ressort) both; }
+.ami-bulle.montre-tag { width: 80px; }
+
+.popover-humeur {
+  position: absolute; top: calc(100% + 4px); left: 0; width: min(300px, 100%); padding: 10px; border-radius: 18px;
+  display: grid; gap: 4px;
+  background: rgba(18, 23, 38, 0.86); border: 1px solid var(--trait); border-top-color: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform-origin: 30px 0;
+}
+.popover-humeur[hidden] { display: none; }
+.popover-humeur .surtitre { padding: 4px 8px 6px; }
+.popover-humeur button { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; text-align: left; color: var(--texte-2); }
+.popover-humeur button span { flex: 1; display: grid; gap: 1px; }
+.popover-humeur button b { font-weight: 500; font-size: 14px; color: var(--texte); }
+.popover-humeur button small { font-size: 12px; color: var(--texte-3); }
+.popover-humeur button[aria-checked="true"] { background: rgba(255, 255, 255, 0.06); }
+.popover-humeur button[aria-checked="true"] > .icone:first-child, .popover-humeur .coche { color: var(--accent); }
+@media (hover: hover) { .popover-humeur button:hover { background: rgba(255, 255, 255, 0.05); } }
+
+.humeur-note { display: flex; align-items: center; gap: 7px; margin: 26px 0 -8px; font-size: 12.5px; color: var(--accent); }
+
+/* Questionnaire : avatar déduit du prénom */
+.avatar-inscription { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+.avatar-inscription-actions { display: grid; gap: 8px; }
+.avatar-inscription-actions .puces { gap: 8px; }
+
+/* Profil : identité */
+.mon-code { gap: 12px 14px; }
+.mon-code-texte { display: grid; gap: 2px; margin-right: auto; }
+.mon-code-texte b { font-family: var(--police-titres); font-weight: 600; font-size: 16px; }
+.mon-code-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.avatar-profil { border-radius: 50%; }
+
+/* Studio d'avatar */
+.studio { display: grid; justify-items: center; }
+.studio .titre-detail { justify-self: start; }
+.studio-apercu { margin-top: 18px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 24px 60px -20px rgba(0, 0, 0, 0.8); line-height: 0; }
+.studio-aleatoire { margin-top: 14px; }
+.studio .segment { width: 100%; }
+.studio-options { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 18px; }
+.studio-option { display: grid; justify-items: center; gap: 6px; padding: 10px 4px 8px; border-radius: 14px; border: 1px solid transparent;
+  font-size: 11px; color: var(--texte-2); line-height: 1.2; text-align: center; }
+.studio-option svg { border-radius: 50%; }
+.studio-option[aria-pressed="true"] { border-color: rgba(232, 217, 181, 0.5); background: rgba(232, 217, 181, 0.06); color: var(--texte); }
+.studio .bouton-principal { width: 100%; }
+.popover-humeur { background: rgba(16, 21, 35, 0.97); }
+.rangee-avatars { align-items: flex-start; }
+.zone-sociale { z-index: 30; }
+.popover-humeur { z-index: 30; background: #121826; -webkit-backdrop-filter: none; backdrop-filter: none; }

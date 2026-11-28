@@ -1,5 +1,7 @@
 // ennui. — application (JavaScript vanilla, module ES, aucune dépendance externe).
 // Librairies locales (frontend/vendor) chargées par index.html : lucide, noUiSlider, Swiper, gsap.
+import { renderAvatarSVG, AVATAR_OPTIONS, avatarDe, avatarAleatoire } from "./avatar.js";
+
 const { lucide, noUiSlider, Swiper, gsap } = window;
 const MOUVEMENT = !window.matchMedia("(prefers-reduced-motion: reduce)").matches && Boolean(gsap);
 
@@ -67,6 +69,8 @@ const ETAT_INITIAL = () => ({
   horizon: "semaine",
   dejaVus: [],          // [{ id, titre, type }]
   envies: [],           // « Mes envies » : [{ id, titre, type, affiche, ... }] mis de côté
+  avatar: null,         // { bg, hair, accessory, expression } ; null = déduit du prénom
+  dispo: "indispo",     // humeur du moment (copie locale du serveur)
   decouverte: 0.3,
   energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
   onglet: "pour-vous",
@@ -283,39 +287,46 @@ function ligneJeu(o) {
 }
 
 // ------------------------------------------------------------------ //
-// Amis et statut « Dispo »                                             //
+// Avatars, humeur du moment et amis                                    //
 // ------------------------------------------------------------------ //
+// Humeur = statut visible par les amis (serveur : indispo | sortir | distance, expire après 12 h).
 const DISPOS = [
-  { id: "indispo", nom: "Indisponible", court: "Indispo", icone: "moon" },
-  { id: "sortir", nom: "Dispo pour sortir", court: "Pour sortir", icone: "footprints" },
-  { id: "distance", nom: "Dispo à distance", court: "À distance", icone: "video" },
+  { id: "sortir", nom: "Partant pour bouger", aide: "Les sorties d'abord", icone: "footprints" },
+  { id: "distance", nom: "Chill à distance", aide: "Films, séries et jeux d'abord", icone: "sofa" },
+  { id: "indispo", nom: "Mode ermite", aide: "Statut discret", icone: "moon" },
 ];
-const nomDispo = (id) => (DISPOS.find((d) => d.id === id) || DISPOS[0]).nom;
+const nomDispo = (id) => (DISPOS.find((d) => d.id === id) || DISPOS[2]).nom;
+const actif = (dispo) => dispo === "sortir" || dispo === "distance";
 /** « Bonjour » jusqu'à 18 h, « Bonsoir » ensuite (heure de Paris). */
 const salutation = () => { const h = heureNum(new Date()); return h >= 18 || h < 5 ? "Bonsoir" : "Bonjour"; };
-const initiales = (prenom) => (prenom || "?").split(/[\s-]+/).filter(Boolean).slice(0, 2).map((m) => m[0]).join("").toUpperCase();
-const avatar = (a, taille = "") => `<span class="avatar ${taille} dispo-${esc(a.dispo)}" aria-hidden="true">${esc(initiales(a.prenom))}<i class="pastille"></i></span>`;
+const moi = () => ({ prenom: etat.prenom, avatar: etat.avatar, dispo: etat.dispo || "indispo" });
 
-/** En haut de « Pour vous » : amis disponibles en ce moment (initiales dans des cercles translucides). */
+/** Avatar SVG (renderAvatarSVG) avec anneau lumineux si la personne est active. */
+const avatar = (p, taille = 48, classe = "") => `<span class="avatar ${classe} ${actif(p.dispo) ? "anneau" : ""}" aria-hidden="true"
+    style="--taille:${taille}px">${renderAvatarSVG(avatarDe(p), taille)}</span>`;
+
+/** Rangée sociale en haut de « Pour vous » : moi (humeur en un tap), puis les amis actifs, puis « Amis ». */
 function rangeeAvatars() {
-  const dispos = social.amis.filter((a) => a.dispo !== "indispo");
-  return `<div class="rangee-avatars defilement" id="rangee-avatars" role="list" aria-label="Amis disponibles">
-      ${dispos.map((a) => `<button class="ami-bulle" role="listitem" data-action="ouvrir-amis" title="${esc(a.prenom)} · ${esc(nomDispo(a.dispo))}">
-          ${avatar(a)}<span class="ami-nom">${esc(a.prenom)}</span></button>`).join("")}
-      <button class="ami-bulle" data-action="ouvrir-amis" aria-label="Amis">
-        <span class="avatar avatar-ajout">${icone(social.amis.length ? "users" : "user-plus", 18)}</span>
-        <span class="ami-nom">${social.amis.length ? (dispos.length ? "Amis" : "Personne dispo") : "Ajouter"}</span></button>
-    </div>`;
-}
-
-/** Statut du moment, visible par ses amis : Indisponible, Dispo pour sortir, Dispo à distance. */
-function selecteurDispo() {
-  const actuel = social.moi?.dispo || "indispo";
-  const index = DISPOS.findIndex((d) => d.id === actuel);
-  return `<div class="segment segment-3 segment-pilule selecteur-dispo" id="selecteur-dispo" role="radiogroup" aria-label="Mon statut" style="--index:${index}">
-      <span class="segment-indicateur" aria-hidden="true"></span>
-      ${DISPOS.map((d) => `<button role="radio" data-action="dispo" data-valeur="${d.id}" aria-checked="${d.id === actuel}" aria-pressed="${d.id === actuel}">
-        ${icone(d.icone, 14)}${d.court}</button>`).join("")}
+  const actifs = social.amis.filter((a) => actif(a.dispo));
+  const m = moi();
+  return `<div class="zone-sociale" id="zone-sociale">
+      <div class="rangee-avatars defilement" role="list" aria-label="Toi et tes amis">
+        <button class="ami-bulle bulle-moi" role="listitem" data-action="humeur" aria-haspopup="true" aria-expanded="false"
+          aria-label="Mon humeur : ${esc(nomDispo(m.dispo))}">
+          <span class="avatar-cadre">${avatar(m, 52)}<span class="badge-plus">${icone("plus", 11)}</span></span>
+          <span class="ami-nom">Moi</span>
+        </button>
+        ${actifs.map((a) => `<button class="ami-bulle" role="listitem" data-action="voir-ami" aria-label="${esc(a.prenom)} · ${esc(nomDispo(a.dispo))}">
+            ${avatar(a, 52)}<span class="ami-nom">${esc(a.prenom)}</span><span class="ami-tag">${esc(nomDispo(a.dispo))}</span></button>`).join("")}
+        <button class="ami-bulle" data-action="ouvrir-amis" aria-label="Amis">
+          <span class="avatar avatar-ajout" style="--taille:52px">${icone(social.amis.length ? "users" : "user-plus", 18)}</span>
+          <span class="ami-nom">${social.amis.length ? "Amis" : "Ajouter"}</span></button>
+      </div>
+      <div class="popover-humeur" id="popover-humeur" role="menu" hidden>
+        <span class="surtitre">Mon humeur du moment</span>
+        ${DISPOS.map((d) => `<button role="menuitemradio" aria-checked="${m.dispo === d.id}" data-action="choisir-humeur" data-valeur="${d.id}">
+            ${icone(d.icone, 18)}<span><b>${d.nom}</b><small>${d.aide}</small></span>${m.dispo === d.id ? icone("check", 16, "coche") : ""}</button>`).join("")}
+      </div>
     </div>`;
 }
 
@@ -323,7 +334,7 @@ function ligneAmi(a) {
   const bouton = a.ami
     ? `<button class="bouton-ligne" data-action="retirer-ami" data-code="${esc(a.code)}" aria-label="Retirer ${esc(a.prenom)}">${icone("user-minus", 14)}Retirer</button>`
     : `<button class="bouton-ligne bouton-accent" data-action="ajouter-ami" data-code="${esc(a.code)}">${icone("user-plus", 14)}Ajouter</button>`;
-  return `<li class="ligne-ami">${avatar(a, "avatar-s")}
+  return `<li class="ligne-ami">${avatar(a, 42)}
       <div class="ligne-ami-texte">
         <span class="ligne-ami-nom"><b>${esc(a.prenom)}</b>${a.demo ? '<span class="tag-demo">Démo</span>' : ""}</span>
         <span class="tres-muet petit">${esc(a.code)}${a.ville ? ` · ${esc(a.ville)}` : ""}</span>
@@ -342,8 +353,8 @@ function panneauAmis() {
       <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
       <div class="feuille-corps">
         <h2 class="titre-detail">Amis</h2>
-        <p class="muet petit" style="margin:6px 0 0">Ajoute tes amis avec leur code ou leur prénom. Ils voient ton statut du moment, tu vois le leur.</p>
-        ${social.moi ? `<div class="mon-code verre"><span class="tres-muet petit">Mon code</span><b>${esc(social.moi.code)}</b>
+        <p class="muet petit" style="margin:6px 0 0">Ajoute tes amis avec leur code ou leur prénom. Ils voient ton humeur du moment, tu vois la leur.</p>
+        ${social.moi ? `<div class="mon-code verre">${avatar(moi(), 40)}<span class="mon-code-texte"><span class="tres-muet petit">Mon code</span><b>${esc(social.moi.code)}</b></span>
           <button class="bouton-ligne" data-action="copier-code">${icone("copy", 14)}Copier</button></div>` : ""}
         <label class="champ-recherche">${icone("search", 16, "tres-muet")}
           <input class="champ" id="recherche-ami" maxlength="40" autocomplete="off" placeholder="Prénom ou code, ex. Camille#101" value="${esc(f.q || "")}">
@@ -363,14 +374,66 @@ function panneauAmis() {
     </section>`;
 }
 
-/** Met à jour en place ce qui dépend des amis (sans recharger l'écran). */
+// ---------------- Studio d'avatar (tiroir) ----------------
+const ONGLETS_STUDIO = [["bg", "Fond"], ["hair", "Coupe"], ["accessory", "Accessoire"], ["expression", "Expression"]];
+
+function panneauStudio() {
+  const f = feuille;
+  const index = ONGLETS_STUDIO.findIndex(([k]) => k === f.onglet);
+  return `<div class="feuille-fond" data-action="fermer-feuille"></div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Studio d'avatar">
+      <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
+      <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+      <div class="feuille-corps studio">
+        <h2 class="titre-detail">Studio d'avatar</h2>
+        <div class="studio-apercu" id="studio-apercu">${renderAvatarSVG(f.config, 148)}</div>
+        <button class="bouton-ligne studio-aleatoire" data-action="studio-aleatoire">${icone("shuffle", 14)}Aléatoire</button>
+        <div class="segment segment-4 segment-pilule" role="tablist" aria-label="Réglages" style="--index:${index}">
+          <span class="segment-indicateur" aria-hidden="true"></span>
+          ${ONGLETS_STUDIO.map(([k, n]) => `<button role="tab" data-action="studio-onglet" data-valeur="${k}" aria-pressed="${f.onglet === k}">${n}</button>`).join("")}
+        </div>
+        <div class="studio-options" id="studio-options">${optionsStudio()}</div>
+        <button class="bouton-principal" data-action="studio-enregistrer">${icone("check", 18)}Enregistrer</button>
+      </div>
+    </section>`;
+}
+
+function optionsStudio() {
+  const { config, onglet } = feuille;
+  return AVATAR_OPTIONS[onglet].map((o) => `<button class="studio-option" data-action="studio-choix" data-cle="${onglet}" data-valeur="${o.id}"
+      aria-pressed="${config[onglet] === o.id}">${renderAvatarSVG({ ...config, [onglet]: o.id }, 58)}<span>${esc(o.nom)}</span></button>`).join("");
+}
+
+function majStudio() {
+  $("#studio-apercu").innerHTML = renderAvatarSVG(feuille.config, 148);
+  $("#studio-options").innerHTML = optionsStudio();
+}
+
+function ouvrirStudio() {
+  feuille = { mode: "avatar", onglet: "bg", config: { ...avatarDe(moi()) } };
+  rendreFeuille();
+}
+
+/** Aperçu du questionnaire : avatar déduit du prénom, tant qu'il n'a pas été personnalisé. */
+const apercuInscription = () => `<div class="avatar-inscription" id="avatar-inscription">
+    ${avatar({ prenom: etat.prenom, avatar: etat.avatar }, 72)}
+    <div class="avatar-inscription-actions">
+      <span class="tres-muet petit">Ton avatar</span>
+      <div class="puces">
+        <button class="bouton-ligne" data-action="ouvrir-studio">${icone("sliders-horizontal", 14)}Personnaliser</button>
+        <button class="bouton-ligne" data-action="avatar-aleatoire">${icone("shuffle", 14)}Aléatoire</button>
+      </div>
+    </div>
+  </div>`;
+
+/** Met à jour en place ce qui dépend des amis et de l'avatar (sans recharger l'écran). */
 function rafraichirSocial() {
-  const r = $("#rangee-avatars");
+  const r = $("#zone-sociale");
   if (r) r.outerHTML = rangeeAvatars();
-  const sel = $("#selecteur-dispo");
-  if (sel) sel.outerHTML = selecteurDispo();
   const code = $("#bloc-code");
   if (code) code.outerHTML = blocCode();
+  const ins = $("#avatar-inscription");
+  if (ins) ins.outerHTML = apercuInscription();
   if (feuille?.mode === "amis") {
     const champ = $("#recherche-ami");
     const focus = document.activeElement === champ;
@@ -383,16 +446,25 @@ function rafraichirSocial() {
 async function chargerSocial() {
   if (!etat.uid) return;
   try {
-    const [moi, liste] = await Promise.all([api("/api/utilisateurs/moi"), api("/api/amis")]);
-    social = { moi: { code: moi.code, dispo: moi.dispo }, amis: liste.amis, suggestions: liste.suggestions };
+    const [m, liste] = await Promise.all([api("/api/utilisateurs/moi"), api("/api/amis")]);
+    const humeurAvant = etat.dispo;
+    social = { moi: { code: m.code }, amis: liste.amis, suggestions: liste.suggestions };
+    etat.dispo = m.dispo;
+    if (m.avatar) etat.avatar = m.avatar;
+    stock.ecrire(`etat.${etat.uid}`, etat);
     rafraichirSocial();
+    if (humeurAvant !== etat.dispo && etat.onglet === "pour-vous" && !donnees.chargement) rendreContenu();
   } catch (_) { /* hors ligne : on garde l'existant */ }
 }
 
 const blocCode = () => `<div class="mon-code verre" id="bloc-code">
-    <span class="tres-muet petit">Mon code ami</span><b>${esc(social.moi?.code || "…")}</b>
-    <button class="bouton-ligne" data-action="copier-code" ${social.moi ? "" : "disabled"}>${icone("copy", 14)}Copier mon code</button>
-    <button class="bouton-ligne" data-action="ouvrir-amis">${icone("users", 14)}Amis · <span class="chiffre">${social.amis.length}</span></button>
+    <button class="avatar-profil" data-action="ouvrir-studio" aria-label="Ouvrir le studio d'avatar">${avatar(moi(), 64)}</button>
+    <span class="mon-code-texte"><span class="tres-muet petit">Mon code ami</span><b>${esc(social.moi?.code || "…")}</b></span>
+    <div class="mon-code-actions">
+      <button class="bouton-ligne" data-action="copier-code" ${social.moi ? "" : "disabled"}>${icone("copy", 14)}Copier mon code</button>
+      <button class="bouton-ligne" data-action="ouvrir-amis">${icone("users", 14)}Amis · <span class="chiffre">${social.amis.length}</span></button>
+      <button class="bouton-ligne" data-action="ouvrir-studio">${icone("palette", 14)}Studio d'avatar</button>
+    </div>
   </div>`;
 
 const estSauvegarde = (id) => etat.envies.some((e) => e.id === id);
@@ -644,6 +716,7 @@ function ecranAccueil() {
       <section class="groupe">
         <span class="surtitre">Ton prénom</span>
         <input class="champ" id="champ-prenom" maxlength="30" autocomplete="given-name" placeholder="Ex. Chloé" value="${esc(etat.prenom)}">
+        ${apercuInscription()}
       </section>
       ${sectionVille()}
       ${preferences({ ville: false, ambiances: false })}
@@ -674,6 +747,21 @@ function carteSession(p) {
     </article>`;
 }
 
+/** L'humeur oriente l'accueil : « Partant pour bouger » met les sorties en premier. */
+function blocsPourVous(titre, ecrans, sorties, rayon) {
+  const d = donnees;
+  const blocEcrans = `${titre(etat.dispo === "distance" ? "Ce soir au chaud" : "Pépites du moment", "ecrans")}
+      ${ecrans.length ? rangee(ecrans.map(carteOeuvre), "rangee-affiches")
+        : d.chargement ? squelettesRangee() : videEcrans()}`;
+  const blocSorties = `${titre(`Sorties proches · ${esc(nomVille())}${esc(rayon)}`, "sorties")}
+      ${selecteurHorizon()}
+      <div style="margin-top:14px">${sorties.length ? rangee(sorties.map(carteSortie), "rangee-sorties")
+        : d.chargement ? squelettesRangee("sorties") : videSorties()}</div>`;
+  const note = actif(etat.dispo) ? `<p class="humeur-note">${icone(DISPOS.find((x) => x.id === etat.dispo).icone, 14)}
+      ${esc(nomDispo(etat.dispo))} · ${etat.dispo === "sortir" ? "les sorties d'abord" : "films, séries et jeux d'abord"}</p>` : "";
+  return note + (etat.dispo === "sortir" ? blocSorties + blocEcrans : blocEcrans + blocSorties);
+}
+
 function ecranPourVous() {
   const d = donnees;
   const ecrans = d.ecrans || [];
@@ -683,18 +771,11 @@ function ecranPourVous() {
   const titre = (t, onglet) => `<div class="titre-section"><h2 class="titre-2">${t}</h2>
       ${onglet ? `<button class="lien-discret" data-action="onglet" data-onglet="${onglet}">Tout voir ${icone("chevron-right", 16)}</button>` : ""}</div>`;
   return `${entete(dateDuJour(), `${salutation()} ${etat.prenom}, on fait quoi ?`, { avantTitre: rangeeAvatars() })}
-    ${selecteurDispo()}
     ${instrument()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
 
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
-      ${titre("Pépites du moment", "ecrans")}
-      ${ecrans.length ? rangee(ecrans.map(carteOeuvre), "rangee-affiches")
-        : d.chargement ? squelettesRangee() : videEcrans()}
-      ${titre(`Sorties proches · ${esc(nomVille())}${esc(rayon)}`, "sorties")}
-      ${selecteurHorizon()}
-      <div style="margin-top:14px">${sorties.length ? rangee(sorties.map(carteSortie), "rangee-sorties")
-        : d.chargement ? squelettesRangee("sorties") : videSorties()}</div>
+      ${blocsPourVous(titre, ecrans, sorties, rayon)}
       ${titre("Watch-parties & sessions en cours")}
       ${sessions.length ? rangee(sessions.map(carteSession), "rangee-sessions")
         : `<div class="vide verre">Aucune session prévue pour l'instant. Lance la première depuis une carte : « Organiser », « Lancer une session » ou « Club de lecture ».</div>`}
@@ -949,6 +1030,13 @@ function detailOeuvre(o) {
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
+  if (feuille.mode === "avatar") {
+    const ouverture = racine.hidden;
+    racine.hidden = false;
+    racine.innerHTML = panneauStudio();
+    if (ouverture) animerOuvertureFeuille(racine);
+    return;
+  }
   if (feuille.mode === "amis") {
     const ouverture = racine.hidden;
     racine.hidden = false;
@@ -1362,6 +1450,8 @@ async function changerCompte(uid) {
     prefs: { ...PREFS_INITIALES(), ...(local?.prefs || {}), ...(local ? {} : prefsServeur), ville: u?.ville ?? local?.prefs?.ville ?? null },
     dejaVus: local?.dejaVus || prefsServeur.dejaVus || [],
     envies: local?.envies || prefsServeur.envies || [],
+    avatar: u?.avatar || local?.avatar || null,
+    dispo: u?.dispo || "indispo",
     horizon: local?.horizon || prefsServeur.horizon || "semaine",
   };
   delete etat.prefs.dejaVus;
@@ -1468,7 +1558,8 @@ const actions = {
     b.disabled = true;
     try {
       const { ville, ...prefs } = etat.prefs;
-      const u = await api("/api/utilisateurs", { prenom, ville, prefs: { ...prefs, horizon: etat.horizon } });
+      const u = await api("/api/utilisateurs", { prenom, ville, prefs: { ...prefs, horizon: etat.horizon },
+        avatar: avatarDe({ prenom, avatar: etat.avatar }) });  // avatar déduit du prénom si non personnalisé
       etat.uid = u.id;
       etat.prenom = u.prenom;
       etat.onglet = "pour-vous";
@@ -1601,18 +1692,64 @@ const actions = {
     try { await navigator.clipboard.writeText(code); toast(`Code copié : ${code}`); }
     catch (_) { toast(`Ton code : ${code}`); }  // presse-papiers indisponible (HTTP sur téléphone)
   },
-  async dispo(b) {
+  humeur(b) {
+    const pop = $("#popover-humeur");
+    if (!pop) return;
+    pop.hidden = !pop.hidden;
+    b.setAttribute("aria-expanded", String(!pop.hidden));
+    if (!pop.hidden && MOUVEMENT) gsap.fromTo(pop, { opacity: 0, y: -6, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.28, ease: "expo.out" });
+  },
+  async "choisir-humeur"(b) {
     const statut = b.dataset.valeur;
-    if (!social.moi || social.moi.dispo === statut) return;
-    const precedent = social.moi.dispo;
-    social.moi.dispo = statut;
-    const groupe = b.closest(".segment-pilule");
-    groupe.style.setProperty("--index", DISPOS.findIndex((d) => d.id === statut));
-    groupe.querySelectorAll("button").forEach((x) => { x.setAttribute("aria-pressed", x === b); x.setAttribute("aria-checked", x === b); });
+    const precedent = etat.dispo;
+    etat.dispo = statut;
+    sauvegarder();
+    rafraichirSocial();
+    if (etat.onglet === "pour-vous") rendreContenu();
     try {
       await api("/api/utilisateurs/moi/dispo", { statut }, undefined, "PUT");
-      toast(statut === "indispo" ? "Tu apparais indisponible" : `Tes amis te voient « ${nomDispo(statut)} »`);
-    } catch (err) { social.moi.dispo = precedent; rafraichirSocial(); toast(err.message); }
+      toast(statut === "indispo" ? "Mode ermite : statut discret" : `Tes amis te voient « ${nomDispo(statut)} »`);
+    } catch (err) {
+      etat.dispo = precedent; sauvegarder(); rafraichirSocial();
+      if (etat.onglet === "pour-vous") rendreContenu();
+      toast(err.message);
+    }
+  },
+  "voir-ami"(b) {
+    document.querySelectorAll(".ami-bulle.montre-tag").forEach((x) => { if (x !== b) x.classList.remove("montre-tag"); });
+    b.classList.toggle("montre-tag");
+  },
+  "ouvrir-studio"() { ouvrirStudio(); },
+  "avatar-aleatoire"() {
+    etat.avatar = avatarAleatoire(avatarDe({ prenom: etat.prenom, avatar: etat.avatar }));
+    rafraichirSocial();
+  },
+  "studio-onglet"(b) {
+    feuille.onglet = b.dataset.valeur;
+    const groupe = b.closest(".segment-pilule");
+    groupe.style.setProperty("--index", ONGLETS_STUDIO.findIndex(([k]) => k === feuille.onglet));
+    groupe.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    $("#studio-options").innerHTML = optionsStudio();
+  },
+  "studio-choix"(b) {
+    feuille.config = { ...feuille.config, [b.dataset.cle]: b.dataset.valeur };
+    majStudio();
+  },
+  "studio-aleatoire"() {
+    feuille.config = avatarAleatoire(feuille.config);
+    majStudio();
+    if (MOUVEMENT) gsap.fromTo("#studio-apercu", { scale: 0.94 }, { scale: 1, duration: 0.5, ease: "back.out(2)" });
+  },
+  async "studio-enregistrer"() {
+    const config = feuille.config;
+    etat.avatar = config;
+    if (etat.uid) {
+      sauvegarder();
+      try { await api("/api/utilisateurs/moi/avatar", config, undefined, "PUT"); toast("Avatar enregistré"); }
+      catch (err) { toast(`Enregistré sur cet appareil (${err.message})`); }
+    }
+    await fermerFeuille();
+    rafraichirSocial();
   },
   "reinitialiser-filtres"() {
     Object.assign(etat.prefs, { budget: "tous", duree: "tout", modeJeu: "tous", categories: [] });
@@ -1701,6 +1838,11 @@ const rechercherAmi = debounce(async (q) => {
   $("#resultats-amis").innerHTML = tmp.querySelector("#resultats-amis").innerHTML;
 }, 220);
 
+const rafraichirApercuInscription = debounce(() => {
+  const el = $("#avatar-inscription .avatar");
+  if (el) el.outerHTML = avatar({ prenom: etat.prenom, avatar: etat.avatar }, 72);
+}, 120);
+
 let resultatsRecherche = [];
 const rechercherVu = debounce(async (q) => {
   const liste = $("#suggestions-vu");
@@ -1723,6 +1865,9 @@ document.addEventListener("click", (e) => {
   if (b && !b.disabled && actions[b.dataset.action]) { e.preventDefault(); actions[b.dataset.action](b); }
   if (!e.target.closest("#champ-ville, #suggestions-ville")) { const l = $("#suggestions-ville"); if (l) l.hidden = true; }
   if (!e.target.closest("#champ-ville-pub, #suggestions-ville-pub")) { const l = $("#suggestions-ville-pub"); if (l) l.hidden = true; }
+  if (!e.target.closest(".bulle-moi, #popover-humeur") || e.target.closest('[data-action="choisir-humeur"]')) {
+    const p = $("#popover-humeur"); if (p && !p.hidden) { p.hidden = true; $(".bulle-moi")?.setAttribute("aria-expanded", "false"); }
+  }
 });
 
 document.addEventListener("submit", async (e) => {
@@ -1765,6 +1910,7 @@ document.addEventListener("input", (e) => {
     etat.prenom = e.target.value;
     const b = document.querySelector('[data-action="commencer"]');
     if (b) b.disabled = !etat.prenom.trim();
+    if (!etat.avatar) rafraichirApercuInscription();
   } else if (id === "champ-ville") {
     rechercherVille(e.target.value.trim());
   } else if (id === "champ-ville-pub") {

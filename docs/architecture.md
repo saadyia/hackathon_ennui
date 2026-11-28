@@ -140,8 +140,11 @@ balayage animé qui ralentit, puis fiche ouverte avec le badge « Sélectionné 
 - Code public `Prénom#NNN` unique (insensible à la casse), attribué à la création (et aux comptes existants à l'initialisation).
   C'est le seul identifiant montré aux autres : le jeton `id` sert de connexion et ne sort jamais.
 - Amitié sans demande à accepter (outil de démo) : deux lignes `amities` (a → b, b → a), retrait des deux sens.
-- Statut `indispo` | `sortir` | `distance` + date ; considéré `indispo` 12 h après le choix. Les amis sont rechargés toutes les 60 s côté client.
-- 5 profils de démonstration (`demo-*`), statuts fixes, proposés en suggestions et marqués « Démo ».
+- Humeur `indispo` (Mode ermite) | `sortir` (Partant pour bouger) | `distance` (Chill à distance) + date ; considérée `indispo`
+  12 h après le choix. Elle ordonne Pour vous (sorties d'abord, ou « Ce soir au chaud » d'abord). Amis rechargés toutes les 60 s.
+- Avatars : colonne `avatar` (JSON), rendu 100 % client (`avatar.js`, SVG 64 × 64 : fond, cheveux arrière, buste, tête remplie
+  de la couleur de fond, cheveux avant, visage, accessoire). Sans configuration : hachage FNV-1a du prénom, identique partout.
+- 4 profils de démonstration (`demo-*`) avec avatar et humeur active, proposés en suggestions et marqués « Démo ».
 
 ## Espace collaboratif
 - Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre. Le créateur est inscrit d'office.

@@ -132,10 +132,19 @@ class Ville(BaseModel):
     lon: float = Field(..., ge=-180, le=180)
 
 
+class Avatar(BaseModel):
+    """Portrait vectoriel minimaliste (rendu côté client par renderAvatarSVG)."""
+    bg: Literal["ardoise", "indigo", "ambre", "emeraude", "prune", "acier"]
+    hair: Literal["court", "milong", "boucle", "chignon", "afro", "frange", "rase", "ondule"]
+    accessory: Literal["aucun", "lunettes-rect", "lunettes-rondes", "casque", "bonnet"]
+    expression: Literal["serein", "sourire", "curieux", "concentre"]
+
+
 class Profil(BaseModel):
     prenom: str = Field(..., min_length=1, max_length=30)
     ville: Optional[Ville] = None
     prefs: dict = Field(default_factory=dict)
+    avatar: Optional[Avatar] = None
 
     @field_validator("prenom")
     @classmethod
@@ -401,7 +410,8 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
 def creer_utilisateur(p: Profil, taches: BackgroundTasks):
     if p.ville:  # ville hors couverture : collecte ciblée en arrière-plan
         taches.add_task(synchro.ajouter_ville, p.ville.nom, p.ville.lat, p.ville.lon)
-    return database.creer_utilisateur(p.prenom, p.ville.model_dump() if p.ville else None, p.prefs)
+    return database.creer_utilisateur(p.prenom, p.ville.model_dump() if p.ville else None, p.prefs,
+                                      p.avatar.model_dump() if p.avatar else None)
 
 
 @app.get("/api/utilisateurs/moi")
@@ -415,6 +425,12 @@ class Dispo(BaseModel):
 
 class DemandeAmi(BaseModel):
     code: str = Field(..., min_length=3, max_length=40)
+
+
+@app.put("/api/utilisateurs/moi/avatar")
+def changer_avatar(a: Avatar, x_utilisateur: Optional[str] = Header(None)):
+    u = utilisateur_requis(x_utilisateur)
+    return database.changer_avatar(u["id"], a.model_dump())
 
 
 @app.put("/api/utilisateurs/moi/dispo")

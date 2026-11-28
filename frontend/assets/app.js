@@ -201,7 +201,7 @@ function ilYa(iso) {
   return h < 24 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
 }
 
-const tarif = (o) => o.tarif || "Tarif non communiqué";
+const tarif = (o) => o.tarif || "Tarif non précisé";
 
 // ------------------------------------------------------------------ //
 // Briques visuelles                                                    //
@@ -395,6 +395,11 @@ const selecteurHorizon = () => `<div class="puces defilement" role="group" aria-
       ${h.id === "maintenant" ? icone("clock", 14) : ""}${esc(h.nom)}</button>`).join("")}
   </div>`;
 
+const selecteurDuree = () => `<div class="puces defilement" role="group" aria-label="Temps disponible">
+    ${CONFIG.durees.map((d) => `<button class="puce puce-s" data-action="duree" data-valeur="${d.id}" aria-pressed="${(etat.prefs.duree || "tout") === d.id}">
+      ${d.id === "tout" ? icone("clock", 14) + "Tout le temps" : esc(d.nom)}</button>`).join("")}
+  </div>`;
+
 const selecteurBudget = () => `<div class="puces defilement" role="group" aria-label="Budget">
     ${CONFIG.budgets.map((b) => `<button class="puce puce-s" data-action="budget" data-valeur="${b.id}" aria-pressed="${etat.prefs.budget === b.id}">
       ${b.id === "tous" ? "" : icone("ticket", 14)}${esc(b.nom)}</button>`).join("")}
@@ -413,11 +418,14 @@ function statutAgenda() {
 }
 
 function entete(surtitre, titre) {
+  const tirage = ["pour-vous", "ecrans", "sorties"].includes(etat.onglet);
   return `<header class="apparition">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="marque">On fait koi<span> ?</span></span>
-        <span class="surtitre">${esc(surtitre)}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span class="marque">ofk<span> ?</span></span>
+        ${tirage ? `<button class="bouton-tirage" data-action="choisir-pour-moi">${icone("shuffle", 15)}Choisir à ma place</button>`
+          : `<span class="surtitre">${esc(surtitre)}</span>`}
       </div>
+      ${tirage ? `<span class="surtitre surtitre-entete">${esc(surtitre)}</span>` : ""}
       <h1 class="titre-1">${esc(titre)}</h1>
     </header>`;
 }
@@ -482,9 +490,9 @@ function groupeChoix(titre, cle, options) {
 
 function ecranBienvenue() {
   return `<div class="bienvenue apparition">
-      <span class="marque">On fait koi<span> ?</span></span>
+      <span class="marque">ofk<span> ?</span></span>
       <div class="bienvenue-centre">
-        <h1 class="titre-1 bienvenue-titre">Salut !<br>On fait koi aujourd'hui ?</h1>
+        <h1 class="titre-1 bienvenue-titre">Salut !<br>On fait quoi aujourd'hui ?</h1>
         <p class="muet bienvenue-texte">Pas besoin de savoir : laisse-toi guider selon ton énergie, tes goûts et ce qu'il se passe près de chez toi.</p>
       </div>
       <button class="bouton-principal" data-action="c-est-parti">C'est parti ! ${icone("arrow-right", 18)}</button>
@@ -495,7 +503,7 @@ function ecranAccueil() {
   const connus = comptes();
   return `<div class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="marque">On fait koi<span> ?</span></span>
+        <span class="marque">ofk<span> ?</span></span>
         <button class="lien-discret" data-action="retour-bienvenue">${icone("arrow-left", 16)}Retour</button>
       </div>
       <h1 class="titre-1" style="font-size:34px;margin-top:40px">Dis-nous tout.</h1>
@@ -549,6 +557,7 @@ function ecranPourVous() {
   return `${entete(dateDuJour(), `Salut ${etat.prenom}, qu'est-ce qu'on fait aujourd'hui ?`)}
     ${instrument()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
+    <div style="margin-top:8px">${selecteurDuree()}</div>
     <div id="contenu" class="${d.chargement ? "chargement" : ""}">
       ${titre("Pépites du moment", "ecrans")}
       ${ecrans.length ? rangee(ecrans.map(carteOeuvre), "rangee-affiches")
@@ -595,6 +604,7 @@ function ecranEcrans() {
     </div>
     ${filtresChezSoi()}
     <div style="margin-top:12px">${selecteurBudget()}</div>
+    <div style="margin-top:8px">${selecteurDuree()}</div>
     ${instrument()}
     <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:26px">
       ${liste.length ? `<div class="grille-affiches">${liste.map(carteOeuvre).join("")}</div>`
@@ -611,6 +621,7 @@ function ecranSorties() {
     <div style="margin-top:16px">${localisation()}</div>
     <div style="margin-top:14px">${selecteurHorizon()}</div>
     <div style="margin-top:12px">${selecteurBudget()}</div>
+    <div style="margin-top:8px">${selecteurDuree()}</div>
     <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.map((c) => `<button class="puce" data-action="pref"
         data-groupe="categories" data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.categories.includes(c.id)}">
         ${icone(ICONES_CATEGORIE[c.id], 15)}${esc(c.nom)}</button>`).join("")}</div>
@@ -750,6 +761,7 @@ function detailOeuvre(o) {
   return `<div class="detail ${sortie || o.type === "jeu" ? "detail-paysage" : ""}">
       <div class="detail-visuel">${img}<span class="voile"></span>${tagDecouverte(o)}</div>
       <div class="detail-texte">
+        ${o.selectionne ? `<span class="tag tag-selection">${icone("sparkles", 12)}Sélectionné pour vous</span>` : ""}
         <span class="surtitre">${esc(sortie ? o.categorie_libelle || "Sortie" : TYPES[o.type]?.nom || "")}</span>
         <h2 class="titre-detail">${esc(o.titre)}</h2>
         ${lignes ? `<div class="detail-infos">${lignes}</div>` : ""}
@@ -982,6 +994,54 @@ function monterCarte(el) {
   setTimeout(() => carteLeaflet?.invalidateSize(), 60);
 }
 
+/**
+ * « Choisir à ma place » : tirage parmi le top 3 des recommandations de l'écran courant (mêmes filtres :
+ * onglet, curseur, budget, temps disponible), pondéré 50 / 30 / 20 %, puis ouverture de la fiche.
+ */
+function candidatsTirage() {
+  const d = donnees;
+  if (etat.onglet === "pour-vous") {
+    return [d.ecrans?.[0], d.sorties?.[0], d.ecrans?.[1], d.sorties?.[1], d.ecrans?.[2]].filter(Boolean).slice(0, 3);
+  }
+  return (d.grille || []).slice(0, 3);
+}
+
+async function choisirPourMoi() {
+  const candidats = candidatsTirage();
+  if (!candidats.length) return toast("Rien à départager avec ces filtres.");
+  const r = Math.random();
+  const gagnant = candidats[r < 0.5 ? 0 : r < 0.8 ? 1 : 2] || candidats[0];
+  const racine = $("#feuille");
+  racine.hidden = false;
+  racine.innerHTML = `<div class="feuille-fond"></div>
+    <section class="tirage" role="status" aria-live="polite">
+      <span class="surtitre">On choisit pour toi</span>
+      <div class="tirage-cartes">${candidats.map((o, i) => `<div class="tirage-carte" data-i="${i}">
+          <div class="tirage-visuel">${o.affiche ? `<img src="${esc(o.affiche)}" alt="" onerror="this.remove()">` : icone(ICONES_CATEGORIE[o.categorie] || TYPES[o.type]?.icone || "sparkles", 28)}</div>
+          <span>${esc(o.titre)}</span></div>`).join("")}</div>
+    </section>`;
+  const cartes = [...racine.querySelectorAll(".tirage-carte")];
+  const final = candidats.indexOf(gagnant);
+  if (MOUVEMENT) {
+    gsap.fromTo(racine.querySelector(".feuille-fond"), { opacity: 0 }, { opacity: 1, duration: 0.25 });
+    gsap.from(cartes, { y: 30, opacity: 0, duration: 0.45, stagger: 0.08, ease: ADOUCI });
+    // balayage qui ralentit, puis s'arrête sur l'élu
+    const etapes = 7 + final + cartes.length * 2;
+    let delai = 70;
+    for (let k = 0; k <= etapes; k++) {
+      await new Promise((res) => setTimeout(res, delai));
+      cartes.forEach((c, i) => c.classList.toggle("allumee", i === k % cartes.length));
+      delai *= 1.16;
+    }
+    cartes.forEach((c, i) => c.classList.toggle("allumee", i === final));
+    gsap.to(cartes[final], { scale: 1.08, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.inOut" });
+    // attente par minuterie (et non sur la fin de l'animation) : jamais bloqué si l'onglet est en arrière-plan
+    await new Promise((res) => setTimeout(res, 750));
+  }
+  racine.hidden = true;
+  ouvrirFeuille({ ...gagnant, selectionne: true });
+}
+
 /** Glissement + fondu entre écrans : direction selon l'ordre des onglets (ou des sous-onglets). */
 const ADOUCI = "expo.out";  // ≈ cubic-bezier(0.22, 1, 0.36, 1)
 function transitionEcran(direction = 0) {
@@ -1003,6 +1063,7 @@ function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
     horizon: etat.horizon,
     budget: etat.prefs.budget,
     themes: etat.prefs.themes,
+    duree: etat.prefs.duree || "tout",
     categories: etat.prefs.categories,
     consoles: etat.prefs.consoles,
     mode_jeu: etat.prefs.modeJeu,
@@ -1180,6 +1241,14 @@ const actions = {
     sauvegarder();
     charger({ partiel: true });
   },
+  duree(b) {
+    if ((etat.prefs.duree || "tout") === b.dataset.valeur) return;
+    etat.prefs.duree = b.dataset.valeur;
+    choisirDansGroupe(b);
+    sauvegarder();
+    charger({ partiel: true });
+  },
+  "choisir-pour-moi"() { choisirPourMoi(); },
   budget(b) {
     if (etat.prefs.budget === b.dataset.valeur) return;
     etat.prefs.budget = b.dataset.valeur;

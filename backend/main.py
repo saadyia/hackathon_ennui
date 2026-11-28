@@ -96,6 +96,8 @@ LIBELLES_FINS = {  # étiquette affichée sur les cartes de sorties
 }
 THEMES_LIVRES = {"roman": "Roman & Fiction", "polar": "Thriller & Polar", "sff": "Science-Fiction & Fantasy",
                  "essais": "Développement & Essais", "bd": "BD & Manga", "bio": "Biographie & Histoire"}
+DUREES = {"tout": "Tout", "express": "Express · < 45 min", "soiree": "Soirée · 1h30 – 2h30",
+          "long": "Demi-journée / Week-end"}
 MODES_JEU = {"tous": "Tous les modes", "solo": "Solo", "coop": "Co-op", "multi": "Multijoueur"}
 GENRES = {  # libellé affiché -> genre MovieLens
     "Science-Fiction": "Sci-Fi", "Thriller": "Thriller", "Drame": "Drama", "Comédie": "Comedy",
@@ -168,6 +170,7 @@ class DemandeRecommandation(BaseModel):
     consoles: List[str] = Field(default_factory=list, description="jeux : pc, mac, playstation, xbox, switch, mobile")
     mode_jeu: Literal["tous", "solo", "coop", "multi"] = "tous"
     themes: List[str] = Field(default_factory=list, description="livres : roman, polar, sff, essais, bd, bio")
+    duree: Literal["tout", "express", "soiree", "long"] = "tout"
     k: int = Field(10, ge=1, le=40)
 
 
@@ -263,6 +266,7 @@ def config():
         "envies": [{"id": k, "nom": v, "univers": "chez-soi"} for k, v in UNIVERS_CHEZ_SOI.items()]
                   + [{"id": k, "nom": v, "univers": "sorties"} for k, v in CATEGORIES.items()],
         "themes": [{"id": k, "nom": v} for k, v in THEMES_LIVRES.items()],
+        "durees": [{"id": k, "nom": v} for k, v in DUREES.items()],
         "consoles": [{"id": k, "nom": v} for k, v in CONSOLES.items()],
         "modes_jeu": [{"id": k, "nom": v} for k, v in MODES_JEU.items()],
         "genres": [{"id": v, "nom": k} for k, v in GENRES.items()],
@@ -351,7 +355,7 @@ def recommander(d: DemandeRecommandation, x_utilisateur: Optional[str] = Header(
 
     def classer(type_, k):
         autorises = m.autorises([type_], d.plateformes, centre, d.rayon_km, categories, d.horizon, d.budget,
-                                d.consoles, d.mode_jeu)
+                                d.consoles, d.mode_jeu, d.duree)
         genres = d.genres if type_ == "sortie" else genres_ecrans
         return m.recommander(d.deja_vus, genres, d.decouverte, k, autorises,
                              lift_confort=type_ in ("serie", "livre", "jeu", "sortie"), cache=cache,

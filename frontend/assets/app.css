@@ -772,3 +772,33 @@ body { background: var(--fond-hors-app); }
 /* Transitions : l'écran glisse et se fond (GSAP), sans à-coup de défilement horizontal */
 #ecran { will-change: opacity, transform; }
 .app { overflow-x: hidden; }
+
+/* ---------------- « Choisir à ma place » ---------------- */
+.bouton-tirage {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 999px;
+  font-family: var(--police-titres); font-size: 12.5px; font-weight: 600; letter-spacing: -0.01em; color: var(--texte);
+  border: 1px solid rgba(165, 180, 252, 0.4);
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.22), rgba(192, 132, 252, 0.16));
+  box-shadow: 0 0 24px -8px rgba(129, 140, 248, 0.6);
+  transition: transform 0.2s var(--ressort), box-shadow 0.3s var(--ressort);
+}
+.bouton-tirage:hover { box-shadow: 0 0 30px -6px rgba(165, 180, 252, 0.8); }
+.bouton-tirage:active { transform: scale(0.96); }
+.surtitre-entete { display: block; margin-top: 14px; }
+.tirage { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); margin: 0 auto; width: min(430px, 100%);
+  padding: 0 20px; text-align: center; }
+.tirage .surtitre { color: var(--texte-2); }
+.tirage-cartes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+.tirage-carte { display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.3; color: var(--texte-2);
+  transition: color 0.15s, transform 0.15s; }
+.tirage-carte span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tirage-visuel { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; display: grid; place-items: center;
+  background: var(--carte-2); border: 1px solid var(--trait); color: var(--texte-3);
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; opacity: 0.55; }
+.tirage-visuel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tirage-carte.allumee { color: var(--texte); }
+.tirage-carte.allumee .tirage-visuel { opacity: 1; border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(232, 217, 181, 0.5), 0 0 34px -4px rgba(232, 217, 181, 0.55); }
+.tag-selection { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.25), rgba(232, 217, 181, 0.25));
+  border: 1px solid rgba(232, 217, 181, 0.45); color: var(--texte); text-transform: none; letter-spacing: 0; font-size: 11.5px; }

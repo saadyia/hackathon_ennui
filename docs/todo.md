@@ -10,6 +10,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Budget corrigé (prix_num, coût marginal : plus jamais de liste vide), filtre « Temps disponible », « Choisir à ma place », nom « ofk ? »
 - [x] Curseur continu 1 à 10, transitions glissées / en fondu, synopsis FR obligatoire (films, séries), extraits sur les cartes
 - [x] PWA installable (manifest, service worker, icônes, balises Apple) ; Dockerfile + render.yaml ; écoute 0.0.0.0
 - [x] Finitions : questionnaire réduit au profil durable, fiche détaillée (synopsis FR, adresse, badges), survol des cartes, fond bleu nuit, titres Outfit, contrôle segmenté à 4 paliers, carte Leaflet des sorties, plus de message « disponibilités en vérification », zéro émoji garanti

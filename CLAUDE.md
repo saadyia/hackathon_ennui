@@ -1,4 +1,4 @@
-# CLAUDE.md — hackathon_ennui
+# CLAUDE.md — hackathon_ennui (application « ofk ? », On fait quoi ?)
 
 > Contexte principal du projet. `frontend/` et `backend/` ont leur propre `CLAUDE.md`,
 > chargé automatiquement quand Claude travaille dans ces dossiers.

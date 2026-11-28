@@ -1,6 +1,6 @@
 {
-  "name": "On fait koi ?",
-  "short_name": "On fait koi",
+  "name": "ofk ? On fait quoi ?",
+  "short_name": "ofk ?",
   "description": "Films, séries, livres, jeux vidéo et sorties près de chez toi, à faire seul ou à plusieurs.",
   "lang": "fr",
   "start_url": "/",

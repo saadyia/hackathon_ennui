@@ -265,7 +265,12 @@ class Moteur:
         # qualité minimale en découverte (films très confidentiels exclus) ; prix des sorties
         likes = np.array([nd.get("nb_likes") or 0 for nd in self.noeuds])
         self.qualite = np.where(self.types == "film", (likes >= MIN_LIKES_DECOUVERTE).astype(float), 1.0)
-        self.prix = np.array([nd.get("prix") if nd.get("prix") is not None else np.nan for nd in self.noeuds])
+        # prix_num (euros) : 0.0 gratuit, NaN inconnu ; repli sur « prix » pour d'anciens fichiers
+        self.prix = np.array([nd.get("prix_num", nd.get("prix")) if nd.get("prix_num", nd.get("prix")) is not None
+                              else np.nan for nd in self.noeuds], dtype=float)
+        # temps disponible : express (< 45 min), soiree (1 h 30 – 2 h 30), long (demi-journée / week-end)
+        durees = np.array([nd.get("duree_categorie", "soiree") for nd in self.noeuds])
+        self.masque_duree = {d: durees == d for d in ("express", "soiree", "long")}
 
     # -------------------------------------------------------------- #
 
@@ -324,7 +329,7 @@ class Moteur:
     def autorises(self, types: Iterable[str], plateformes: Iterable[int] = (),
                   centre: Optional[Tuple[float, float]] = None, rayon_km: float = 15.0,
                   categories: Iterable[str] = (), horizon: str = "mois", budget: str = "tous",
-                  consoles: Iterable[str] = (), mode_jeu: str = "tous") -> np.ndarray:
+                  consoles: Iterable[str] = (), mode_jeu: str = "tous", duree: str = "tout") -> np.ndarray:
         """
         Masque des nœuds recommandables (listes vides = pas de filtre).
           - plateformes (films, séries) : présence CONFIRMÉE par TMDB sur l'une d'elles ;
@@ -333,10 +338,14 @@ class Moteur:
           - horizon (sorties) : au moins une occurrence dans la fenêtre ; jamais rien de passé
           - consoles (jeux) : jouable sur au moins une console de l'utilisateur ;
             mode_jeu (jeux) : "solo" | "coop" | "multi" | "tous"
-          - budget : sorties -> tarif connu <= plafond (prix inconnu exclu) ;
-                     films/séries -> seulement ce qui est inclus SANS SURCOÛT : confirmé par TMDB
-                     sur un abonnement de l'utilisateur ou sur Arte. Sans données TMDB, rien
-                     ne peut être garanti : aucun film/série ne passe.
+          - budget (coût marginal) :
+              sorties -> « gratuit » : prix_num == 0 strictement ; « < 10 € / < 25 € » : prix_num <= plafond,
+                         ou tarif non précisé (gardé, affiché « Tarif non précisé ») ;
+              films / séries -> inclus dans les abonnements = 0 € : si les plateformes sont vérifiées (TMDB),
+                         seuls ceux présents sur un abonnement de l'utilisateur ou sur Arte ; sinon tous restent ;
+              livres / jeux -> considérés comme déjà possédés ou empruntables : jamais exclus par le budget
+          - duree : "express" | "soiree" | "long" (duree_categorie du build) ; en express, une sortie à
+            moins de 5 km du centre compte aussi comme rapide
         """
         vide = np.zeros(self.n, dtype=bool)
         sortie = self.masque_type.get("sortie", vide)
@@ -386,14 +395,24 @@ class Moteur:
         masque &= dans_fenetre | ~sortie
 
         if budget in PLAFOND_BUDGET:
+            plafond = PLAFOND_BUDGET[budget]
             with np.errstate(invalid="ignore"):
-                abordable = self.prix <= PLAFOND_BUDGET[budget]  # NaN (prix inconnu) -> False
-            inclus = vide.copy()
-            for p in set(plateformes) | {ARTE}:
-                inclus |= self.masque_plateforme.get(p, vide)
-            inclus &= self.verifie
-            # livres et jeux : prix inconnu -> exclus dès qu'un budget est demandé
-            masque &= np.where(sortie, abordable, np.where(livre | jeu, False, inclus))
+                abordable = self.prix <= plafond
+            if budget != "gratuit":
+                abordable |= np.isnan(self.prix)   # tarif non précisé : gardé sauf en « Gratuit » strict
+            masque &= abordable | ~sortie
+            if self.plateformes_verifiees:  # écrans : inclus sans surcoût dans les abonnements
+                inclus = vide.copy()
+                for p in set(plateformes) | {ARTE}:
+                    inclus |= self.masque_plateforme.get(p, vide)
+                masque &= (inclus & self.verifie) | ~self.ecran
+
+        if duree in self.masque_duree:
+            rapide = self.masque_duree[duree]
+            if duree == "express" and centre is not None:
+                with np.errstate(invalid="ignore"):
+                    rapide = rapide | (sortie & (haversine_km(centre[0], centre[1], self.lat, self.lon) < 5.0))
+            masque &= rapide
         return masque
 
     def distances(self, centre: Tuple[float, float], indices: Sequence[int]) -> List[float]:

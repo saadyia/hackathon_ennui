@@ -14,6 +14,6 @@
   <rect width="512" height="512" fill="url(#halo)"/>
   <rect width="512" height="512" fill="url(#halo2)"/>
   <text x="256" y="300" text-anchor="middle" font-family="Outfit, 'Plus Jakarta Sans', system-ui, sans-serif"
-        font-weight="700" font-size="190" letter-spacing="-10" fill="#F4F4F5">koi<tspan fill="#E8D9B5">?</tspan></text>
+        font-weight="700" font-size="190" letter-spacing="-10" fill="#F4F4F5">ofk<tspan fill="#E8D9B5">?</tspan></text>
   <rect x="176" y="352" width="160" height="10" rx="5" fill="#E8D9B5" opacity="0.85"/>
 </svg>

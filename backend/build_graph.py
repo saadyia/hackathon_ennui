@@ -367,6 +367,9 @@ def metadonnees_sorties(sorties, decalage):
             "lon": s["lon"],
             "acces": s.get("acces"),
             "prix": s.get("prix"),
+            # prix_num : tarif publié, sinon déduit de la description (« gratuit », « entrée libre », « 5 € »)
+            "prix_num": s.get("prix") if s.get("prix") is not None else prix_depuis_texte(
+                s.get("conditions"), s.get("description_longue"), s.get("description")),
             "tarif": s.get("tarif"),
             "date_debut": s["date_debut"],     # YYYY-MM-DD (Europe/Paris)
             "date_fin": s["date_fin"],         # YYYY-MM-DD (Europe/Paris)
@@ -404,6 +407,58 @@ def ecrire_atomique(chemin: Path, ecrire):
     os.replace(tmp, chemin)
 
 
+# ------------------------------------------------------------------ #
+# Prix et temps disponible                                             #
+# ------------------------------------------------------------------ #
+
+MOTS_GRATUIT = re.compile(r"\bgratuit|entr[ée]e libre|acc[eè]s libre|\b0\s?(€|euros?)\b|sans r[ée]servation et gratuit", re.I)
+MONTANT = re.compile(r"(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?)", re.I)
+
+
+def prix_depuis_texte(*textes):
+    """prix_num (euros) : 0.0 si gratuit / entrée libre, sinon plus petit montant écrit, sinon None."""
+    for t in textes:
+        if not t:
+            continue
+        montants = [float(x.replace(",", ".")) for x in MONTANT.findall(t)]
+        if MOTS_GRATUIT.search(t) and not [m for m in montants if m > 0]:
+            return 0.0
+        if montants:
+            return min(montants)
+    return None
+
+
+GENRES_JEU_EXPRESS = {"Détente", "Réflexion", "Jeu d'ambiance", "Arcade", "Rythme", "Cartes", "Sport", "Course",
+                      "Plateforme", "Jeu de société", "Combat", "Tir"}
+GENRES_JEU_LONG = {"RPG", "Action-RPG", "RPG tactique", "MMORPG", "Monde ouvert", "Stratégie", "Stratégie au tour par tour",
+                   "Stratégie en temps réel", "Simulation", "Gestion", "Survie", "Simulation de vie", "Aventure", "Metroidvania"}
+
+
+def duree_categorie(nd: dict) -> str:
+    """Temps disponible : « express » (< 45 min), « soiree » (1 h 30 – 2 h 30), « long » (demi-journée / week-end)."""
+    t, genres = nd["type"], set(nd.get("genres", []))
+    if t == "film":
+        return "soiree"
+    if t == "serie":  # sitcoms et animation : épisodes de ~22 min
+        return "express" if genres & {"Comedy", "Animation"} and "Drama" not in genres else "soiree"
+    if t == "livre":
+        if "bd" in nd.get("themes", []) or (nd.get("pages") or 999) <= 200:
+            return "express"   # BD, nouvelles, livres courts
+        return "long"
+    if t == "jeu":
+        g = set(nd.get("genres_fr", []))
+        if g & GENRES_JEU_LONG:
+            return "long"
+        return "express" if g & GENRES_JEU_EXPRESS else "soiree"
+    # sorties
+    titre = (nd.get("titre") or "").lower()
+    if nd.get("categorie") == "nature" or re.search(r"festival|randonn|journ[ée]e enti[èe]re|week-end", titre):
+        return "long"
+    if nd.get("categorie") == "lecture" or re.search(r"rencontre|d[ée]dicace|lecture|ap[ée]ro|visite flash", titre):
+        return "express"
+    return "soiree"   # concerts, spectacles, ciné, expositions
+
+
 EMOJIS = re.compile("[\U0001F000-\U0001FAFF\U0001F1E6-\U0001F1FF\u2600-\u27BF\u2B00-\u2BFF\u2300-\u23FF\uFE0F\u200D\u20E3]")
 CHAMPS_TEXTE = ("titre", "resume", "lieu", "adresse", "acces", "tarif", "studio", "editeur", "auteur")
 
@@ -435,6 +490,10 @@ def assembler(S_films, noeuds_films, series, livres, jeux, sorties, tmdb_series,
     noeuds += metadonnees_jeux(jeux, len(noeuds))
     noeuds += metadonnees_sorties(sorties, len(noeuds))
     noeuds = [sans_emoji(nd) for nd in noeuds]
+    for nd in noeuds:
+        nd["duree_categorie"] = duree_categorie(nd)
+        if nd["type"] == "sortie" and nd.get("prix") is None and nd.get("prix_num") is not None:
+            nd["tarif"] = "Gratuit" if nd["prix_num"] == 0 else f"Dès {nd['prix_num']:g} €".replace(".", ",")
 
     SORTIE.mkdir(parents=True, exist_ok=True)
     # format .npz explicite : np.save / save_npz ajouteraient une extension au fichier .tmp

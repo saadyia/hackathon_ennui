@@ -116,10 +116,25 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
 - Étiquette : `pepite` si `m ≥ 0.5` (niche dans ses genres), sinon `hors-piste`.
 - Mesuré (SF + Thriller) : à 0/10 Matrix et Star Wars ; à 10/10 Quest for Fire, Shadowlands, Forget Paris, tous « hors piste ».
 
-## Budget
-- Sorties : tarif publié inférieur ou égal au plafond (0, 10, 25 €). **Prix inconnu : exclu** (527 sorties sur 1 123 ont un tarif publié).
-- Films et séries : un abonnement ne coûte rien de plus, donc tout budget autre que « Tous les prix » = inclus **sans surcoût**,
-  c'est-à-dire confirmé par TMDB sur un abonnement coché ou sur Arte. Sans données TMDB : aucun résultat, et l'interface explique pourquoi.
+## Budget (coût marginal)
+- `prix_num` (euros) : tarif publié, sinon déduit de la description (« gratuit », « entrée libre », « 0 € », « 5 € », « 8,50 € »),
+  sinon `null`. 759 sorties sur 1 300 ont un prix connu, dont 449 gratuites.
+- Sorties : « Gratuit » = `prix_num == 0` strictement ; « < 10 € » / « < 25 € » = `prix_num ≤ plafond` **ou tarif non précisé**
+  (gardé, affiché « Tarif non précisé »).
+- Films et séries : inclus dans les abonnements = 0 €. Avec des plateformes vérifiées (TMDB), seuls ceux présents sur un
+  abonnement de l'utilisateur ou sur Arte ; sans données TMDB, tous restent visibles.
+- Livres et jeux : considérés comme déjà possédés ou empruntables, jamais exclus par le budget.
+
+## Temps disponible
+`duree_categorie` attribuée au build (`build_graph.duree_categorie`) : `express` (< 45 min), `soiree` (1 h 30 – 2 h 30), `long`.
+- Films : soirée. Séries : express si comédie ou animation hors drame (épisodes de ~22 min), sinon soirée.
+- Livres : express si BD ou 200 pages au plus, sinon long. Jeux : long (RPG, stratégie, simulation, monde ouvert…), express
+  (casual, réflexion, arcade, rythme, course…), sinon soirée.
+- Sorties : long (nature, festivals), express (rencontres, dédicaces), sinon soirée ; en express, une sortie à moins de 5 km compte aussi.
+
+## « Choisir à ma place »
+Tirage côté client parmi le top 3 de l'écran courant (pondéré 50 / 30 / 20 %), donc avec exactement les filtres actifs ;
+balayage animé qui ralentit, puis fiche ouverte avec le badge « Sélectionné pour vous ».
 
 ## Espace collaboratif
 - Plan = créneau (`debut`, heure de Paris) + point de rendez-vous ou lien + message, sur une œuvre. Le créateur est inscrit d'office.

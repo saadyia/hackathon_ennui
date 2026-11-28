@@ -32,6 +32,7 @@ Recherche de films et de séries (ajout de « Déjà vu » depuis le profil).
 ```
 - `type` : `film` | `serie` | `livre` | `jeu` | `tout` | `sortie`
 - `consoles` (jeux) : `pc`, `mac`, `playstation`, `xbox`, `switch`, `mobile` ; `mode_jeu` : `tous` | `solo` | `coop` | `multi`
+- `duree` : `tout` | `express` | `soiree` | `long` ; `budget` : coût marginal (voir architecture)
 - `themes` (livres) : `roman`, `polar`, `sff`, `essais`, `bd`, `bio`
 - `categories` : envies de sorties `culture` | `soirees` | `nature` (les envies Chez soi sont ignorées pour les sorties)
 - `ecrans` (type `tout`) : composition, par défaut `["film", "serie"]` ; ajouter `"livre"` (2 films, 1 série, 1 livre…)

@@ -736,3 +736,39 @@ body { background: var(--fond-hors-app); }
 .detail.detail-paysage { grid-template-columns: 1fr; }
 .detail.detail-paysage .detail-visuel { aspect-ratio: 16 / 10; width: 100%; }
 .detail-synopsis p { white-space: pre-line; }
+
+/* ---------------- Curseur continu 1 → 10 ---------------- */
+.curseur-bloc { margin-top: 22px; padding: 16px 18px 14px; border: 1px solid var(--trait); border-radius: 18px; }
+.curseur-tete { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.curseur-libelle { margin-top: 4px; font-family: var(--police-titres); font-size: 19px; font-weight: 650; letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #C7D2FE, #F5E6C4 calc(var(--cran, 0) * 100% + 20%), #F0ABFC);
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+.curseur-badge { flex: none; display: inline-flex; align-items: baseline; gap: 1px; padding: 6px 11px; border-radius: 999px;
+  border: 1px solid rgba(165, 180, 252, 0.35); background: rgba(129, 140, 248, 0.12); font-size: 12px; color: var(--texte-2); }
+.curseur-badge b { font-size: 16px; color: var(--texte); font-weight: 650; }
+.slider-continu { margin: 26px 11px 28px; }
+.slider-continu.noUi-target { height: 6px; background: rgba(255, 255, 255, 0.08); }
+.slider-continu .noUi-connect { background: linear-gradient(90deg, #818CF8 0%, #C4B5FD 45%, #F5E6C4 100%); }
+.slider-continu .noUi-handle {
+  width: 26px !important; height: 26px !important; right: -13px !important; top: -10px !important;
+  background: radial-gradient(circle at 35% 30%, #FFFFFF, #E9E7F5 60%, #CFCBE8);
+  box-shadow: 0 0 0 6px rgba(196, 181, 253, 0.18), 0 0 22px rgba(196, 181, 253, 0.55), 0 6px 16px rgba(0, 0, 0, 0.55);
+  transition: transform 0.25s var(--ressort), box-shadow 0.25s var(--ressort);
+}
+.slider-continu .noUi-handle:hover { box-shadow: 0 0 0 8px rgba(196, 181, 253, 0.22), 0 0 28px rgba(196, 181, 253, 0.7), 0 6px 16px rgba(0, 0, 0, 0.55); }
+.slider-continu .noUi-active, .slider-continu .noUi-handle:active { transform: scale(1.22); cursor: grabbing;
+  box-shadow: 0 0 0 10px rgba(196, 181, 253, 0.25), 0 0 34px rgba(245, 230, 196, 0.75), 0 8px 20px rgba(0, 0, 0, 0.55); }
+.slider-continu .noUi-pips { height: 26px; }
+.slider-continu .noUi-marker-horizontal.noUi-marker { height: 6px; width: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.16); }
+.slider-continu .noUi-marker-horizontal.noUi-marker-large { height: 6px; background: rgba(255, 255, 255, 0.22); }
+.slider-continu .noUi-value { font-family: var(--police-chiffres); font-size: 10px; color: var(--texte-3); margin-top: 4px; transform: translate(-50%, 50%) !important; }
+.curseur-bloc .paliers-aide { margin: 0 2px; }
+
+/* Extrait du synopsis sur les cartes */
+.extrait { margin: 6px 0 2px; font-size: 12px; line-height: 1.45; color: var(--texte-3);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.carte-sortie .extrait { -webkit-line-clamp: 2; }
+
+/* Transitions : l'écran glisse et se fond (GSAP), sans à-coup de défilement horizontal */
+#ecran { will-change: opacity, transform; }
+.app { overflow-x: hidden; }

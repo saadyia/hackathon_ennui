@@ -54,6 +54,9 @@ python3 backend/import_games.py --csv ~/Downloads/video_games.csv     # jeux vid
 python3 backend/enrich_tmdb.py --movielens /chemin/ml-latest-small   # clé TMDB dans .env (~5 min)
 python3 backend/build_graph.py --movielens /chemin/ml-latest-small   # pré-calcul (< 1 s)
 uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 : pas de synchro auto)
+uvicorn backend.main:app --host 0.0.0.0 --port 8000   # accessible depuis un téléphone sur le même Wi-Fi
+python3 backend/enrich_resumes.py        # synopsis FR (Wikipédia) des films, séries, livres (reprise possible)
+docker build -t on-fait-koi . && docker run -p 8000:8000 on-fait-koi   # image prête (voir aussi render.yaml)
 # Tests : aucun pour l'instant
 ```
 
@@ -82,6 +85,9 @@ uvicorn backend.main:app --reload        # http://127.0.0.1:8000 (ENNUI_SYNC=0 :
   (cinéma, expos, spectacles, rencontres littéraires), Soirées & Concerts, Balades & Nature. Les autres catégories OpenAgenda
   (ateliers, cuisine, sport, café, créatif) ne sont jamais recommandées.
 - **Zéro émoji garanti à la source :** `build_graph.sans_emoji()` nettoie tous les textes externes (OpenAgenda, Wikipédia…).
+- **Synopsis obligatoire :** un film ou une série sans synopsis français n'est jamais recommandé (même seuil que les affiches).
+- **PWA :** installable sur iPhone (Partager > Sur l'écran d'accueil) ; le service worker exige HTTPS hors `localhost`
+  (déployer via `render.yaml` / `Dockerfile` pour un lien public).
 - **Fiche détaillée :** synopsis en français seulement (TMDB fr-FR, Wikipédia FR via `enrich_resumes.py`, description longue
   OpenAgenda) ; les résumés TVmaze (anglais) ne sont jamais affichés.
 - **Honnêteté des données :** ne jamais inventer de prix, d'horaires, de dates, de plateformes ni de participants. Plus aucune donnée simulée.

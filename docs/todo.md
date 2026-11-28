@@ -10,6 +10,8 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Curseur continu 1 à 10, transitions glissées / en fondu, synopsis FR obligatoire (films, séries), extraits sur les cartes
+- [x] PWA installable (manifest, service worker, icônes, balises Apple) ; Dockerfile + render.yaml ; écoute 0.0.0.0
 - [x] Finitions : questionnaire réduit au profil durable, fiche détaillée (synopsis FR, adresse, badges), survol des cartes, fond bleu nuit, titres Outfit, contrôle segmenté à 4 paliers, carte Leaflet des sorties, plus de message « disponibilités en vérification », zéro émoji garanti
 - [x] Refonte design : Lucide, noUiSlider, Swiper, GSAP en local ; Inter / Plus Jakarta Sans / JetBrains Mono ; verre dépoli, halo, ratios stricts, bottom sheet détaillé
 - [x] Catégories nettoyées (2 univers, 6 envies), thèmes de lecture avec curseur Confort ↔ Découverte, filtre machine et mode de jeu

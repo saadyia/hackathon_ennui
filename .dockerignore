@@ -1,0 +1,7 @@
+.git
+.env
+**/__pycache__
+backend/data/raw
+backend/data/*.sqlite3*
+backend/data/*.tmp
+docs

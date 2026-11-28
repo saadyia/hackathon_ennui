@@ -193,6 +193,14 @@ class Moteur:
             else:
                 self.bonus_affiche[m] = BONUS_SANS_AFFICHE
         self.ecran = self.masque_type.get("film", vide) | self.masque_type.get("serie", vide)
+        # Synopsis en français obligatoire pour les films et séries : même règle que les affiches
+        # (stricte dès 90 % d'œuvres décrites ou 1 500 œuvres décrites).
+        self.a_resume = np.array([bool(nd.get("resume")) for nd in self.noeuds])
+        for t in ("film", "serie"):
+            m = self.masque_type.get(t, vide)
+            decrits = int((m & self.a_resume).sum())
+            if m.any() and (decrits / m.sum() >= SEUIL_AFFICHES_STRICT or decrits >= MIN_AFFICHES_STRICT):
+                self.sans_affiche_exclu |= m & ~self.a_resume
         # jeux vidéo : consoles possédées et modes de jeu
         self.masque_console: Dict[str, np.ndarray] = {}
         self.jeu_multi = vide.copy()   # co-op ou multijoueur (badge « Co-op / Multi »)

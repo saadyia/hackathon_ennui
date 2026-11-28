@@ -73,6 +73,7 @@ async def cycle_de_vie(_app):
 app = FastAPI(title="hackathon_ennui", lifespan=cycle_de_vie)
 app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
 app.mount("/vendor", StaticFiles(directory=FRONTEND / "vendor"), name="vendor")  # librairies UI locales
+app.mount("/icons", StaticFiles(directory=FRONTEND / "icons"), name="icons")
 
 # Deux univers, six envies. Les catégories fines d'OpenAgenda (fetch_france.py) sont regroupées ;
 # celles qui sont hors sujet (ateliers, cuisine, sport, café, créatif…) ne sont plus proposées.
@@ -232,6 +233,18 @@ def lire_date(texte: str) -> datetime:
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse(FRONTEND / "index.html")
+
+
+@app.get("/manifest.json", include_in_schema=False)
+def manifeste():
+    return FileResponse(FRONTEND / "manifest.json", media_type="application/manifest+json")
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    # servi à la racine : sa portée couvre toute l'application ; jamais mis en cache par le navigateur
+    return FileResponse(FRONTEND / "sw.js", media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
 
 
 @app.get("/api/sante")
@@ -489,3 +502,12 @@ async def synchroniser():
         asyncio.create_task(synchro.synchroniser(manuel=True))
         await asyncio.sleep(0)  # laisse la tâche passer « en_cours »
     return synchro.etat()
+
+
+if __name__ == "__main__":
+    # Lancement direct : écoute sur toutes les interfaces (téléphone sur le même Wi-Fi, conteneur, hébergeur).
+    # PORT est fourni par les hébergeurs (Render, Railway, Fly…).
+    import os
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))

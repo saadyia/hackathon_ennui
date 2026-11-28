@@ -26,6 +26,7 @@ backend/
 ├── enrich_affiches.py # hors ligne : Wikidata + Wikipédia (affiches films, titres FR) -> data/affiches.json
 ├── import_books.py    # hors ligne : CSV GoodReads + OpenLibrary -> data/livres.json
 ├── import_games.py    # hors ligne : CSV jeux Wikidata + Wikipédia -> data/jeux.json
+├── enrich_resumes.py  # hors ligne : synopsis FR Wikipédia (films, séries, livres) -> data/resumes.json
 ├── build_graph.py     # hors ligne : tout -> data/processed/
 ├── moteur.py          # classe Moteur (calcul pur, testable sans HTTP)
 ├── main.py            # FastAPI : routes, /assets, comptes, plans, agenda

@@ -9,7 +9,7 @@ frontend/
 ├── index.html             # coquille + chargement des librairies locales
 ├── vendor/                # librairies UI copiées en local (licences à côté)
 │   ├── lucide.min.js      # icônes (ISC) — utilisées via icone(nom), stroke 1.5
-│   ├── nouislider.min.*   # curseur de périmètre (MIT)
+│   ├── nouislider.min.*   # curseurs : Confort ↔ Découverte (1 à 10) et périmètre (MIT)
 │   ├── swiper-bundle.min.*# carrousels de « Pour vous » (MIT)
 │   ├── gsap.min.js        # animations (GreenSock Standard License, gratuite)
 │   └── leaflet/           # carte des sorties (BSD-2) — tuiles OpenStreetMap assombries en CSS
@@ -29,8 +29,14 @@ frontend/
 - Ratios stricts : `.visuel.affiche` 2/3 (films, séries, livres), `.visuel.paysage` 16/10 (sorties, jeux), `.voile` pour la lisibilité.
 
 ## Composants
-- Confort ↔ Découverte : contrôle segmenté `PALIERS` (Sur mesure 0, Équilibré 0.3, Exploration 0.6, Hors piste 1), pilule
-  animée en CSS (`--index`), sous-titre qui change ; action `palier`.
+- Confort ↔ Découverte : curseur continu noUiSlider **1 à 10** (`cran()`, `versDecouverte(c) = (c-1)/9`), badge `n/10`,
+  libellé et aide qui évoluent (`LIBELLES_CRANS`, `AIDES_CRANS`), rechargement partiel à chaque cran.
+- Transitions : changement d'onglet / sous-onglet = glissement horizontal + fondu (`transitionEcran(direction)`, `expo.out`) ;
+  filtres = mise à jour en place (`choisirDansGroupe`) + rechargement partiel en fondu (`rendreContenu`, hauteur conservée).
+- Cartes de films, séries, livres : extrait du synopsis (`.extrait`, 3 lignes).
+- PWA : `manifest.json`, `sw.js` (servis à la racine par FastAPI), `icons/` (SVG + PNG générés depuis `icone.svg`),
+  balises Apple dans `index.html`. Service worker : réseau d'abord pour la page et le code, cache d'abord pour vendor/polices/icônes,
+  jamais de cache pour `/api/`. Incrémenter `VERSION` dans `sw.js` si la liste des fichiers de la coquille change.
 - Cartes : survol/toucher = `translateY(-4px) scale(1.015)` + bordure lumineuse (`--lueur`) + ombre douce.
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).
   CartoDB Dark Matter exige désormais une clé (filigrane « API KEY REQUIRED ») : tuiles OpenStreetMap + `.tuiles-sombres`.

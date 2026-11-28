@@ -99,7 +99,7 @@ function restaurer() {
   if (local) etat = { ...ETAT_INITIAL(), ...local, prefs: { ...PREFS_INITIALES(), ...(local.prefs || {}) } };
   etat.prefs.categories = [...new Set(etat.prefs.categories.map((c) => MIGRATION_ENVIES[c] || c))];
   if (!["tout", "ecrans", "livre", "jeu"].includes(etat.ecrans)) etat.ecrans = "tout";
-  etat.decouverte = PALIERS[indexPalier()].valeur;
+  etat.decouverte = versDecouverte(cran());
   if (!["liste", "carte"].includes(etat.vueSorties)) etat.vueSorties = "liste";
 }
 
@@ -292,6 +292,7 @@ function carteOeuvre(o, i = 0) {
       <span class="type-oeuvre">${TYPES[o.type].nom}${livre && !o.francais ? " · VO" : ""}</span>
       <h3 data-action="ouvrir-plans" data-id="${esc(o.id)}">${esc(o.titre)}</h3>
       <div class="meta">${meta}</div>
+      ${o.resume && !jeu ? `<p class="extrait">${esc(o.resume)}</p>` : ""}
       ${livre ? `<div class="plateformes">${(o.themes || []).map((t) => `<span class="plateforme">${esc(nomTheme(t))}</span>`).join("")}</div>`
         : jeu ? `${genresFr(o) ? `<div class="meta">${esc(genresFr(o))}</div>` : ""}${ligneJeu(o)}` : lignePlateformes(o)}
       ${ligneCollab(o, { compacte: true })}
@@ -328,20 +329,48 @@ const PALIERS = [
   { valeur: 0.6, nom: "Exploration", aide: "Plus de pépites, hors des sentiers battus." },
   { valeur: 1, nom: "Hors piste", aide: "Hors de ta zone de confort : d'autres univers." },
 ];
+// Curseur continu 1 -> 10 : chaque cran dose la part de découvertes (cran 1 = 0, cran 10 = 1).
+const cran = () => Math.max(1, Math.min(10, Math.round(etat.decouverte * 9) + 1));
+const versDecouverte = (c) => (c - 1) / 9;
+const LIBELLES_CRANS = ["Zone de confort", "Zone de confort", "Valeurs sûres", "Valeurs sûres", "Équilibré",
+  "Équilibré", "Exploration", "Exploration", "Aventureux", "Hors piste"];
+const AIDES_CRANS = ["Basé sur tes genres et tes thèmes favoris.", "Basé sur tes genres et tes thèmes favoris.",
+  "Tes goûts, avec une pépite de temps en temps.", "Tes goûts, avec une pépite de temps en temps.",
+  "Moitié valeurs sûres, moitié pépites.", "Moitié valeurs sûres, moitié pépites.",
+  "Plus de pépites, hors des sentiers battus.", "Plus de pépites, hors des sentiers battus.",
+  "Presque tout hors de tes habitudes.", "Hors de ta zone de confort : d'autres univers."];
 const indexPalier = () => PALIERS.reduce((meilleur, p, i) =>
   Math.abs(p.valeur - etat.decouverte) < Math.abs(PALIERS[meilleur].valeur - etat.decouverte) ? i : meilleur, 0);
 const valeurCurseur = (n) => n === 0 ? "Valeurs sûres uniquement"
   : n === 10 ? "<b>Découverte totale</b> · hors de tes genres" : `<b>${n}</b> découverte${n > 1 ? "s" : ""} sur 10`;
 
 function instrument() {
-  const actif = indexPalier();
-  return `<div class="paliers-bloc">
-      <div class="paliers" role="radiogroup" aria-label="Confort ou découverte" style="--index:${actif}">
-        <span class="paliers-pilule" aria-hidden="true"></span>
-        ${PALIERS.map((p, i) => `<button role="radio" aria-checked="${i === actif}" data-action="palier" data-index="${i}">${p.nom}</button>`).join("")}
+  const c = cran();
+  return `<div class="curseur-bloc verre" style="--cran:${(c - 1) / 9}">
+      <div class="curseur-tete">
+        <div>
+          <span class="surtitre">Confort ↔ Découverte</span>
+          <div class="curseur-libelle" id="curseur-libelle">${LIBELLES_CRANS[c - 1]}</div>
+        </div>
+        <span class="curseur-badge chiffre" id="curseur-badge"><b>${c}</b>/10</span>
       </div>
-      <p class="paliers-aide" id="paliers-aide">${PALIERS[actif].aide}</p>
+      <div class="slider-ui slider-continu" id="curseur-ui" aria-label="Dosage confort ou découverte, de 1 à 10"></div>
+      <p class="paliers-aide" id="paliers-aide">${AIDES_CRANS[c - 1]}</p>
     </div>`;
+}
+
+/** Met à jour libellé, badge et aide pendant le glissement (sans re-rendu). */
+function afficherCran(c) {
+  const bloc = document.querySelector(".curseur-bloc");
+  if (!bloc) return;
+  bloc.style.setProperty("--cran", (c - 1) / 9);
+  $("#curseur-badge").innerHTML = `<b>${c}</b>/10`;
+  const lib = $("#curseur-libelle");
+  if (lib.textContent !== LIBELLES_CRANS[c - 1]) {
+    lib.textContent = LIBELLES_CRANS[c - 1];
+    if (MOUVEMENT) gsap.fromTo(lib, { opacity: 0.2, y: 3 }, { opacity: 1, y: 0, duration: 0.28, ease: "power2.out" });
+  }
+  $("#paliers-aide").textContent = AIDES_CRANS[c - 1];
 }
 
 function localisation() {
@@ -858,11 +887,36 @@ function rendreContenu() {
   const tmp = document.createElement("div");
   tmp.innerHTML = ECRANS[etat.onglet]();
   const nouvelle = tmp.querySelector("#contenu");
-  if (nouvelle) { zone.replaceWith(nouvelle); monterComposants(nouvelle); }
+  if (!nouvelle) return;
+  // pas de saut de mise en page : la nouvelle grille garde la hauteur de l'ancienne le temps du fondu
+  const hauteur = zone.offsetHeight;
+  if (MOUVEMENT) nouvelle.style.minHeight = `${hauteur}px`;
+  zone.replaceWith(nouvelle);
+  monterComposants(nouvelle);
+  if (MOUVEMENT) {
+    gsap.fromTo(nouvelle, { opacity: 0.35 }, { opacity: 1, duration: 0.35, ease: "power2.out",
+      onComplete: () => { nouvelle.style.minHeight = ""; } });
+  }
 }
 
 /** Après chaque rendu : curseurs noUiSlider, carrousels Swiper, apparition des cartes en cascade (GSAP). */
 function monterComposants(racine) {
+  const curseur = racine.querySelector?.("#curseur-ui");
+  if (curseur && !curseur.noUiSlider && noUiSlider) {
+    noUiSlider.create(curseur, {
+      start: cran(), step: 1, connect: [true, false], range: { min: 1, max: 10 },
+      pips: { mode: "values", values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], density: 100, format: { to: (v) => String(Math.round(v)) } },
+    });
+    curseur.noUiSlider.on("slide", ([v]) => {
+      const c = Math.round(Number(v));
+      if (c === cran()) return;
+      etat.decouverte = versDecouverte(c);
+      afficherCran(c);
+      if (navigator.vibrate) navigator.vibrate(4);
+      chargerApresCran();
+    });
+    curseur.noUiSlider.on("change", sauvegarder);
+  }
   const rayon = racine.querySelector?.("#rayon-ui");
   if (rayon && !rayon.noUiSlider && noUiSlider) {
     noUiSlider.create(rayon, {
@@ -886,7 +940,7 @@ function monterComposants(racine) {
   if (carte) monterCarte(carte);
   if (MOUVEMENT) {
     const cartes = [...(racine.querySelectorAll?.("[data-carte]") || [])].slice(0, 16);
-    if (cartes.length) gsap.from(cartes, { opacity: 0, y: 16, duration: 0.5, stagger: 0.04, ease: "power3.out", clearProps: "opacity,transform" });
+    if (cartes.length) gsap.from(cartes, { opacity: 0, y: 18, scale: 0.985, duration: 0.55, stagger: 0.035, ease: ADOUCI, clearProps: "opacity,transform" });
   }
 }
 
@@ -928,8 +982,11 @@ function monterCarte(el) {
   setTimeout(() => carteLeaflet?.invalidateSize(), 60);
 }
 
-function transitionEcran() {
-  if (MOUVEMENT) gsap.fromTo("#ecran", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32, ease: "power2.out", clearProps: "transform" });
+/** Glissement + fondu entre écrans : direction selon l'ordre des onglets (ou des sous-onglets). */
+const ADOUCI = "expo.out";  // ≈ cubic-bezier(0.22, 1, 0.36, 1)
+function transitionEcran(direction = 0) {
+  if (!MOUVEMENT) return;
+  gsap.fromTo("#ecran", { opacity: 0, x: direction * 36 }, { opacity: 1, x: 0, duration: 0.5, ease: ADOUCI, clearProps: "transform" });
 }
 
 function corps(type, k, ecrans = ["film", "serie", "livre", "jeu"]) {
@@ -1003,6 +1060,7 @@ const chargerSiQuotaChange = debounce(() => {
   if (`${etat.onglet}:${etat.ecrans}:${nbPepites()}` !== cleQuota) charger({ partiel: true });
 }, 60);
 const chargerApresRayon = debounce(() => charger({ partiel: true }), 150);
+const chargerApresCran = debounce(() => charger({ partiel: true }), 120);
 
 function trouver(id) {
   for (const liste of Object.values(donnees)) {
@@ -1078,6 +1136,11 @@ async function changerCompte(uid) {
 // ------------------------------------------------------------------ //
 // Actions                                                              //
 // ------------------------------------------------------------------ //
+/** Choix unique dans un groupe de puces : met à jour aria-pressed sans re-rendre l'écran. */
+function choisirDansGroupe(b) {
+  b.parentElement.querySelectorAll(`[data-action="${b.dataset.action}"]`).forEach((x) => x.setAttribute("aria-pressed", x === b));
+}
+
 const actions = {
   pref(b) {
     const { groupe } = b.dataset;
@@ -1085,8 +1148,8 @@ const actions = {
     const liste = etat.prefs[groupe];
     etat.prefs[groupe] = liste.includes(valeur) ? liste.filter((v) => v !== valeur) : [...liste, valeur];
     sauvegarder();
-    if (!etat.uid || etat.onglet === "profil") b.setAttribute("aria-pressed", etat.prefs[groupe].includes(valeur));
-    else charger();
+    b.setAttribute("aria-pressed", etat.prefs[groupe].includes(valeur));
+    if (etat.uid && etape !== "bienvenue" && etat.onglet !== "profil") charger({ partiel: true });
   },
   "vue-sorties"(b) {
     if (etat.vueSorties === b.dataset.valeur) return;
@@ -1113,20 +1176,23 @@ const actions = {
   "mode-jeu"(b) {
     if (etat.prefs.modeJeu === b.dataset.valeur) return;
     etat.prefs.modeJeu = b.dataset.valeur;
+    choisirDansGroupe(b);
     sauvegarder();
-    charger();
+    charger({ partiel: true });
   },
   budget(b) {
     if (etat.prefs.budget === b.dataset.valeur) return;
     etat.prefs.budget = b.dataset.valeur;
+    choisirDansGroupe(b);
     sauvegarder();
-    charger();
+    charger({ partiel: true });
   },
   horizon(b) {
     if (etat.horizon === b.dataset.valeur) return;
     etat.horizon = b.dataset.valeur;
+    choisirDansGroupe(b);
     sauvegarder();
-    charger();
+    charger({ partiel: true });
   },
   "choisir-ville"(b) {
     etat.prefs.ville = resultatsVille[Number(b.dataset.index)];
@@ -1193,19 +1259,24 @@ const actions = {
   },
   onglet(b) {
     if (etat.onglet === b.dataset.onglet && b.closest("#onglets")) return haut();
+    const ordre = ONGLETS.map((o) => o.id);
+    const direction = Math.sign(ordre.indexOf(b.dataset.onglet) - ordre.indexOf(etat.onglet));
     etat.onglet = b.dataset.onglet;
     sauvegarder();
     donnees = {};
     haut();
     charger();
-    transitionEcran();
+    transitionEcran(direction);
   },
   segment(b) {
     if (etat.ecrans === b.dataset.valeur) return;
+    const ordre = ["tout", "ecrans", "livre", "jeu"];
+    const direction = Math.sign(ordre.indexOf(b.dataset.valeur) - ordre.indexOf(etat.ecrans));
     etat.ecrans = b.dataset.valeur;
     sauvegarder();
     donnees = {};
     charger();
+    transitionEcran(direction);
   },
   "deja-vu"(b) {
     const id = b.dataset.id;
@@ -1369,6 +1440,11 @@ document.documentElement.classList.toggle("anime", MOUVEMENT);
 // ------------------------------------------------------------------ //
 // Démarrage                                                            //
 // ------------------------------------------------------------------ //
+// PWA : service worker minimal (coquille hors ligne) ; ignoré si non pris en charge
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+
 (async function demarrer() {
   restaurer();
   try {

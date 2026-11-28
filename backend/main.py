@@ -356,7 +356,7 @@ CATEGORIES_ACTIVITES = {"creatif": "Créatif", "cuisine": "Cuisine", "mouvement"
 
 
 @app.get("/api/activites")
-def activites(categorie: Literal["creatif", "cuisine", "mouvement"] = "creatif",
+def activites(categorie: Literal["tout", "creatif", "cuisine", "mouvement"] = "tout",
               materiel: Literal["tout", "sans", "basique"] = "tout",
               mode: Literal["tous", "solo", "groupe"] = "tous",
               decouverte: float = Query(0.3, ge=0, le=1),

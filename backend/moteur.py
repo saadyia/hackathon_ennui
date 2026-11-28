@@ -565,13 +565,14 @@ def classer_activites(activites: list, categorie: str = "creatif", materiel: str
 
     score = (1 - s) · (1 - insolite) + s · insolite + variation du jour (± 0,06, stable sur la journée)
     À s = 0 : les classiques (cookies, course à pied) ; à s = 1 : linogravure, gyoza maison, escalade de bloc.
+    Catégorie « tout » : les trois catégories mélangées dans le même classement.
     Matériel : « sans » = sans matériel seulement ; « basique » = sans + basique ; « tout » = y compris équipé.
     """
     s = min(1.0, max(0.0, float(decouverte)))
     plafond = {"sans": 0, "basique": 1}.get(materiel, 2)
     retenues = []
     for a in activites:
-        if a["categorie"] != categorie or MATERIEL_RANG[a["materiel"]] > plafond:
+        if (categorie != "tout" and a["categorie"] != categorie) or MATERIEL_RANG[a["materiel"]] > plafond:
             continue
         if mode in ("solo", "groupe") and mode not in a["modes"]:
             continue
@@ -583,4 +584,14 @@ def classer_activites(activites: list, categorie: str = "creatif", materiel: str
             tag = {"origine": "decouverte", "etiquette": "hors-piste" if ins >= 0.6 else "pepite"}
         retenues.append((score, {**a, **tag, "score": round(score, 4)}))
     retenues.sort(key=lambda x: -x[0])
-    return [a for _, a in retenues]
+    if categorie != "tout":
+        return [a for _, a in retenues]
+    # « Tout » : à tour de rôle entre les catégories (la meilleure restante d'abord), pour un mélange visible dès le haut
+    files = {}
+    for _, a in retenues:
+        files.setdefault(a["categorie"], []).append(a)
+    melange = []
+    while any(files.values()):
+        tour = sorted((f[0]["score"], c) for c, f in files.items() if f)
+        melange += [files[c].pop(0) for _, c in reversed(tour)]
+    return melange

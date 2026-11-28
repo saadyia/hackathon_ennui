@@ -86,7 +86,8 @@ MOTS_CATEGORIE = {
     "expo": r"exposition|\bexpo\b|mus[ée]e|vernissage|galerie|visite guid[ée]e|patrimoine|photograph|peinture|"
             r"sculpture|\bart\b|arts plastiques",
     "nature": r"balade|randonn[ée]e|\brando\b|nature|jardin|marais|for[êe]t|littoral|oiseaux|botanique|"
-              r"\bv[ée]lo\b|sentier|plage|estran|\bparcs?\b",
+              r"\bv[ée]lo\b|sentier|plage|estran|\bparcs?\b|plein air|trail|kayak|cano[ëe]|paddle|"
+              r"espaces? naturels?|r[ée]serve naturelle|cueillette|astronomie|nuit des [ée]toiles",
     "rencontres": r"conf[ée]rence|rencontre|d[ée]bat|atelier|quiz|\bjeux?\b|"
                   r"ap[ée]ro|discussion|table ronde",
     "jeux": r"jeux? vid[ée]o|gaming|gamers?\b|e-?sport|r[ée]tro-?gaming|\blan party\b|consoles?\b|"
@@ -202,6 +203,29 @@ def categoriser(texte: str):
     scores = {c: len(re.findall(m, t)) for c, m in MOTS_CATEGORIE.items()}
     meilleur = max(scores, key=lambda c: scores[c])
     return meilleur if scores[meilleur] > 0 else None
+
+
+# Affinage vers les trois sous-catégories de l'onglet Sorties (culture, soirées, nature) : on rattache les
+# « rencontres » et le « sport » quand le texte le dit clairement ; le reste garde sa catégorie (non proposée).
+AFFINAGE = [
+    ("rencontres", r"conf[ée]rence|d[ée]bat|table ronde|visite|patrimoine|histoire|arch[ée]o|science|astronom|"
+                   r"projection|philo|mus[ée]e|exposition|lecture", "culture"),
+    ("rencontres", r"ap[ée]ro|quiz|blind test|soir[ée]e|karaok[ée]|afterwork|bar\b|danse", "soirees"),
+    ("sport", r"plein air|ext[ée]rieur|randonn|\brando|marche nordique|trail|course nature|v[ée]lo|kayak|cano[ëe]|"
+              r"paddle|parc\b|jardin|for[êe]t|plage|\bnature\b", "nature"),
+    ("rencontres", r"plein air|randonn|balade|\bnature\b|jardin|for[êe]t|sortie nature|observation", "nature"),
+]
+
+
+def affiner(categorie, texte: str, titre: str = ""):
+    """Nature : seulement si le titre le dit (une description cite vite un jardin ou une forêt au passage)."""
+    if not categorie:
+        return categorie
+    for source, motif, cible in AFFINAGE:
+        t = (titre if cible == "nature" and titre else texte).lower()
+        if categorie == source and re.search(motif, t):
+            return cible
+    return categorie
 
 
 def genres_pour(categorie: str, texte: str):
@@ -354,7 +378,7 @@ def evenements_ville(ville, lat, lon, jours, maintenant):
         c = e.get("location_coordinates") or {}
         if not c.get("lat"):
             continue
-        categorie = categoriser(texte)
+        categorie = affiner(categoriser(texte), texte, titre)
         occ = occurrences_futures(e.get("timings"), maintenant, limite)
         if not categorie or not occ:
             continue  # strict : jamais d'événement sans occurrence future

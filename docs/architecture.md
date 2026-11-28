@@ -96,6 +96,14 @@ Avec une clé TMDB, ou une fois `enrich_affiches.py` terminé, les films passero
 - Graphe : chaque genre français est aussi associé à des genres de l'application (ex. RPG → Fantasy + Adventure) pour relier les jeux aux films.
 - Budget : prix inconnu, donc exclus dès qu'un budget est demandé (comme les livres).
 
+## Sous-catégories de l'onglet Sorties
+- Pilule Tout / Sorties culturelles / Soirées & Concerts / Balades & Nature (`categories` = `[]` ou un groupe).
+- `fetch_france.affiner()` rattache des catégories fines non proposées : rencontres (conférence, débat, table ronde,
+  patrimoine, sciences, philo) -> culture ; rencontres (apéro, quiz, blind test, soirée, karaoké) -> soirées ;
+  sport ou rencontres en plein air (randonnée, trail, vélo, kayak, parc, forêt…, **dans le titre**) -> nature.
+  Appliqué au fichier existant (28/11/2026) : 30 -> culture, 68 -> soirées ; total 1 299 sorties, dont 509 soirées,
+  128 nature.
+
 ## Soirées & Concerts
 - Catégorie `soirees` (concert, soirée, DJ, club, électro, festival, live, fête, karaoké, afterwork, open mic, blind test, jazz, rock, rap…).
   « Spectacles & Scène » regroupe désormais théâtre, danse, cirque et humour.
@@ -167,8 +175,10 @@ Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétitio
 ## Hors écran (activités)
 - Catalogue éditorial `backend/data/activites.json` (versionné, chargé une fois au démarrage) : 35 activités (12 créatives,
   11 cuisine, 12 mouvement), chacune avec titre, défi concret, durée, matériel (`sans` / `basique` / `equipe`), modes
-  (`solo`, `groupe`), icône Lucide, « Il te faut », étapes, et un score `insolite` (0 à 1). Pas d'image : visuel = teinte
-  feutrée par catégorie + icône (jamais d'illustration inventée).
+  (`solo`, `groupe`), icône Lucide, photo (`frontend/assets/activites/<slug>.jpg`, 720 × 450, Unsplash, crédit
+  dans la fiche ; 2 Mo au total, servie en local), recettes des 11 activités Cuisine (portions, temps, ingrédients
+  avec quantités, étapes, variante), « Il te faut », étapes, et un score `insolite` (0 à 1). Repli sans photo : teinte
+  feutrée par catégorie + icône. Sous-onglet « Tout » : les trois catégories classées puis prises à tour de rôle.
 - `moteur.classer_activites` : score = (1 − s)·(1 − insolite) + s·insolite ± 0,06 (variation stable sur la journée).
   À 0/10 : crêpes, cookies, course à pied ; à 10/10 : linogravure, gyoza, escalade de bloc (« Hors piste »).
 - Hors du graphe PageRank (pas de co-occurrences pour ces activités) ; plans, « Mes envies », tirage et synchro temps réel

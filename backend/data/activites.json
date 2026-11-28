@@ -24,7 +24,10 @@
     "Enchaîne des rangs de mailles serrées en comptant les mailles à chaque rang.",
     "Vise un carré de 10 cm avant d'attaquer l'objet : c'est ton échantillon.",
     "Ferme et rentre les fils à l'aiguille."
-   ]
+   ],
+   "photo": "/assets/activites/crochet.jpg",
+   "credit_photo": "Margarida Afonso / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1584992236310-6edddc08acff"
   },
   {
    "id": "activite:dessin",
@@ -49,7 +52,10 @@
     "Fais dix croquis de deux minutes chacun, sans gommer.",
     "Termine par un dessin plus posé de vingt minutes.",
     "Date la page : le carnet devient un journal."
-   ]
+   ],
+   "photo": "/assets/activites/dessin.jpg",
+   "credit_photo": "Andrés Gómez / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1593472807861-5bb884af28f6"
   },
   {
    "id": "activite:aquarelle",
@@ -76,7 +82,10 @@
     "Mouille le haut du papier et dépose un bleu dilué : le ciel se forme seul.",
     "Laisse sécher, puis pose les plans du paysage du plus clair au plus foncé.",
     "Finis par quelques détails nets au pinceau presque sec."
-   ]
+   ],
+   "photo": "/assets/activites/aquarelle.jpg",
+   "credit_photo": "Kseniya Lapteva / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1629654858857-615c2c8be8a8"
   },
   {
    "id": "activite:argile",
@@ -103,7 +112,10 @@
     "Roule des colombins et monte-les en spirale en lissant les jonctions au doigt mouillé.",
     "Laisse sécher 24 à 48 h loin du radiateur.",
     "Ponce, puis peins ou vernis si tu veux."
-   ]
+   ],
+   "photo": "/assets/activites/argile.jpg",
+   "credit_photo": "Alex Jones / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1422246358533-95dcd3d48961"
   },
   {
    "id": "activite:broderie",
@@ -130,7 +142,10 @@
     "Tends le tissu dans le tambour.",
     "Trace les contours au point arrière, puis remplis au point de tige.",
     "Fais un nœud au dos et lave à froid."
-   ]
+   ],
+   "photo": "/assets/activites/broderie.jpg",
+   "credit_photo": "Ksenia Yakovleva / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1671535108620-d169ce916f09"
   },
   {
    "id": "activite:linogravure",
@@ -157,7 +172,10 @@
     "Creuse tout ce qui doit rester blanc, toujours en éloignant la gouge de ta main.",
     "Encre au rouleau en couche fine.",
     "Presse le papier à la cuillère, puis décolle doucement."
-   ]
+   ],
+   "photo": "/assets/activites/linogravure.jpg",
+   "credit_photo": "Paulina Herpel / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1730134426941-1def6b725da3"
   },
   {
    "id": "activite:origami",
@@ -181,7 +199,10 @@
     "Enchaîne avec la grue, le grand classique.",
     "Termine par une étoile modulaire à plusieurs.",
     "Marque chaque pli à l'ongle : la précision fait tout."
-   ]
+   ],
+   "photo": "/assets/activites/origami.jpg",
+   "credit_photo": "Yuu Khoang / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1708878641346-c33c649a923f"
   },
   {
    "id": "activite:collage",
@@ -208,7 +229,10 @@
     "Découpe vite et beaucoup, sans réfléchir.",
     "Assemble d'abord sans coller, puis fixe.",
     "Ajoute un mot écrit à la main pour signer la page."
-   ]
+   ],
+   "photo": "/assets/activites/collage.jpg",
+   "credit_photo": "Elena Mozhvilo / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1666284224728-7103ca49a1ab"
   },
   {
    "id": "activite:calligraphie",
@@ -233,7 +257,10 @@
     "Entraîne-toi sur les traits de base : appuie en descendant, relâche en montant.",
     "Écris l'alphabet minuscule lettre par lettre.",
     "Finis par un mot que tu aimes, plusieurs fois."
-   ]
+   ],
+   "photo": "/assets/activites/calligraphie.jpg",
+   "credit_photo": "Aaron Burden / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1455390582262-044cdead277a"
   },
   {
    "id": "activite:bijoux",
@@ -260,7 +287,10 @@
     "Enfile, en gardant 5 cm de fil de chaque côté.",
     "Fixe le fermoir avec une perle à écraser.",
     "Fais une deuxième pièce assortie pour offrir."
-   ]
+   ],
+   "photo": "/assets/activites/bijoux.jpg",
+   "credit_photo": "Kelly Sikkema / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1715374033196-0ff662284a7e"
   },
   {
    "id": "activite:balade-photo",
@@ -284,7 +314,10 @@
     "Marche une heure en ne cherchant que ça.",
     "Limite-toi à douze photos : chaque prise compte.",
     "Le soir, garde les trois meilleures."
-   ]
+   ],
+   "photo": "/assets/activites/balade-photo.jpg",
+   "credit_photo": "Jakob Owens / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1493863641943-9b68992a8d07"
   },
   {
    "id": "activite:beatmaking",
@@ -310,7 +343,10 @@
     "Coupe-les en échantillons courts.",
     "Pose une batterie simple sur quatre mesures.",
     "Ajoute une basse et exporte ta boucle de 30 secondes."
-   ]
+   ],
+   "photo": "/assets/activites/beatmaking.jpg",
+   "credit_photo": "James Stamler / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1477233534935-f5e6fe7c1159"
   },
   {
    "id": "activite:cookies",
@@ -336,6 +372,74 @@
     "Ajoute l'œuf, puis la farine et le chocolat en morceaux.",
     "Forme des boules et repose-les 30 min au frais.",
     "Cuis 9 à 10 min : ils durcissent en refroidissant."
+   ],
+   "photo": "/assets/activites/cookies.jpg",
+   "credit_photo": "Stanley Kustamin / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1767339300211-00be83435c63",
+   "recettes": [
+    {
+     "titre": "Cookies aux pépites de chocolat",
+     "portions": "12 cookies",
+     "temps": [
+      [
+       "Préparation",
+       15
+      ],
+      [
+       "Cuisson",
+       11
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "125 g",
+         "beurre doux, mou"
+        ],
+        [
+         "100 g",
+         "sucre roux (cassonade)"
+        ],
+        [
+         "50 g",
+         "sucre blanc"
+        ],
+        [
+         "1",
+         "œuf"
+        ],
+        [
+         "225 g",
+         "farine"
+        ],
+        [
+         "5 g",
+         "levure chimique (½ sachet)"
+        ],
+        [
+         "1 pincée",
+         "sel"
+        ],
+        [
+         "150 g",
+         "chocolat noir haché ou en pépites"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Préchauffe le four à 180 °C (chaleur tournante 170 °C) et couvre une plaque de papier cuisson.",
+      "Mélange le beurre mou avec les deux sucres jusqu'à obtenir une crème lisse.",
+      "Ajoute l'œuf et mélange bien.",
+      "Incorpore la farine, la levure et le sel, sans trop travailler la pâte.",
+      "Ajoute le chocolat, puis forme 12 boules d'environ 45 g, espacées de 5 cm sur la plaque.",
+      "Enfourne 10 à 12 min : les bords sont dorés, le centre encore mou.",
+      "Laisse reposer 10 min sur la plaque avant de les décoller : ils durcissent en refroidissant."
+     ],
+     "astuce": "Version brownie : 200 g de chocolat et 150 g de beurre fondus, 150 g de sucre, 3 œufs, 60 g de farine, 20 min à 180 °C dans un moule de 20 cm."
+    }
    ]
   },
   {
@@ -344,7 +448,7 @@
    "categorie": "cuisine",
    "titre": "Crêpes & pancakes",
    "sous_titre": "Pâte sans grumeaux · Sucré et salé pour toute la tablée",
-   "duree_min": 40,
+   "duree_min": 60,
    "materiel": "basique",
    "modes": [
     "solo",
@@ -361,6 +465,74 @@
     "Verse le lait petit à petit en fouettant.",
     "Laisse reposer 30 min.",
     "Poêle bien chaude, une louche, on retourne quand les bords dorent."
+   ],
+   "photo": "/assets/activites/crepes.jpg",
+   "credit_photo": "Sergej / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1771250248306-3da13dac0a50",
+   "recettes": [
+    {
+     "titre": "Crêpes",
+     "portions": "4 personnes · 15 crêpes",
+     "temps": [
+      [
+       "Préparation",
+       10
+      ],
+      [
+       "Repos",
+       30
+      ],
+      [
+       "Cuisson",
+       20
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "250 g",
+         "farine"
+        ],
+        [
+         "4",
+         "œufs"
+        ],
+        [
+         "50 cl",
+         "lait"
+        ],
+        [
+         "1 pincée",
+         "sel"
+        ],
+        [
+         "1 c. à soupe",
+         "sucre (pour des crêpes sucrées)"
+        ],
+        [
+         "50 g",
+         "beurre fondu ou 3 c. à soupe d'huile neutre"
+        ],
+        [
+         "",
+         "un peu de beurre ou d'huile pour la poêle"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Verse la farine et le sel dans un saladier, creuse un puits.",
+      "Casse les œufs au centre et fouette en ramenant peu à peu la farine.",
+      "Verse le lait petit à petit en fouettant sans arrêt : la pâte reste lisse, sans grumeaux.",
+      "Ajoute le sucre et le beurre fondu, puis laisse reposer 30 min (facultatif, mais les crêpes se tiennent mieux).",
+      "Graisse légèrement une poêle bien chaude avec un essuie-tout huilé.",
+      "Verse une petite louche de pâte en inclinant la poêle pour couvrir tout le fond.",
+      "Retourne quand les bords se détachent (environ 1 min), cuis 30 s de l'autre côté et empile sur une assiette."
+     ],
+     "astuce": "Version pancakes : 250 g de farine, 1 sachet de levure, 2 œufs, 30 cl de lait, 30 g de sucre ; petites louches, 2 min par face."
+    }
    ]
   },
   {
@@ -369,7 +541,7 @@
    "categorie": "cuisine",
    "titre": "Pizza maison",
    "sous_titre": "Pâte levée et cuisson à four très chaud",
-   "duree_min": 120,
+   "duree_min": 122,
    "materiel": "basique",
    "modes": [
     "solo",
@@ -387,6 +559,87 @@
     "Étale à la main du centre vers les bords.",
     "Garnis sans surcharger.",
     "Four au maximum, sur la plaque préchauffée, 8 à 10 min."
+   ],
+   "photo": "/assets/activites/pizza.jpg",
+   "credit_photo": "Nadya Spetnitskaya / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1517686469429-8bdb88b9f907",
+   "recettes": [
+    {
+     "titre": "Pizza maison",
+     "portions": "2 pizzas · 2 à 4 personnes",
+     "temps": [
+      [
+       "Préparation",
+       20
+      ],
+      [
+       "Pousse",
+       90
+      ],
+      [
+       "Cuisson",
+       12
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "Pâte",
+       "liste": [
+        [
+         "300 g",
+         "farine (T45 ou T55)"
+        ],
+        [
+         "180 ml",
+         "eau tiède"
+        ],
+        [
+         "5 g",
+         "levure de boulanger sèche (1 sachet)"
+        ],
+        [
+         "6 g",
+         "sel (1 c. à café)"
+        ],
+        [
+         "2 c. à soupe",
+         "huile d'olive"
+        ]
+       ]
+      },
+      {
+       "groupe": "Garniture",
+       "liste": [
+        [
+         "200 g",
+         "coulis de tomate"
+        ],
+        [
+         "125 g",
+         "mozzarella (1 boule)"
+        ],
+        [
+         "1 c. à café",
+         "origan"
+        ],
+        [
+         "",
+         "au choix : jambon, champignons, poivron, olives, oignon"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Mélange la farine, la levure et le sel, puis ajoute l'eau tiède et l'huile.",
+      "Pétris 8 à 10 min jusqu'à ce que la pâte soit lisse et souple.",
+      "Couvre d'un torchon et laisse lever 1 h 30 dans un endroit tiède : elle double de volume.",
+      "Préchauffe le four au maximum (250 °C) avec la plaque à l'intérieur.",
+      "Divise la pâte en deux et étale chaque pâton à la main ou au rouleau sur papier cuisson, 3 à 4 mm d'épaisseur.",
+      "Étale le coulis, ajoute l'origan, la mozzarella égouttée en morceaux, puis tes garnitures.",
+      "Glisse la pizza sur la plaque chaude et cuis 10 à 12 min, jusqu'à ce que les bords soient dorés.",
+      "Recommence avec la seconde pizza."
+     ]
+    }
    ]
   },
   {
@@ -413,6 +666,66 @@
     "Pétris jusqu'à une boule lisse, puis repos 30 min.",
     "Étale le plus finement possible, farine, roule et coupe en lanières.",
     "Cuis 2 à 3 min dans l'eau bouillante salée."
+   ],
+   "photo": "/assets/activites/pates-fraiches.jpg",
+   "credit_photo": "Jorge Zapata / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1447279506476-3faec8071eee",
+   "recettes": [
+    {
+     "titre": "Tagliatelles fraîches",
+     "portions": "2 personnes",
+     "temps": [
+      [
+       "Préparation",
+       30
+      ],
+      [
+       "Repos",
+       30
+      ],
+      [
+       "Cuisson",
+       3
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "200 g",
+         "farine (T45, ou moitié semoule fine)"
+        ],
+        [
+         "2",
+         "œufs"
+        ],
+        [
+         "1 pincée",
+         "sel"
+        ],
+        [
+         "",
+         "farine pour le plan de travail"
+        ],
+        [
+         "20 g",
+         "gros sel pour l'eau de cuisson (10 g par litre)"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Forme un puits avec la farine et le sel sur le plan de travail, casse les œufs au centre.",
+      "Bats les œufs à la fourchette en ramenant la farine petit à petit.",
+      "Pétris 8 à 10 min : la pâte doit être lisse, ferme et ne plus coller.",
+      "Emballe-la dans du film ou un torchon et laisse reposer 30 min à température ambiante.",
+      "Coupe-la en deux et étale chaque moitié au rouleau, très finement (1 à 2 mm), en farinant souvent.",
+      "Farine la feuille, roule-la sans serrer, puis coupe des lanières de 6 mm au couteau.",
+      "Déroule les tagliatelles et cuis-les 2 à 3 min dans 2 litres d'eau bouillante salée."
+     ],
+     "astuce": "Version gnocchis : 500 g de pommes de terre cuites à l'eau et écrasées, 150 g de farine, 1 jaune d'œuf ; boudins coupés en tronçons, cuits jusqu'à ce qu'ils remontent."
+    }
    ]
   },
   {
@@ -439,6 +752,73 @@
     "Fais quatre séries de rabats à 30 min d'intervalle.",
     "Étale dans un plat huilé et creuse des trous aux doigts.",
     "Herbes, gros sel, huile, puis 20 à 25 min à 220 °C."
+   ],
+   "photo": "/assets/activites/focaccia.jpg",
+   "credit_photo": "Diego Arenas de Rodrigo / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1767065885993-b4c5a018bd3a",
+   "recettes": [
+    {
+     "titre": "Focaccia au romarin",
+     "portions": "1 plaque · 6 parts",
+     "temps": [
+      [
+       "Préparation",
+       15
+      ],
+      [
+       "Pousse",
+       120
+      ],
+      [
+       "Cuisson",
+       25
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "400 g",
+         "farine (T55)"
+        ],
+        [
+         "320 ml",
+         "eau tiède"
+        ],
+        [
+         "5 g",
+         "levure de boulanger sèche (1 sachet)"
+        ],
+        [
+         "8 g",
+         "sel"
+        ],
+        [
+         "4 c. à soupe",
+         "huile d'olive, plus pour le moule"
+        ],
+        [
+         "2 brins",
+         "romarin (ou 1 c. à café séché)"
+        ],
+        [
+         "1 c. à café",
+         "gros sel ou fleur de sel"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Mélange la farine, la levure et le sel, puis ajoute l'eau et 2 c. à soupe d'huile : la pâte est collante, c'est normal.",
+      "Couvre et laisse reposer 30 min, puis rabats la pâte sur elle-même 4 fois avec une main mouillée.",
+      "Laisse lever encore 1 h, couvert : elle double de volume.",
+      "Huile généreusement un moule d'environ 20 × 30 cm et étale la pâte du bout des doigts.",
+      "Laisse reposer 30 min, puis préchauffe le four à 220 °C.",
+      "Enfonce tes doigts dans la pâte pour faire des creux, arrose du reste d'huile, parsème de romarin et de gros sel.",
+      "Enfourne 20 à 25 min, jusqu'à ce que le dessus soit bien doré. Laisse tiédir avant de couper."
+     ]
+    }
    ]
   },
   {
@@ -464,6 +844,104 @@
     "Étale en rectangle, beurre mou, sucre et cannelle.",
     "Roule serré et coupe en tranches de 4 cm.",
     "Seconde pousse 45 min, puis 20 min à 180 °C."
+   ],
+   "photo": "/assets/activites/cinnamon-rolls.jpg",
+   "credit_photo": "David Eduardo Lopez Diaz / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1764281469526-e1c378515e6f",
+   "recettes": [
+    {
+     "titre": "Cinnamon rolls",
+     "portions": "9 roulés",
+     "temps": [
+      [
+       "Préparation",
+       30
+      ],
+      [
+       "Pousse",
+       105
+      ],
+      [
+       "Cuisson",
+       22
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "Pâte",
+       "liste": [
+        [
+         "375 g",
+         "farine"
+        ],
+        [
+         "180 ml",
+         "lait tiède"
+        ],
+        [
+         "1",
+         "œuf"
+        ],
+        [
+         "50 g",
+         "sucre"
+        ],
+        [
+         "50 g",
+         "beurre fondu"
+        ],
+        [
+         "5 g",
+         "levure de boulanger sèche (1 sachet)"
+        ],
+        [
+         "1 pincée",
+         "sel"
+        ]
+       ]
+      },
+      {
+       "groupe": "Garniture",
+       "liste": [
+        [
+         "60 g",
+         "beurre très mou"
+        ],
+        [
+         "80 g",
+         "sucre roux"
+        ],
+        [
+         "1 c. à soupe",
+         "cannelle"
+        ]
+       ]
+      },
+      {
+       "groupe": "Glaçage",
+       "liste": [
+        [
+         "80 g",
+         "sucre glace"
+        ],
+        [
+         "1 à 2 c. à soupe",
+         "lait"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Mélange la farine, le sucre, la levure et le sel ; ajoute le lait tiède, l'œuf et le beurre fondu.",
+      "Pétris 8 min jusqu'à obtenir une pâte souple, couvre et laisse lever 1 h : elle double.",
+      "Étale la pâte en un rectangle d'environ 30 × 40 cm.",
+      "Tartine le beurre mou, puis saupoudre le mélange sucre roux et cannelle.",
+      "Roule la pâte en partant du grand côté, serré, et coupe 9 tronçons de 3 à 4 cm.",
+      "Place-les dans un moule beurré de 22 cm, couvre et laisse lever 45 min.",
+      "Enfourne à 180 °C pendant 20 à 25 min, jusqu'à ce qu'ils soient dorés.",
+      "Mélange le sucre glace et le lait, puis nappe les roulés encore tièdes."
+     ]
+    }
    ]
   },
   {
@@ -490,6 +968,87 @@
     "Laisse frémir 30 min pour concentrer les goûts.",
     "Cuis des œufs mollets 6 min 30 et les nouilles à part.",
     "Assemble dans le bol : nouilles, bouillon, garnitures."
+   ],
+   "photo": "/assets/activites/ramen.jpg",
+   "credit_photo": "Dimitris Asproloupos / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1772217261042-0175d0b2fcb0",
+   "recettes": [
+    {
+     "titre": "Ramen express",
+     "portions": "2 personnes",
+     "temps": [
+      [
+       "Préparation",
+       15
+      ],
+      [
+       "Cuisson",
+       20
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "Bouillon",
+       "liste": [
+        [
+         "1 L",
+         "eau + 2 cubes de bouillon (volaille ou légumes)"
+        ],
+        [
+         "3 c. à soupe",
+         "sauce soja"
+        ],
+        [
+         "2",
+         "gousses d'ail"
+        ],
+        [
+         "1 cm",
+         "gingembre frais (ou ½ c. à café en poudre)"
+        ],
+        [
+         "1 c. à soupe",
+         "pâte miso (facultatif)"
+        ]
+       ]
+      },
+      {
+       "groupe": "Garniture",
+       "liste": [
+        [
+         "2 portions",
+         "nouilles ramen ou nouilles chinoises (160 g)"
+        ],
+        [
+         "2",
+         "œufs"
+        ],
+        [
+         "2",
+         "oignons nouveaux"
+        ],
+        [
+         "100 g",
+         "champignons ou pousses d'épinard"
+        ],
+        [
+         "1 c. à café",
+         "huile de sésame"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Porte l'eau à ébullition avec les cubes, l'ail écrasé et le gingembre en lamelles ; laisse frémir 15 min.",
+      "Pendant ce temps, cuis les œufs 6 min 30 dans l'eau bouillante, puis plonge-les dans l'eau froide et écale-les.",
+      "Émince les oignons nouveaux et les champignons.",
+      "Retire l'ail et le gingembre, ajoute la sauce soja et le miso délayé dans une louche de bouillon.",
+      "Ajoute les champignons 3 min, puis cuis les nouilles à part selon le paquet et égoutte-les.",
+      "Répartis les nouilles dans deux bols, verse le bouillon brûlant, ajoute les épinards.",
+      "Termine avec les œufs coupés en deux, les oignons nouveaux et quelques gouttes d'huile de sésame."
+     ],
+     "astuce": "Version curry : fais revenir oignon et 300 g de légumes, ajoute 2 c. à soupe de pâte de curry et 40 cl de lait de coco, mijote 15 min, sers avec du riz."
+    }
    ]
   },
   {
@@ -516,6 +1075,99 @@
     "Une cuillère par feuille, mouille le bord et plisse d'un seul côté.",
     "Dore à la poêle, puis ajoute un fond d'eau et couvre 5 min.",
     "Sauce : soja, vinaigre de riz, huile pimentée."
+   ],
+   "photo": "/assets/activites/gyoza.jpg",
+   "credit_photo": "Huyen Bui / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1638502338747-f7f368214cce",
+   "recettes": [
+    {
+     "titre": "Gyoza poêlés",
+     "portions": "24 gyoza · 3 à 4 personnes",
+     "temps": [
+      [
+       "Préparation",
+       40
+      ],
+      [
+       "Cuisson",
+       10
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "Farce",
+       "liste": [
+        [
+         "24",
+         "feuilles à gyoza (rayon asiatique)"
+        ],
+        [
+         "250 g",
+         "porc haché ou tofu ferme émietté"
+        ],
+        [
+         "150 g",
+         "chou chinois"
+        ],
+        [
+         "1 c. à café",
+         "sel (pour le chou)"
+        ],
+        [
+         "2",
+         "oignons nouveaux"
+        ],
+        [
+         "1",
+         "gousse d'ail"
+        ],
+        [
+         "1 cm",
+         "gingembre frais"
+        ],
+        [
+         "1 c. à soupe",
+         "sauce soja"
+        ],
+        [
+         "1 c. à café",
+         "huile de sésame"
+        ]
+       ]
+      },
+      {
+       "groupe": "Cuisson et sauce",
+       "liste": [
+        [
+         "1 c. à soupe",
+         "huile neutre"
+        ],
+        [
+         "80 ml",
+         "eau"
+        ],
+        [
+         "2 c. à soupe",
+         "sauce soja"
+        ],
+        [
+         "1 c. à soupe",
+         "vinaigre de riz"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Hache finement le chou, mélange-le au sel et laisse dégorger 10 min, puis presse-le fort pour retirer l'eau.",
+      "Mélange le chou avec la viande ou le tofu, les oignons nouveaux, l'ail et le gingembre hachés, la sauce soja et l'huile de sésame.",
+      "Dépose 1 c. à café de farce au centre d'une feuille, mouille le bord avec le doigt.",
+      "Plie en demi-lune et pince en faisant 4 ou 5 petits plis sur un côté. Répète pour les 24.",
+      "Chauffe l'huile dans une grande poêle et pose les gyoza à plat : 2 min, jusqu'à ce que le dessous soit doré.",
+      "Verse l'eau, couvre aussitôt et laisse cuire 5 à 6 min à feu moyen.",
+      "Retire le couvercle et laisse l'eau s'évaporer 1 min pour que le dessous redevienne croustillant.",
+      "Sers avec la sauce : sauce soja et vinaigre de riz mélangés."
+     ]
+    }
    ]
   },
   {
@@ -542,6 +1194,87 @@
     "Repos 30 min, puis fonce le moule.",
     "Dispose les fruits en rosace.",
     "40 min à 180 °C, jusqu'à ce que les bords dorent."
+   ],
+   "photo": "/assets/activites/tarte-saison.jpg",
+   "credit_photo": "Shoeib Abolhassani / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1778448699282-ec9834cb5812",
+   "recettes": [
+    {
+     "titre": "Tarte aux pommes",
+     "portions": "6 parts · moule de 24 cm",
+     "temps": [
+      [
+       "Préparation",
+       25
+      ],
+      [
+       "Repos",
+       30
+      ],
+      [
+       "Cuisson",
+       35
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "Pâte brisée",
+       "liste": [
+        [
+         "200 g",
+         "farine"
+        ],
+        [
+         "100 g",
+         "beurre froid en dés"
+        ],
+        [
+         "1 c. à soupe",
+         "sucre"
+        ],
+        [
+         "1 pincée",
+         "sel"
+        ],
+        [
+         "4 c. à soupe",
+         "eau froide"
+        ]
+       ]
+      },
+      {
+       "groupe": "Garniture",
+       "liste": [
+        [
+         "4",
+         "pommes (Golden, Boskoop ou Reinette)"
+        ],
+        [
+         "30 g",
+         "sucre"
+        ],
+        [
+         "20 g",
+         "beurre"
+        ],
+        [
+         "½ c. à café",
+         "cannelle (facultatif)"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Sable la farine, le sucre, le sel et le beurre du bout des doigts jusqu'à obtenir une texture de chapelure.",
+      "Ajoute l'eau froide et rassemble en boule sans pétrir. Laisse reposer 30 min au frais.",
+      "Préchauffe le four à 200 °C. Étale la pâte au rouleau et fonce le moule, pique le fond à la fourchette.",
+      "Épluche les pommes, retire le cœur et coupe-les en fines lamelles.",
+      "Dispose les lamelles en rosace en les faisant se chevaucher.",
+      "Saupoudre de sucre et de cannelle, parsème de petits morceaux de beurre.",
+      "Enfourne 30 à 35 min, jusqu'à ce que la pâte et les pommes soient dorées."
+     ],
+     "astuce": "Selon la saison : rhubarbe ou fraises au printemps, abricots ou prunes en été, poires en hiver. Pressé : une pâte brisée toute prête suffit."
+    }
    ]
   },
   {
@@ -566,6 +1299,74 @@
     "Choisis un style : poêlée, gratin, omelette, soupe.",
     "Ajoute du croquant et une sauce maison.",
     "À plusieurs : chacun apporte un ingrédient surprise."
+   ],
+   "photo": "/assets/activites/vide-frigo.jpg",
+   "credit_photo": "Jason Briscoe / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1556911220-dabc1f02913a",
+   "recettes": [
+    {
+     "titre": "Riz sauté vide-frigo",
+     "portions": "2 personnes",
+     "temps": [
+      [
+       "Préparation",
+       10
+      ],
+      [
+       "Cuisson",
+       10
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "300 g",
+         "riz cuit, idéalement de la veille (120 g cru)"
+        ],
+        [
+         "2",
+         "œufs"
+        ],
+        [
+         "250 g",
+         "légumes qui restent : carotte, poivron, courgette, petits pois, chou…"
+        ],
+        [
+         "1",
+         "oignon (ou 2 oignons nouveaux)"
+        ],
+        [
+         "1",
+         "gousse d'ail"
+        ],
+        [
+         "100 g",
+         "protéine au choix : jambon, poulet cuit, tofu ou pois chiches"
+        ],
+        [
+         "2 c. à soupe",
+         "sauce soja"
+        ],
+        [
+         "1 c. à soupe",
+         "huile neutre"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Fais l'inventaire : un féculent, des légumes, une protéine. Le riz peut être remplacé par des pâtes ou du quinoa cuits.",
+      "Coupe les légumes en petits dés, émince l'oignon, hache l'ail.",
+      "Chauffe l'huile à feu vif dans une grande poêle, fais revenir l'oignon et les légumes 4 à 5 min.",
+      "Ajoute l'ail et la protéine coupée en dés, 1 min.",
+      "Pousse tout sur le côté, casse les œufs dans l'espace libre et brouille-les 1 min.",
+      "Ajoute le riz froid en l'égrainant, puis la sauce soja ; fais sauter 3 min à feu vif.",
+      "Goûte, ajuste en sauce soja, et sers aussitôt."
+     ],
+     "astuce": "Le défi : ne rien acheter. Une herbe fanée, un reste de fromage ou une demi-boîte de maïs trouvent toujours leur place."
+    }
    ]
   },
   {
@@ -591,6 +1392,109 @@
     "Mocktail : écrase menthe et citron vert, sirop, glace, eau gazeuse.",
     "Invente une recette maison et donne-lui un nom.",
     "Sers dans de beaux verres : la présentation compte."
+   ],
+   "photo": "/assets/activites/chocolat-mocktails.jpg",
+   "credit_photo": "Sixteen Miles Out / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1702648906616-b030f193edb9",
+   "recettes": [
+    {
+     "titre": "Chocolat chaud épicé",
+     "portions": "2 tasses",
+     "temps": [
+      [
+       "Préparation",
+       5
+      ],
+      [
+       "Cuisson",
+       10
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "50 cl",
+         "lait (ou boisson végétale)"
+        ],
+        [
+         "100 g",
+         "chocolat noir"
+        ],
+        [
+         "1 c. à soupe",
+         "sucre (facultatif)"
+        ],
+        [
+         "½ c. à café",
+         "cannelle"
+        ],
+        [
+         "1 pincée",
+         "gingembre en poudre"
+        ],
+        [
+         "1 pincée",
+         "muscade"
+        ],
+        [
+         "1 pincée",
+         "sel"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Hache le chocolat.",
+      "Fais chauffer le lait avec les épices et le sucre sans le faire bouillir.",
+      "Hors du feu, ajoute le chocolat et fouette jusqu'à ce qu'il soit fondu.",
+      "Remets 2 min sur feu doux en fouettant pour le rendre mousseux, puis sers."
+     ]
+    },
+    {
+     "titre": "Virgin mule citron vert & menthe",
+     "portions": "2 verres",
+     "temps": [
+      [
+       "Préparation",
+       5
+      ]
+     ],
+     "ingredients": [
+      {
+       "groupe": "",
+       "liste": [
+        [
+         "1",
+         "citron vert"
+        ],
+        [
+         "8",
+         "feuilles de menthe"
+        ],
+        [
+         "2 c. à café",
+         "sucre ou sirop de sucre de canne"
+        ],
+        [
+         "30 cl",
+         "ginger beer ou ginger ale bien frais"
+        ],
+        [
+         "",
+         "glaçons"
+        ]
+       ]
+      }
+     ],
+     "etapes": [
+      "Coupe le citron vert en quartiers et répartis-les dans deux verres.",
+      "Ajoute la menthe et le sucre, puis écrase doucement au pilon ou avec une cuillère.",
+      "Remplis de glaçons et complète avec la ginger beer.",
+      "Mélange, décore d'une feuille de menthe et sers tout de suite."
+     ]
+    }
    ]
   },
   {
@@ -615,7 +1519,10 @@
     "Alterne 1 min de course et 1 min de marche, huit fois.",
     "Cours à une allure où tu peux encore parler.",
     "Termine par 5 min de marche et quelques étirements."
-   ]
+   ],
+   "photo": "/assets/activites/course.jpg",
+   "credit_photo": "Joshua Tsu / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1739368732843-800f36a9b7d0"
   },
   {
    "id": "activite:velo",
@@ -641,7 +1548,10 @@
     "Vérifie pneus et freins avant de partir.",
     "Garde un rythme régulier, pause à mi-parcours.",
     "À plusieurs : on attend le plus lent aux intersections."
-   ]
+   ],
+   "photo": "/assets/activites/velo.jpg",
+   "credit_photo": "David Dvořáček / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1631276893368-554b60393efb"
   },
   {
    "id": "activite:marche",
@@ -666,7 +1576,10 @@
     "Tourne à droite, puis à gauche, en alternance.",
     "Note trois lieux à revenir voir.",
     "Rentre à pied jusqu'à un repère connu."
-   ]
+   ],
+   "photo": "/assets/activites/marche.jpg",
+   "credit_photo": "Meizhi Lang / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1698682979407-f03b87dec506"
   },
   {
    "id": "activite:yoga",
@@ -690,7 +1603,10 @@
     "Enchaîne cinq salutations au soleil, au rythme du souffle.",
     "Tiens trois postures d'équilibre 30 secondes chacune.",
     "Finis allongé, deux minutes, sans bouger."
-   ]
+   ],
+   "photo": "/assets/activites/yoga.jpg",
+   "credit_photo": "Dane Wetton / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1552196563-55cd4e45efb3"
   },
   {
    "id": "activite:mobilite",
@@ -713,7 +1629,10 @@
     "Chat-vache à quatre pattes, dix respirations.",
     "Fente basse et étirement des hanches, une minute par côté.",
     "Torsion allongée, puis bras au-dessus de la tête."
-   ]
+   ],
+   "photo": "/assets/activites/mobilite.jpg",
+   "credit_photo": "Alora Griffiths / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1562771379-eafdca7a02f8"
   },
   {
    "id": "activite:meditation",
@@ -736,7 +1655,10 @@
     "Inspire 5 secondes, expire 5 secondes, pendant 5 minutes.",
     "Ramène l'attention au souffle à chaque distraction.",
     "Note comment tu te sens avant et après."
-   ]
+   ],
+   "photo": "/assets/activites/meditation.jpg",
+   "credit_photo": "Sage Friedman / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1522075782449-e45a34f1ddfb"
   },
   {
    "id": "activite:renforcement",
@@ -760,7 +1682,10 @@
     "Circuit : 12 squats, 8 pompes, 30 s de gainage, 10 fentes.",
     "Fais 4 tours avec 1 min de pause.",
     "À plusieurs : un minuteur et chacun choisit un exercice."
-   ]
+   ],
+   "photo": "/assets/activites/renforcement.jpg",
+   "credit_photo": "Jonathan Borba / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1571019613454-1cb2f99b2d8b"
   },
   {
    "id": "activite:pilates",
@@ -784,7 +1709,10 @@
     "Enchaîne le hundred, le roll-up et les cercles de jambe.",
     "Contrôle chaque mouvement : la lenteur fait le travail.",
     "Termine par l'étirement de la colonne."
-   ]
+   ],
+   "photo": "/assets/activites/pilates.jpg",
+   "credit_photo": "Dane Wetton / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1552196527-bffef41ef674"
   },
   {
    "id": "activite:escalade",
@@ -809,7 +1737,10 @@
     "Commence par les blocs les plus faciles pour comprendre le code couleur.",
     "Pousse sur les jambes, bras tendus : les bras se fatiguent vite.",
     "Apprends à tomber : genoux souples, on roule sur le dos."
-   ]
+   ],
+   "photo": "/assets/activites/escalade.jpg",
+   "credit_photo": "Beta Boulders / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1775655111243-9382dc0cc089"
   },
   {
    "id": "activite:natation",
@@ -834,7 +1765,10 @@
     "6 fois 2 longueurs de crawl, 30 s de pause.",
     "4 longueurs de dos pour récupérer.",
     "Termine par des battements avec une planche."
-   ]
+   ],
+   "photo": "/assets/activites/natation.jpg",
+   "credit_photo": "Gentrit Sylejmani / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1530549387789-4c1017266635"
   },
   {
    "id": "activite:danse",
@@ -859,7 +1793,10 @@
     "Découpe-la en blocs de huit temps.",
     "Apprends un bloc, enchaîne avec le suivant, ralentis si besoin.",
     "Filme-toi une fois à la fin : c'est très motivant."
-   ]
+   ],
+   "photo": "/assets/activites/danse.jpg",
+   "credit_photo": "Danielle Cerullo / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1524594152303-9fd13543fe6e"
   },
   {
    "id": "activite:badminton",
@@ -883,7 +1820,10 @@
     "Échauffement en passes douces, 10 min.",
     "Matchs courts en rotation : tout le monde joue.",
     "Finis par un goûter : c'est la meilleure partie."
-   ]
+   ],
+   "photo": "/assets/activites/badminton.jpg",
+   "credit_photo": "Muktasim Azlan / Unsplash",
+   "photo_source": "https://unsplash.com/photos/1626224583764-f87db24ac4ea"
   }
  ]
 }

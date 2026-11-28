@@ -18,8 +18,8 @@
    horizon, curiosité (curseur 0.1 / 0.3 / 0.7), envies, genres, ambiances, plateformes.
    Compte en SQLite + `localStorage`, plusieurs comptes par appareil (changement en 1 clic dans Profil).
 2. **Pour vous** (rangées : Nos conseils pépites, Sorties proches, Watch-parties & sessions), **Chez soi** (Tout / Films & Séries /
-   Lecture [thèmes] / Jeux vidéo [machine, mode]), **Hors écran** (Créatif / Cuisine / Mouvement : 35 activités, filtres Matériel
-   et Mode, curseur Confort ↔ Découverte, « Proposer à un ami »), **Sorties** (Liste ou Carte Leaflet ; Sorties culturelles, Soirées & Concerts, Balades & Nature ; ville, rayon, horizon,
+   Lecture [thèmes] / Jeux vidéo [machine, mode]), **Hors écran** (Tout / Créatif / Cuisine / Mouvement : 35 activités avec photo Unsplash locale, recettes complètes
+   pour la cuisine, filtres Matériel et Mode, curseur Confort ↔ Découverte, « Proposer à un ami »), **Sorties** (Liste ou Carte Leaflet ; sous-onglets Tout, Sorties culturelles, Soirées & Concerts, Balades & Nature ; ville, rayon, horizon,
    budget, « Proposer une sortie »), **Profil**.
    Horizons : Maintenant (3 h), Aujourd'hui, Ce week-end, Dans la semaine, Dans le mois.
    Envies : 12 catégories de sorties + « Séries & binge-watch » et « Livres » (chez soi).

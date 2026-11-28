@@ -22,9 +22,11 @@ Hors ligne : préfixe parmi les villes couvertes.
 Ville couverte la plus proche : `{"ville", "lat", "lon", "distance_km"}`. Utilisé quand une recherche de sorties est vide.
 
 ## `GET /api/activites?categorie=&materiel=&mode=&decouverte=`
-Onglet « Hors écran ». `categorie` : `creatif` | `cuisine` | `mouvement` ; `materiel` : `tout` | `sans` (sans matériel) |
+Onglet « Hors écran ». `categorie` : `tout` (par défaut, les trois catégories à tour de rôle) | `creatif` | `cuisine` | `mouvement` ; `materiel` : `tout` | `sans` (sans matériel) |
 `basique` (sans + basique) ; `mode` : `tous` | `solo` | `groupe` ; `decouverte` : 0 à 1. Activités classées
 (`moteur.classer_activites`), avec `plans` à venir et, en découverte, `origine` / `etiquette` (`pepite`, `hors-piste`).
+Chaque activité a `photo` (fichier local `/assets/activites/<slug>.jpg`), `credit_photo`, `photo_source` (Unsplash) ;
+les 11 activités Cuisine ont `recettes` : `[{titre, portions, temps: [[nom, minutes]], ingredients: [{groupe, liste: [[quantité, ingrédient]]}], etapes, astuce?}]`.
 Identifiants `activite:<slug>` : acceptés par `/api/oeuvre`, `/api/plans` (« Proposer à un ami ») et « Mes envies ».
 
 ## `GET /api/oeuvre?id=<identifiant>`

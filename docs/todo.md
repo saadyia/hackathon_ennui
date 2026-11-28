@@ -9,6 +9,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Hors écran : sous-onglet Tout, photos Unsplash locales (35, repli feutré), recettes complètes des 11 activités cuisine ; Sorties : sous-onglets Tout / Culture / Soirées / Nature, rencontres et sport mieux classés
 - [x] Onglet « Hors écran » (Créatif, Cuisine, Mouvement) : 35 activités, filtres Matériel / Mode, Confort ↔ Découverte, fiches avec étapes, Proposer à un ami, Mes envies, Choisir à ma place
 - [x] Comptes avec mot de passe (inscription / connexion, PBKDF2 salé, anti-essais) à la place de la reprise ouverte et du PIN ; curseur du périmètre natif et réparé sur mobile
 - [x] « Choisir à ma place » sur tout le pool (sans répétition, effet 500 ms) ; session conservée en cas de panne serveur ; « Reprendre un profil existant » (code ou liste)

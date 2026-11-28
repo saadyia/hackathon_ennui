@@ -79,7 +79,8 @@ const ETAT_INITIAL = () => ({
   energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
   onglet: "pour-vous",
   ecrans: "tout",
-  horsEcran: "creatif",  // sous-onglet de « Hors écran » : creatif | cuisine | mouvement
+  horsEcran: "tout",     // sous-onglet de « Hors écran » : tout | creatif | cuisine | mouvement
+  sortiesGroupe: "tout", // sous-onglet de « Sorties » : tout | culture | soirees | nature
 });
 let etat = ETAT_INITIAL();
 let CONFIG = null;
@@ -116,7 +117,8 @@ function restaurer() {
   if (local) etat = { ...ETAT_INITIAL(), ...local, prefs: { ...PREFS_INITIALES(), ...(local.prefs || {}) } };
   etat.prefs.categories = [...new Set(etat.prefs.categories.map((c) => MIGRATION_ENVIES[c] || c))];
   if (!["tout", "ecrans", "livre", "jeu"].includes(etat.ecrans)) etat.ecrans = "tout";
-  if (!["creatif", "cuisine", "mouvement"].includes(etat.horsEcran)) etat.horsEcran = "creatif";
+  if (!["tout", "creatif", "cuisine", "mouvement"].includes(etat.horsEcran)) etat.horsEcran = "tout";
+  if (!["tout", "culture", "soirees", "nature"].includes(etat.sortiesGroupe)) etat.sortiesGroupe = "tout";
   etat.decouverte = versDecouverte(cran());
   if (etat.prefs.modeJeu === "coop") etat.prefs.modeJeu = "multi";  // Co-op fusionné dans Multijoueur
   if (!Array.isArray(etat.envies)) etat.envies = [];
@@ -1053,19 +1055,26 @@ function rendreZone() {
   } else fin();
 }
 
+// Sous-catégories de Sorties (même barre glissante que Chez soi) ; « Tout » = les trois groupes
+const SEGMENTS_SORTIES = [["tout", "Tout"], ["culture", "Sorties culturelles"], ["soirees", "Soirées & Concerts"], ["nature", "Balades & Nature"]];
+const NOMS_SORTIES = { tout: "Sorties", culture: "Sorties culturelles", soirees: "Soirées & Concerts", nature: "Balades & Nature" };
+const nomSorties = (v) => NOMS_SORTIES[v] || "Sorties";
+
 function ecranSorties() {
   const d = donnees;
   const liste = d.grille || [];
-  return `${entete("Sorties", "Sortir près de chez toi")}
+  const actif = SEGMENTS_SORTIES.findIndex(([v]) => v === etat.sortiesGroupe);
+  return `${entete(nomSorties(etat.sortiesGroupe), "Sortir près de chez toi")}
+    <div class="segment segment-4 segment-pilule segment-sorties" role="tablist" aria-label="Types de sorties" style="--index:${actif}">
+      <span class="segment-indicateur" aria-hidden="true"></span>
+      ${SEGMENTS_SORTIES.map(([v, n]) => `<button role="tab" data-action="segment-sorties" data-valeur="${v}" aria-pressed="${etat.sortiesGroupe === v}">${n}</button>`).join("")}
+    </div>
     ${statutAgenda()}
     <button class="bouton-ligne" style="margin-top:12px" data-action="ouvrir-publication">${icone("calendar-plus", 14)}Proposer une sortie</button>
     <div style="margin-top:16px">${localisation()}</div>
     <div style="margin-top:14px">${selecteurHorizon()}</div>
     <div style="margin-top:12px">${selecteurBudget()}</div>
     <div style="margin-top:8px">${selecteurDuree()}</div>
-    <div class="puces defilement" style="margin-top:8px">${CONFIG.categories.map((c) => `<button class="puce" data-action="pref"
-        data-groupe="categories" data-valeur="${esc(JSON.stringify(c.id))}" aria-pressed="${etat.prefs.categories.includes(c.id)}">
-        ${icone(ICONES_CATEGORIE[c.id], 15)}${esc(c.nom)}</button>`).join("")}</div>
     ${instrument()}
     <div class="bascule-vue" role="tablist" aria-label="Affichage des sorties" style="--index:${etat.vueSorties === "carte" ? 1 : 0}">
       <span class="paliers-pilule" aria-hidden="true"></span>
@@ -1142,14 +1151,15 @@ function ecranProfil() {
       livres GoodReads et <a href="https://openlibrary.org" target="_blank" rel="noopener">OpenLibrary</a> ;
       affiches de films, jeux vidéo et jaquettes <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a> et <a href="https://www.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a> ;
       affiches et plateformes <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a> (abonnements en France uniquement) ;
-      films MovieLens (GroupLens).
+      films MovieLens (GroupLens) ; photos des activités Hors écran <a href="https://unsplash.com" target="_blank" rel="noopener">Unsplash</a> (crédit dans chaque fiche).
     </p>`;
 }
 
 // ------------------------------------------------------------------ //
 // Onglet « Hors écran » : activités créatives, cuisine, mouvement      //
 // ------------------------------------------------------------------ //
-const SEGMENTS_HORS_ECRAN = [["creatif", "Créatif"], ["cuisine", "Cuisine"], ["mouvement", "Mouvement"]];
+const SEGMENTS_HORS_ECRAN = [["tout", "Tout"], ["creatif", "Créatif"], ["cuisine", "Cuisine"], ["mouvement", "Mouvement"]];
+const nomHorsEcran = (v) => (v === "tout" ? "Hors écran" : SEGMENTS_HORS_ECRAN.find(([x]) => x === v)[1]);
 const MATERIELS = [["tout", "Tout"], ["sans", "Sans matériel"], ["basique", "Matériel basique"]];
 const MODES_ACTIVITE = [["tous", "Tous"], ["solo", "Solo"], ["groupe", "À plusieurs"]];
 const LIBELLE_MATERIEL = { sans: "Sans matériel", basique: "Matériel basique", equipe: "Équipé" };
@@ -1159,8 +1169,10 @@ const modesActivite = (o) => o.modes.length > 1 ? "Solo ou à plusieurs" : o.mod
 const collectifDe = (o) => o.type === "activite" ? COLLECTIF_ACTIVITE[o.categorie] || TYPES.activite.collectif : TYPES[o.type]?.collectif;
 
 function visuelActivite(o, classe = "") {
+  // photo locale (Unsplash) ; hors ligne ou en erreur : fond feutré de la catégorie + icône, déjà dessous
   return `<div class="visuel-activite activite-${esc(o.categorie)} ${classe}" data-action="ouvrir-plans" data-id="${esc(o.id)}">
       <span class="visuel-activite-icone">${icone(o.icone || ICONES_CATEGORIE[o.categorie] || "shapes", 34)}</span>
+      ${o.photo ? `<img class="visuel-activite-photo" src="${esc(o.photo)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ""}
       ${tagDecouverte(o)}${boutonSauver(o)}
     </div>`;
 }
@@ -1208,8 +1220,8 @@ function zoneHorsEcran() {
 
 function ecranHorsEcran() {
   const actif = SEGMENTS_HORS_ECRAN.findIndex(([v]) => v === etat.horsEcran);
-  return `${entete(SEGMENTS_HORS_ECRAN[actif][1], "Loin des écrans")}
-    <div class="segment segment-3 segment-pilule" role="tablist" aria-label="Hors écran" style="--index:${actif}">
+  return `${entete(nomHorsEcran(etat.horsEcran), "Loin des écrans")}
+    <div class="segment segment-4 segment-pilule" role="tablist" aria-label="Hors écran" style="--index:${actif}">
       <span class="segment-indicateur" aria-hidden="true"></span>
       ${SEGMENTS_HORS_ECRAN.map(([v, n]) => `<button role="tab" data-action="segment-hors" data-valeur="${v}" aria-pressed="${etat.horsEcran === v}">${n}</button>`).join("")}
     </div>
@@ -1288,10 +1300,35 @@ function detailActivite(o) {
           <button class="bouton-ligne bouton-accent" data-action="proposer-ami">${icone("user-plus", 14)}Proposer à un ami</button></div>
       </div>
     </div>
+    ${o.recettes?.length ? o.recettes.map(ficheRecette).join("") : `
     <section class="detail-synopsis"><span class="surtitre">Il te faut</span>
       <ul class="liste-materiel">${o.il_faut.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></section>
     <section class="detail-synopsis"><span class="surtitre">Pour te lancer</span>
-      <ol class="etapes">${o.etapes.map((e) => `<li>${esc(e)}</li>`).join("")}</ol></section>`;
+      <ol class="etapes">${o.etapes.map((e) => `<li>${esc(e)}</li>`).join("")}</ol></section>`}
+    ${o.credit_photo ? `<p class="credit-photo">Photo : ${o.photo_source?.startsWith("https://")
+      ? `<a href="${esc(o.photo_source)}" target="_blank" rel="noopener">${esc(o.credit_photo)}</a>` : esc(o.credit_photo)}</p>` : ""}`;
+}
+
+/** Fiche recette : portions et temps, ingrédients avec quantités (par groupe), étapes numérotées. */
+function ficheRecette(r) {
+  return `<section class="recette">
+      <span class="surtitre">Recette</span>
+      <h3 class="recette-titre">${esc(r.titre)}</h3>
+      <div class="recette-temps">
+        <span>${icone("users", 13)}${esc(r.portions)}</span>
+        ${r.temps.map(([nom, min]) => `<span>${esc(nom)} <span class="chiffre">${esc(dureeActivite(min))}</span></span>`).join("")}
+      </div>
+      <div class="recette-bloc">
+        <span class="recette-sous-titre">Ingrédients</span>
+        ${r.ingredients.map((g) => `${g.groupe ? `<span class="recette-groupe">${esc(g.groupe)}</span>` : ""}
+          <ul class="ingredients">${g.liste.map(([q, nom]) => `<li><span class="quantite chiffre">${esc(q)}</span><span>${esc(nom)}</span></li>`).join("")}</ul>`).join("")}
+      </div>
+      <div class="recette-bloc">
+        <span class="recette-sous-titre">Préparation</span>
+        <ol class="etapes">${r.etapes.map((e) => `<li>${esc(e)}</li>`).join("")}</ol>
+      </div>
+      ${r.astuce ? `<p class="recette-astuce">${icone("lightbulb", 14)}<span>${esc(r.astuce)}</span></p>` : ""}
+    </section>`;
 }
 
 function detailOeuvre(o) {
@@ -1702,7 +1739,9 @@ async function charger({ partiel = false, zone = false } = {}) {
         mode: etat.prefs.modeActivite || "tous", decouverte: String(etat.decouverte) });
       donnees = { grille: await api(`/api/activites?${q}`, undefined, signal) };
     } else if (etat.onglet === "sorties") {
-      const grille = await api("/api/recommandations", corps("sortie", etat.vueSorties === "carte" ? 40 : 20), signal);
+      const demande = { ...corps("sortie", etat.vueSorties === "carte" ? 40 : 20),
+        categories: etat.sortiesGroupe === "tout" ? [] : [etat.sortiesGroupe] };  // [] = les trois groupes
+      const grille = await api("/api/recommandations", demande, signal);
       donnees = { grille, couverture: await couvertureSiVide(grille, signal) };
     }
   } catch (e) {
@@ -1853,6 +1892,16 @@ const actions = {
     sauvegarder();
     charger({ partiel: true });
   },
+  "segment-sorties"(b) {
+    if (etat.sortiesGroupe === b.dataset.valeur) return;
+    etat.sortiesGroupe = b.dataset.valeur;
+    const groupe = b.closest(".segment-pilule");
+    groupe.style.setProperty("--index", SEGMENTS_SORTIES.findIndex(([v]) => v === etat.sortiesGroupe));
+    groupe.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    $("#ecran").querySelector(".surtitre-entete")?.replaceChildren(document.createTextNode(nomSorties(etat.sortiesGroupe)));
+    sauvegarder();
+    charger({ partiel: true });
+  },
   "segment-hors"(b) {
     if (etat.horsEcran === b.dataset.valeur) return;
     etat.horsEcran = b.dataset.valeur;
@@ -1861,7 +1910,7 @@ const actions = {
     groupe.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
     const zone = $("#zone-chez-soi");
     if (zone) { zone.style.minHeight = `${zone.offsetHeight}px`; zone.classList.add("chargement"); }
-    $("#ecran").querySelector(".surtitre-entete")?.replaceChildren(document.createTextNode(SEGMENTS_HORS_ECRAN.find(([v]) => v === etat.horsEcran)[1]));
+    $("#ecran").querySelector(".surtitre-entete")?.replaceChildren(document.createTextNode(nomHorsEcran(etat.horsEcran)));
     sauvegarder();
     donnees = {};
     charger({ zone: true });

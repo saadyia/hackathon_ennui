@@ -71,7 +71,10 @@ frontend/
 - Périmètre : `<input type="range" id="rayon">` natif (`majRayon`, `--pct` pour le remplissage, `touch-action: pan-y`,
   valeur en JetBrains Mono). `.barre-action` ne capte pas le toucher hors de son bouton (elle recouvrait le curseur).
 - « Choisir à ma place » : `candidatsTirage()` = tout le pool affiché, `dernierTirage` évite la répétition, effet ~500 ms.
-- Hors écran : `ecranHorsEcran()` (pilule `segment-hors`, `etat.horsEcran`), `zoneHorsEcran()` (même identifiant
+- Sorties : pilule `segment-sorties` (`etat.sortiesGroupe` : tout | culture | soirees | nature), remplace les puces
+  d'envies dans cet onglet ; la requête envoie `categories: []` pour Tout (Pour vous garde `etat.prefs.categories`).
+- Hors écran : `ecranHorsEcran()` (pilule `segment-hors` à 4 positions dont Tout, `etat.horsEcran`), photo locale
+  `.visuel-activite-photo` au-dessus du fond feutré (repli si l'image échoue), `ficheRecette()` pour la cuisine, `zoneHorsEcran()` (même identifiant
   `#zone-chez-soi` que Chez soi : `rendreZone()` choisit la zone de l'onglet), `carteActivite()`, `visuelActivite()`
   (teintes `.activite-<categorie>`), `detailActivite()` (Il te faut, étapes), filtres `materiel` / `mode-activite`
   (`etat.prefs.materiel`, `etat.prefs.modeActivite`), action `proposer-ami` (défile vers le formulaire de créneau),

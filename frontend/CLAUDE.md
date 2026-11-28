@@ -64,6 +64,9 @@ frontend/
   `pastilleNouveau()`, `marquerOngletNouveau()` ; `pileMembres()` (avatars des participants).
 - Billetterie des sorties : `tagBillet(o)` (Entrée libre, Sur réservation, Complet) sur les cartes et la fiche,
   `lienReservation(o)` (« Réserver » en https, ou téléphone).
+- Comptes : `reprendreProfil(code)`, tiroir `feuille.mode === "reprise"` (`panneauReprise`, `chargerProfils`) ;
+  au démarrage, `api()` expose `erreur.status` : seul un 401 fait oublier le compte.
+- « Choisir à ma place » : `candidatsTirage()` = tout le pool affiché, `dernierTirage` évite la répétition, effet ~500 ms.
 - États vides : `.etat-vide` + bouton « Réinitialiser les filtres » (budget, temps, mode, envies, horizon « Dans le mois »).
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).
   CartoDB Dark Matter exige désormais une clé (filigrane « API KEY REQUIRED ») : tuiles OpenStreetMap + `.tuiles-sombres`.

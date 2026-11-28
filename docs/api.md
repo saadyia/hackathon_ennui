@@ -59,6 +59,9 @@ Réponse : objets avec `id`, `type`, `titre`, `genres`, `affiche`, `resume`, `pl
 - `POST /api/utilisateurs` `{prenom, ville, prefs}` → `{id, prenom, ville, prefs, cree_le}`
 - `GET /api/utilisateurs/moi` · `PUT /api/utilisateurs/moi` `{prenom, ville, prefs}` (compte requis) ; la réponse inclut `code`
   (« Prénom#123 », change avec le prénom) et `dispo` (statut actuel)
+- `POST /api/utilisateurs/reprendre` `{code}` → compte complet (jeton compris) d'après le code « Prénom#123 » ;
+  404 si inconnu ou profil de démo. Sert à « Reprendre un profil existant » (nouvel appareil, nouvelle adresse).
+- `GET /api/utilisateurs/profils?q=` → profils réels (vue publique, sans jeton), les plus récents d'abord.
 - `PUT /api/utilisateurs/moi/dispo` `{statut: indispo | sortir | distance}` : humeur du moment (Mode ermite, Partant pour bouger,
   Chill à distance), revient à `indispo` après 12 h
 - `PUT /api/utilisateurs/moi/avatar` `{style: lorelei | micah, seed, bg: 1e293b | 27294a | 422b18 | 13382e | 351f47 | 293548,

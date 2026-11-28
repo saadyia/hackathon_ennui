@@ -1,6 +1,7 @@
 # Tâches et avancement
 
 ## À faire
+- [ ] Code PIN facultatif pour « Reprendre un profil existant » (aujourd'hui, tout détenteur du lien peut reprendre n'importe quel profil)
 - [ ] **Affiches de films** : fournir une clé TMDB (`.env`), ou relancer `enrich_affiches.py` avec `ENNUI_CONTACT` (Wikimedia limite à environ 100 films sans contact)
 - [ ] Relancer `enrich_affiches.py` (en pause pendant l'import des jeux, il reprend depuis son cache)
 - [ ] Résumés français des livres : Google Books renvoie 429 sans clé (option `--google-books` prête)
@@ -9,6 +10,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] « Choisir à ma place » sur tout le pool (sans répétition, effet 500 ms) ; session conservée en cas de panne serveur ; « Reprendre un profil existant » (code ou liste)
 - [x] Temps réel : /api/sync (12 s, réveil au retour), pastille « Nouveau », avatars des participants ; billetterie des sorties (Entrée libre, Sur réservation, Complet, lien Réserver)
 - [x] Personnages DiceBear (Lorelei, Micah) en local, fonds sombres feutrés et palettes désaturées, studio Style / Fond / Coiffure / Détails ; auras et photo retirées
 - [x] Avatars « Aura lumineuse » (8 atmosphères, monogrammes et 4 glyphes, photo importée 200 × 200) à la place des illustrations ; DiceBear retiré

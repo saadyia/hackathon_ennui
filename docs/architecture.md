@@ -133,8 +133,18 @@ découverte = π_découverte / π* × q × (1 − 0.9 · s · m)
 - Sorties : long (nature, festivals), express (rencontres, dédicaces), sinon soirée ; en express, une sortie à moins de 5 km compte aussi.
 
 ## « Choisir à ma place »
-Tirage côté client parmi le top 3 de l'écran courant (pondéré 50 / 30 / 20 %), donc avec exactement les filtres actifs ;
-balayage animé qui ralentit, puis fiche ouverte avec le badge « Sélectionné pour vous ».
+Tirage uniforme côté client dans **tout le pool affiché** pour l'onglet et les filtres actifs (Pour vous : écrans + sorties ;
+autres onglets : la grille, 20 à 40 résultats), sans retomber deux fois de suite sur le même élément. Micro-effet de ~500 ms
+(visuels qui défilent en ralentissant), puis fiche ouverte avec le badge « Sélectionné pour vous ».
+Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétition consécutive.
+
+## Session et reprise de profil
+- `localStorage` : jeton (`actif`), état par compte et liste `comptes` `{id, prenom, code}`.
+- Démarrage : seul un **401** fait oublier le jeton (le serveur ne connaît plus le compte) ; on tente alors la reprise par le
+  code mémorisé. Une panne passagère (redémarrage après mise à jour, réveil de Render ou de Neon, réseau) garde le compte :
+  c'était la cause des profils vierges recréés.
+- « Reprendre un profil existant » (bienvenue, questionnaire, Profil > Changer de compte) : code « Prénom#123 » ou liste des
+  profils enregistrés. Sans mot de passe : n'importe qui ayant le lien peut reprendre n'importe quel profil (outil de démo).
 
 ## Amis et statut « Dispo »
 - Code public `Prénom#NNN` unique (insensible à la casse), attribué à la création (et aux comptes existants à l'initialisation).

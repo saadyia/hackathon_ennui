@@ -1161,3 +1161,25 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
   background: var(--accent); box-shadow: 0 0 0 2px var(--fond), 0 0 10px rgba(232, 217, 181, 0.6);
 }
 @media (prefers-reduced-motion: reduce) { .pastille-nouveau { animation: none; } }
+
+/* ================================================================== */
+/* Tirage éclair sur tout le pool, reprise de profil                   */
+/* ================================================================== */
+.tirage-flash { display: grid; justify-items: center; gap: 14px; text-align: center; }
+.tirage-vignette {
+  width: 148px; aspect-ratio: 2 / 3; border-radius: 16px; overflow: hidden; display: grid; place-items: center;
+  background: var(--carte-2); color: var(--texte-3);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 30px 60px -20px rgba(0, 0, 0, 0.8);
+  transition: box-shadow 0.25s var(--ressort), transform 0.25s var(--ressort);
+}
+.tirage-vignette img { width: 100%; height: 100%; object-fit: cover; }
+.tirage-vignette.elu { transform: scale(1.06); box-shadow: 0 0 0 2px var(--accent), 0 0 40px -6px rgba(232, 217, 181, 0.6); }
+.tirage-titre { max-width: 260px; min-height: 2.6em; font-family: var(--police-titres); font-weight: 600; font-size: 16px;
+  letter-spacing: -0.02em; color: var(--texte); line-height: 1.3; }
+
+.bienvenue-actions { display: grid; gap: 14px; justify-items: center; }
+.bienvenue-actions .bouton-principal { width: 100%; }
+.lien-reprise { gap: 7px; font-size: 13.5px; color: var(--texte-2); }
+@media (hover: hover) { .lien-reprise:hover { color: var(--texte); } }
+.reprise-code { display: grid; gap: 10px; margin-top: 18px; }
+.reprise-code .champ { font-family: var(--police-texte); letter-spacing: 0.01em; }

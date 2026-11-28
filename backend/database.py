@@ -281,6 +281,23 @@ def mettre_a_jour_utilisateur(uid: str, prenom: str, ville: Optional[dict], pref
     return lire_utilisateur(uid)
 
 
+def utilisateur_par_code(code: str) -> Optional[dict]:
+    """Compte complet (avec son jeton) d'après le code public « Prénom#123 » ; jamais un profil de démo."""
+    with connexion() as con:
+        row = con.execute("SELECT * FROM utilisateurs WHERE lower(code) = lower(?) AND demo = 0", (code.strip(),)).fetchone()
+    return _utilisateur(row) if row else None
+
+
+def lister_profils(q: str = "", limite: int = 40) -> List[dict]:
+    """Profils réels (pas de démo) pour « Reprendre un profil existant » : vue publique, les plus récents d'abord."""
+    with connexion() as con:
+        rows = con.execute("SELECT * FROM utilisateurs WHERE demo = 0 ORDER BY cree_le DESC").fetchall()
+    cible = sans_accents(q.strip())
+    if cible:
+        rows = [r for r in rows if sans_accents(r["prenom"]).startswith(cible) or cible in sans_accents(r["code"] or "")]
+    return [_public(r) for r in rows[:limite]]
+
+
 def changer_avatar(uid: str, avatar: dict) -> Optional[dict]:
     with connexion() as con:
         con.execute("UPDATE utilisateurs SET avatar = ? WHERE id = ?", (json.dumps(avatar), uid))

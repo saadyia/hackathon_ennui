@@ -440,6 +440,22 @@ class DemandeAmi(BaseModel):
     code: str = Field(..., min_length=3, max_length=40)
 
 
+@app.post("/api/utilisateurs/reprendre")
+def reprendre_profil(d: DemandeAmi):
+    """Reprendre un profil existant sur un nouvel appareil (ou après avoir perdu le stockage du navigateur)
+    avec son code « Prénom#123 ». Renvoie le compte complet, jeton compris. Outil de démo : pas de mot de passe."""
+    u = database.utilisateur_par_code(d.code)
+    if not u:
+        raise HTTPException(status_code=404, detail="Aucun profil avec ce code")
+    return u
+
+
+@app.get("/api/utilisateurs/profils")
+def profils(q: str = Query("", max_length=40)):
+    """Liste publique des profils enregistrés (prénom, code, ville, avatar ; jamais le jeton)."""
+    return database.lister_profils(q)
+
+
 @app.put("/api/utilisateurs/moi/avatar")
 def changer_avatar(a: Avatar, x_utilisateur: Optional[str] = Header(None)):
     u = utilisateur_requis(x_utilisateur)

@@ -69,7 +69,8 @@ const ETAT_INITIAL = () => ({
   horizon: "semaine",
   dejaVus: [],          // [{ id, titre, type }]
   envies: [],           // « Mes envies » : [{ id, titre, type, affiche, ... }] mis de côté
-  avatar: null,         // { bg, hair, accessory, expression } ; null = déduit du prénom
+  avatar: null,         // personnage DiceBear ; null = déduit du prénom
+  code: null,           // code public « Prénom#123 » : permet de reprendre le profil sur un autre appareil
   dispo: "indispo",     // humeur du moment (copie locale du serveur)
   decouverte: 0.3,
   energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
@@ -140,7 +141,9 @@ async function api(chemin, corps, signal, methode) {
   if (!r.ok) {
     let detail = `${r.status}`;
     try { const d = await r.json(); detail = typeof d.detail === "string" ? d.detail : detail; } catch (_) { /* rien */ }
-    throw new Error(detail);
+    const erreur = new Error(detail);
+    erreur.status = r.status;  // 401 = compte inconnu ; 5xx / réseau = serveur momentanément indisponible
+    throw erreur;
   }
   return r.json();
 }
@@ -580,6 +583,8 @@ async function chargerSocial() {
     const [m, liste] = await Promise.all([api("/api/utilisateurs/moi"), api("/api/amis")]);
     const humeurAvant = etat.dispo;
     social = { moi: { code: m.code }, amis: liste.amis, suggestions: liste.suggestions };
+    etat.code = m.code;
+    memoriserCompte(etat.uid, etat.prenom, m.code);
     etat.dispo = m.dispo;
     if (m.avatar) etat.avatar = m.avatar;
     stock.ecrire(`etat.${etat.uid}`, etat);
@@ -826,7 +831,10 @@ function ecranBienvenue() {
         <h1 class="titre-1 bienvenue-titre">${etat.uid && etat.prenom ? `${salutation()} ${esc(etat.prenom)},<br>on fait quoi ?` : "Salut !<br>On fait quoi aujourd'hui ?"}</h1>
         <p class="muet bienvenue-texte">Pas besoin de savoir : laisse-toi guider selon ton énergie, tes goûts et ce qu'il se passe près de chez toi.</p>
       </div>
-      <button class="bouton-principal" data-action="c-est-parti">C'est parti ! ${icone("arrow-right", 18)}</button>
+      <div class="bienvenue-actions">
+        <button class="bouton-principal" data-action="c-est-parti">C'est parti ! ${icone("arrow-right", 18)}</button>
+        ${etat.uid ? "" : `<button class="lien-discret lien-reprise" data-action="ouvrir-reprise">${icone("log-in", 15)}Reprendre un profil existant</button>`}
+      </div>
     </div>`;
 }
 
@@ -839,6 +847,7 @@ function ecranAccueil() {
       </div>
       <h1 class="titre-1" style="font-size:34px;margin-top:40px">Dis-nous tout.</h1>
       <p class="muet" style="margin:14px 0 0">Ton profil, une fois pour toutes : tes goûts, ta ville et ce que tu possèdes. L'envie du moment se choisit ensuite dans les onglets. Seul ton prénom est obligatoire.</p>
+      <button class="lien-discret lien-reprise" style="margin-top:16px" data-action="ouvrir-reprise">${icone("log-in", 15)}Reprendre un profil existant</button>
       ${connus.length ? `<div class="reprendre">
           <span class="tres-muet petit">Déjà venu sur cet appareil ?</span>
           <div class="puces" style="margin-top:8px">${connus.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">
@@ -1020,6 +1029,7 @@ function ecranProfil() {
       <span class="muet">Connecté sur cet appareil</span>
       <div class="puces" style="margin-top:10px">
         ${autres.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">${icone("user", 14)}${esc(c.prenom)}</button>`).join("")}
+        <button class="puce" data-action="ouvrir-reprise">${icone("repeat", 14)}Changer de compte</button>
         <button class="puce" data-action="nouveau-compte">${icone("plus", 14)}Nouveau compte</button>
       </div>
     </div>
@@ -1164,6 +1174,13 @@ function detailOeuvre(o) {
 function rendreFeuille() {
   const racine = $("#feuille");
   if (!feuille) { racine.hidden = true; racine.innerHTML = ""; return; }
+  if (feuille.mode === "reprise") {
+    const ouverture = racine.hidden;
+    racine.hidden = false;
+    racine.innerHTML = panneauReprise();
+    if (ouverture) animerOuvertureFeuille(racine);
+    return;
+  }
   if (feuille.mode === "avatar") {
     const ouverture = racine.hidden;
     racine.hidden = false;
@@ -1400,47 +1417,51 @@ function monterCarte(el) {
  * « Choisir à ma place » : tirage parmi le top 3 des recommandations de l'écran courant (mêmes filtres :
  * onglet, curseur, budget, temps disponible), pondéré 50 / 30 / 20 %, puis ouverture de la fiche.
  */
+/** Tout le pool affiché pour l'onglet et les filtres actifs (15 à 20 résultats et plus), sans doublon. */
 function candidatsTirage() {
   const d = donnees;
-  if (etat.onglet === "pour-vous") {
-    return [d.ecrans?.[0], d.sorties?.[0], d.ecrans?.[1], d.sorties?.[1], d.ecrans?.[2]].filter(Boolean).slice(0, 3);
-  }
-  return (d.grille || []).slice(0, 3);
+  const pool = etat.onglet === "pour-vous" ? [...(d.ecrans || []), ...(d.sorties || [])] : [...(d.grille || [])];
+  const vus = new Set();
+  return pool.filter((o) => o && !vus.has(o.id) && vus.add(o.id));
 }
+let dernierTirage = null;  // jamais deux fois de suite le même élément
 
 async function choisirPourMoi() {
-  const candidats = candidatsTirage();
-  if (!candidats.length) return toast("Rien à départager avec ces filtres.");
-  const r = Math.random();
-  const gagnant = candidats[r < 0.5 ? 0 : r < 0.8 ? 1 : 2] || candidats[0];
-  const racine = $("#feuille");
-  racine.hidden = false;
-  racine.innerHTML = `<div class="feuille-fond"></div>
-    <section class="tirage" role="status" aria-live="polite">
-      <span class="surtitre">On choisit pour toi</span>
-      <div class="tirage-cartes">${candidats.map((o, i) => `<div class="tirage-carte" data-i="${i}">
-          <div class="tirage-visuel">${o.affiche ? `<img src="${esc(o.affiche)}" alt="" onerror="this.remove()">` : icone(ICONES_CATEGORIE[o.categorie] || TYPES[o.type]?.icone || "sparkles", 28)}</div>
-          <span>${esc(o.titre)}</span></div>`).join("")}</div>
-    </section>`;
-  const cartes = [...racine.querySelectorAll(".tirage-carte")];
-  const final = candidats.indexOf(gagnant);
-  if (MOUVEMENT) {
-    gsap.fromTo(racine.querySelector(".feuille-fond"), { opacity: 0 }, { opacity: 1, duration: 0.25 });
-    gsap.from(cartes, { y: 30, opacity: 0, duration: 0.45, stagger: 0.08, ease: ADOUCI });
-    // balayage qui ralentit, puis s'arrête sur l'élu
-    const etapes = 7 + final + cartes.length * 2;
-    let delai = 70;
-    for (let k = 0; k <= etapes; k++) {
+  const pool = candidatsTirage();
+  if (!pool.length) return toast("Rien à départager avec ces filtres.");
+  const possibles = pool.length > 1 ? pool.filter((o) => o.id !== dernierTirage) : pool;
+  const gagnant = possibles[Math.floor(Math.random() * possibles.length)];
+  dernierTirage = gagnant.id;
+  if (MOUVEMENT && pool.length > 1) {
+    // micro-effet (~500 ms) : les visuels du pool défilent dans une vignette qui ralentit puis se fige sur l'élu
+    const racine = $("#feuille");
+    racine.hidden = false;
+    racine.innerHTML = `<div class="feuille-fond"></div>
+      <section class="tirage tirage-flash" role="status" aria-live="polite">
+        <span class="surtitre">On choisit pour toi · <span class="chiffre">${pool.length}</span> possibilités</span>
+        <div class="tirage-vignette" id="tirage-vignette"></div>
+        <span class="tirage-titre" id="tirage-titre"></span>
+      </section>`;
+    gsap.fromTo(racine.querySelector(".feuille-fond"), { opacity: 0 }, { opacity: 1, duration: 0.18 });
+    const vignette = $("#tirage-vignette");
+    const titre = $("#tirage-titre");
+    const montrer = (o) => {
+      vignette.innerHTML = o.affiche ? `<img src="${esc(o.affiche)}" alt="" onerror="this.remove()">`
+        : icone(ICONES_CATEGORIE[o.categorie] || TYPES[o.type]?.icone || "sparkles", 28);
+      titre.textContent = o.titre;
+    };
+    const melange = [...pool].sort(() => Math.random() - 0.5).filter((o) => o.id !== gagnant.id).slice(0, 7);
+    let delai = 34;  // 34 + 40 + 48 + … ≈ 450 ms au total
+    for (const o of melange) {
+      montrer(o);
       await new Promise((res) => setTimeout(res, delai));
-      cartes.forEach((c, i) => c.classList.toggle("allumee", i === k % cartes.length));
-      delai *= 1.16;
+      delai *= 1.2;
     }
-    cartes.forEach((c, i) => c.classList.toggle("allumee", i === final));
-    gsap.to(cartes[final], { scale: 1.08, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.inOut" });
-    // attente par minuterie (et non sur la fin de l'animation) : jamais bloqué si l'onglet est en arrière-plan
-    await new Promise((res) => setTimeout(res, 750));
+    montrer(gagnant);
+    vignette.classList.add("elu");
+    await new Promise((res) => setTimeout(res, 160));
+    racine.hidden = true;
   }
-  racine.hidden = true;
   ouvrirFeuille({ ...gagnant, selectionne: true });
 }
 
@@ -1552,10 +1573,74 @@ async function rafraichirAgenda() {
 // ------------------------------------------------------------------ //
 // Comptes                                                              //
 // ------------------------------------------------------------------ //
-function memoriserCompte(id, prenom) {
+function memoriserCompte(id, prenom, code) {
+  const ancien = comptes().find((c) => c.id === id);
   const liste = comptes().filter((c) => c.id !== id);
-  stock.ecrire("comptes", [{ id, prenom }, ...liste].slice(0, 8));
+  stock.ecrire("comptes", [{ id, prenom, code: code || ancien?.code || null }, ...liste].slice(0, 8));
 }
+
+/** Reprendre un profil existant (code « Prénom#123 ») : aucun nouveau compte, aucun doublon. */
+async function reprendreProfil(code) {
+  let u;
+  try { u = await api("/api/utilisateurs/reprendre", { code }); } catch (e) {
+    return toast(e.status === 404 ? "Aucun profil avec ce code." : "Serveur injoignable, réessaie dans un instant.");
+  }
+  memoriserCompte(u.id, u.prenom, u.code);
+  feuille = null;
+  rendreFeuille();
+  etape = "application";
+  await changerCompte(u.id);
+}
+
+// ---------------- Tiroir « Reprendre un profil existant » ----------------
+function panneauReprise() {
+  const f = feuille;
+  const locaux = comptes().filter((c) => c.id !== etat.uid);
+  const liste = f.profils === null ? `<div class="squelette" style="height:120px;border-radius:14px"></div>`
+    : f.profils.length ? `<ul class="liste-amis">${f.profils.map((p) => `<li class="ligne-ami">${avatar({ ...p, dispo: "indispo" }, 40)}
+        <div class="ligne-ami-texte"><span class="ligne-ami-nom"><b>${esc(p.prenom)}</b>${p.code === etat.code ? '<span class="tag-demo">Toi</span>' : ""}</span>
+          <span class="tres-muet petit">${esc(p.code)}${p.ville ? ` · ${esc(p.ville)}` : ""}</span></div>
+        <button class="bouton-ligne" data-action="reprendre-profil" data-code="${esc(p.code)}" ${p.code === etat.code ? "disabled" : ""}>${icone("log-in", 14)}Reprendre</button></li>`).join("")}</ul>`
+    : `<p class="tres-muet petit">Aucun profil trouvé.</p>`;
+  return `<div class="feuille-fond" data-action="fermer-feuille"></div>
+    <section class="feuille-panneau" role="dialog" aria-modal="true" aria-label="Reprendre un profil existant">
+      <div class="poignee" data-action="fermer-feuille" aria-hidden="true"></div>
+      <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
+      <div class="feuille-corps">
+        <h2 class="titre-detail">Reprendre un profil</h2>
+        <p class="muet petit" style="margin:6px 0 0">Ton avatar, tes amis et « Mes envies » sont enregistrés sur le serveur. Retrouve-les avec ton code, visible dans Profil.</p>
+        <form class="reprise-code" id="form-reprise">
+          <input class="champ" name="code" maxlength="40" autocomplete="off" autocapitalize="words" placeholder="Prénom#123" required>
+          <button class="bouton-principal" type="submit">${icone("log-in", 18)}Reprendre</button>
+        </form>
+        ${locaux.length ? `<section class="groupe"><span class="surtitre">Sur cet appareil</span>
+          <div class="puces">${locaux.map((c) => `<button class="puce" data-action="changer-compte" data-uid="${esc(c.id)}">${icone("user", 14)}${esc(c.prenom)}${c.code ? ` <span class="tres-muet">${esc(c.code.split("#")[1] ? "#" + c.code.split("#")[1] : "")}</span>` : ""}</button>`).join("")}</div>
+        </section>` : ""}
+        <section class="groupe">
+          <span class="surtitre">Profils enregistrés</span>
+          <label class="champ-recherche">${icone("search", 16, "tres-muet")}
+            <input class="champ" id="recherche-profil" maxlength="40" autocomplete="off" placeholder="Chercher un prénom" value="${esc(f.q || "")}">
+          </label>
+          <div id="liste-profils" style="margin-top:10px">${liste}</div>
+        </section>
+      </div>
+    </section>`;
+}
+
+async function ouvrirReprise() {
+  feuille = { mode: "reprise", q: "", profils: null };
+  rendreFeuille();
+  chargerProfils("");
+}
+const chargerProfils = debounce(async (q) => {
+  if (feuille?.mode !== "reprise") return;
+  feuille.q = q;
+  try { feuille.profils = await api(`/api/utilisateurs/profils?q=${encodeURIComponent(q)}`); } catch (_) { feuille.profils = []; }
+  if (feuille?.mode !== "reprise") return;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = panneauReprise();
+  $("#liste-profils").innerHTML = tmp.querySelector("#liste-profils").innerHTML;
+}, 200);
 
 /** Horizon d'un ancien profil (ex. « court ») absent des choix proposés : « Dans la semaine ». */
 function normaliserHorizon() {
@@ -1568,8 +1653,8 @@ async function changerCompte(uid) {
   try {
     etat.uid = uid;  // pour l'en-tête X-Utilisateur
     u = await api("/api/utilisateurs/moi");
-  } catch (_) {
-    if (!local) {
+  } catch (e) {
+    if (!local && e.status === 401) {
       stock.ecrire("comptes", comptes().filter((c) => c.id !== uid));
       etat = ETAT_INITIAL();
       toast("Ce compte n'existe plus sur le serveur.");
@@ -1587,13 +1672,14 @@ async function changerCompte(uid) {
     envies: local?.envies || prefsServeur.envies || [],
     avatar: u?.avatar || local?.avatar || null,
     dispo: u?.dispo || "indispo",
+    code: u?.code || local?.code || null,
     horizon: local?.horizon || prefsServeur.horizon || "semaine",
   };
   delete etat.prefs.dejaVus;
   delete etat.prefs.envies;
   delete etat.prefs.horizon;
   normaliserHorizon();
-  memoriserCompte(uid, etat.prenom);
+  memoriserCompte(uid, etat.prenom, etat.code);
   stock.ecrire("actif", uid);
   sauvegarder();
   donnees = {};
@@ -1697,8 +1783,9 @@ const actions = {
         avatar: avatarDe({ prenom, avatar: etat.avatar }) });  // avatar déduit du prénom si non personnalisé
       etat.uid = u.id;
       etat.prenom = u.prenom;
+      etat.code = u.code;
       etat.onglet = "pour-vous";
-      memoriserCompte(u.id, u.prenom);
+      memoriserCompte(u.id, u.prenom, u.code);
       sauvegarder();
       haut();
       social = { moi: null, amis: [], suggestions: [] };
@@ -1709,7 +1796,11 @@ const actions = {
       toast(`Connexion impossible : ${e.message}`);
     }
   },
-  "changer-compte"(b) { changerCompte(b.dataset.uid); },
+  "changer-compte"(b) {
+    if (feuille) { feuille = null; rendreFeuille(); }
+    etape = "application";
+    changerCompte(b.dataset.uid);
+  },
   "c-est-parti"() {
     etape = etat.uid ? "application" : "questionnaire";  // compte connu : directement à la sélection
     haut();
@@ -1804,6 +1895,8 @@ const actions = {
     toast(actif ? "Ajouté à Mes envies" : "Retiré de Mes envies");
     if (etat.onglet === "profil" && !feuille) rendre();
   },
+  "ouvrir-reprise"() { ouvrirReprise(); },
+  "reprendre-profil"(b) { reprendreProfil(b.dataset.code); },
   "ouvrir-amis"() {
     feuille = { mode: "amis", q: "", resultats: null };
     rendreFeuille();
@@ -2016,6 +2109,11 @@ document.addEventListener("click", (e) => {
 document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target;
+  if (f.id === "form-reprise") {
+    const code = new FormData(f).get("code").trim();
+    if (code) reprendreProfil(code);
+    return;
+  }
   if (f.id === "form-sortie" && feuille) {
     const d = Object.fromEntries(new FormData(f));
     if (!feuille.ville || feuille.ville.nom !== $("#champ-ville-pub").value) return toast("Choisis la ville dans la liste.");
@@ -2058,6 +2156,8 @@ document.addEventListener("input", (e) => {
     rechercherVille(e.target.value.trim());
   } else if (id === "champ-ville-pub") {
     rechercherVille(e.target.value.trim(), "-pub");
+  } else if (id === "recherche-profil") {
+    chargerProfils(e.target.value.trim());
   } else if (id === "recherche-ami") {
     rechercherAmi(e.target.value.trim());
   } else if (id === "recherche-vu") {
@@ -2100,7 +2200,24 @@ if ("serviceWorker" in navigator) {
   normaliserHorizon();
   if (etat.uid) {
     // le compte existe-t-il encore côté serveur (base réinitialisée) ?
-    try { await api("/api/utilisateurs/moi"); } catch (_) { etat = { ...etat, uid: null }; }
+    // Seul un 401 (compte absent de la base) fait oublier l'identifiant : un serveur qui redémarre (mise à jour,
+    // réveil de Render ou de Neon) ne doit jamais faire recréer un profil vierge.
+    try { await api("/api/utilisateurs/moi"); } catch (e) {
+      if (e.status === 401) {
+        const code = etat.code || comptes().find((c) => c.id === etat.uid)?.code;
+        let retrouve = null;
+        if (code) { try { retrouve = await api("/api/utilisateurs/reprendre", { code }); } catch (_) { /* introuvable */ } }
+        if (retrouve) {
+          stock.ecrire("comptes", comptes().filter((c) => c.id !== etat.uid));
+          memoriserCompte(retrouve.id, retrouve.prenom, retrouve.code);
+          etat = { ...etat, uid: retrouve.id, prenom: retrouve.prenom, code: retrouve.code, avatar: retrouve.avatar || etat.avatar };
+          sauvegarder();
+        } else {
+          etat = { ...etat, uid: null };
+          setTimeout(() => toast("Profil introuvable sur ce serveur : reprends-le avec ton code ou crée-en un."), 1600);
+        }
+      }
+    }
   }
   if (etat.uid) { charger(); chargerSocial(); } else rendre();
   fermerSplash();

@@ -8,8 +8,8 @@ services:
     healthCheckPath: /api/sante
     autoDeploy: true
     envVars:
-      - key: ENNUI_SYNC          # synchronisation OpenAgenda toutes les 6 h (0 pour la couper)
-        value: "1"
+      - key: ENNUI_SYNC          # synchronisation OpenAgenda (1 = toutes les 6 h) ; coupée : trop lourde pour le plan gratuit
+        value: "0"
       - key: ENNUI_ORIGINES      # CORS : origines autorisées, séparées par des virgules (« * » = toutes)
         value: "*"
       - key: DATABASE_URL        # PostgreSQL Neon (postgresql://…?sslmode=require) : comptes, amis, plans conservés

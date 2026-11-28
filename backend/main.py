@@ -694,9 +694,9 @@ def agenda():
 
 @app.post("/api/agenda/synchroniser")
 async def synchroniser():
-    """Lance une mise à jour en arrière-plan et rend la main tout de suite."""
+    """Lance une mise à jour en arrière-plan et rend la main tout de suite (jamais si ENNUI_SYNC=0)."""
     import asyncio
-    if not synchro.en_cours:
+    if os.environ.get("ENNUI_SYNC", "1") != "0" and not synchro.en_cours:
         asyncio.create_task(synchro.synchroniser(manuel=True))
         await asyncio.sleep(0)  # laisse la tâche passer « en_cours »
     return synchro.etat()

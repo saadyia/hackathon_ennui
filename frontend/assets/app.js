@@ -777,8 +777,8 @@ function statutAgenda() {
       : `Agenda synchronisé ${ilYa(agenda.derniere_sync)}`;
   return `<div class="statut-agenda" id="statut-agenda">
       <span>${esc(texte)}</span>
-      <button class="lien-discret" data-action="synchroniser" ${agenda.en_cours ? "disabled" : ""}>
-        ${icone("rotate-ccw", 14, agenda.en_cours ? "tourne" : "")}Mettre à jour</button>
+      ${agenda.automatique === false ? "" : `<button class="lien-discret" data-action="synchroniser" ${agenda.en_cours ? "disabled" : ""}>
+        ${icone("rotate-ccw", 14, agenda.en_cours ? "tourne" : "")}Mettre à jour</button>`}
     </div>`;
 }
 

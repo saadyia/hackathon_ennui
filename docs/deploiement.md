@@ -46,7 +46,7 @@ docker run -p 8000:8000 -e ENNUI_SYNC=0 ofk   # sans synchronisation de l'agenda
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `PORT` | 8000 | port d'écoute (fourni par Render / Railway) |
-| `ENNUI_SYNC` | 1 | synchronisation OpenAgenda toutes les 6 h ; 0 pour la couper |
+| `ENNUI_SYNC` | 1 (0 dans `render.yaml`) | synchronisation OpenAgenda toutes les 6 h ; 0 la coupe et retire le bouton « Mettre à jour » (agenda rafraîchi en local avec `fetch_france.py`, puis poussé) |
 | `ENNUI_ORIGINES` | `*` | CORS : origines autorisées, séparées par des virgules |
 | `DATABASE_URL` | — | PostgreSQL (Neon) ; absent = SQLite local |
 | `ENNUI_PG_POOL` | 5 | taille maximale du pool de connexions PostgreSQL |

@@ -50,6 +50,7 @@ populaires sortent en tête pour tout le monde.
 """
 
 import json
+import zlib
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -549,3 +550,37 @@ class Moteur:
             or q in (nd.get("auteur") or "").lower() or q in (nd.get("studio") or "").lower())]
         trouves.sort(key=lambda nd: -(nd.get("nb_likes") or 0))
         return trouves[:limite]
+
+
+# ------------------------------------------------------------------ #
+# Onglet « Hors écran » : activités créatives, cuisine, mouvement      #
+# (catalogue éditorial backend/data/activites.json, hors du graphe)    #
+# ------------------------------------------------------------------ #
+MATERIEL_RANG = {"sans": 0, "basique": 1, "equipe": 2}
+
+
+def classer_activites(activites: list, categorie: str = "creatif", materiel: str = "tout", mode: str = "tous",
+                      decouverte: float = 0.3, jour: str = "") -> list:
+    """Filtre puis classe les activités selon le curseur Confort ↔ Découverte.
+
+    score = (1 - s) · (1 - insolite) + s · insolite + variation du jour (± 0,06, stable sur la journée)
+    À s = 0 : les classiques (cookies, course à pied) ; à s = 1 : linogravure, gyoza maison, escalade de bloc.
+    Matériel : « sans » = sans matériel seulement ; « basique » = sans + basique ; « tout » = y compris équipé.
+    """
+    s = min(1.0, max(0.0, float(decouverte)))
+    plafond = {"sans": 0, "basique": 1}.get(materiel, 2)
+    retenues = []
+    for a in activites:
+        if a["categorie"] != categorie or MATERIEL_RANG[a["materiel"]] > plafond:
+            continue
+        if mode in ("solo", "groupe") and mode not in a["modes"]:
+            continue
+        ins = a["insolite"]
+        variation = (zlib.crc32(f"{a['id']}|{jour}".encode()) % 1000) / 1000 * 0.12 - 0.06
+        score = (1 - s) * (1 - ins) + s * ins + variation
+        tag = {}
+        if s >= 0.45 and ins >= 0.4:
+            tag = {"origine": "decouverte", "etiquette": "hors-piste" if ins >= 0.6 else "pepite"}
+        retenues.append((score, {**a, **tag, "score": round(score, 4)}))
+    retenues.sort(key=lambda x: -x[0])
+    return [a for _, a in retenues]

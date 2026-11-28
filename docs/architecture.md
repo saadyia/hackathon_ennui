@@ -164,6 +164,16 @@ Mesuré : 40 tirages sur un pool de 20 -> 18 éléments distincts, 0 répétitio
   studio) — `vendor/dicebear/LICENCES.txt`.
 - 4 profils de démonstration (`demo-*`) avec avatar et humeur active, proposés en suggestions et marqués « Démo ».
 
+## Hors écran (activités)
+- Catalogue éditorial `backend/data/activites.json` (versionné, chargé une fois au démarrage) : 35 activités (12 créatives,
+  11 cuisine, 12 mouvement), chacune avec titre, défi concret, durée, matériel (`sans` / `basique` / `equipe`), modes
+  (`solo`, `groupe`), icône Lucide, « Il te faut », étapes, et un score `insolite` (0 à 1). Pas d'image : visuel = teinte
+  feutrée par catégorie + icône (jamais d'illustration inventée).
+- `moteur.classer_activites` : score = (1 − s)·(1 − insolite) + s·insolite ± 0,06 (variation stable sur la journée).
+  À 0/10 : crêpes, cookies, course à pied ; à 10/10 : linogravure, gyoza, escalade de bloc (« Hors piste »).
+- Hors du graphe PageRank (pas de co-occurrences pour ces activités) ; plans, « Mes envies », tirage et synchro temps réel
+  les traitent comme les autres contenus (`type: "activite"`).
+
 ## Temps réel (smart polling)
 - `GET /api/sync` : amis (humeur, avatar), plans de l'entourage avec participants, humeur actuelle ; empreinte SHA-1
   du contenu (`v`) : réponse minimale si rien n'a changé. Participants et messages lus en une requête par lot.

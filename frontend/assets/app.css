@@ -1248,3 +1248,55 @@ button { transition: transform 0.15s var(--ressort), background 0.25s var(--ress
    (son dégradé recouvrait le curseur du périmètre sur mobile). */
 .barre-action { pointer-events: none; }
 .barre-action > * { pointer-events: auto; }
+
+/* ================================================================== */
+/* Onglet « Hors écran » : activités                                   */
+/* ================================================================== */
+.onglets { grid-template-columns: repeat(5, 1fr); }
+.onglet span { font-size: 10.5px; letter-spacing: -0.005em; white-space: nowrap; }
+
+.grille-activites { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 12px; }
+.carte-activite { display: flex; flex-direction: column; min-width: 0; }
+.visuel-activite {
+  position: relative; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; cursor: pointer;
+  display: grid; place-items: center; color: rgba(248, 250, 252, 0.92);
+  border: 1px solid var(--trait); border-top-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px -18px rgba(0, 0, 0, 0.7);
+  background: radial-gradient(90% 80% at 28% 18%, var(--teinte-haute), transparent 70%),
+    radial-gradient(80% 70% at 85% 95%, var(--teinte-basse), transparent 70%), #121726;
+}
+/* teintes feutrées par catégorie (fonds sombres, pas d'image inventée) */
+.activite-creatif { --teinte-haute: rgba(167, 139, 250, 0.28); --teinte-basse: rgba(76, 29, 149, 0.45); }
+.activite-cuisine { --teinte-haute: rgba(251, 191, 36, 0.22); --teinte-basse: rgba(120, 53, 15, 0.55); }
+.activite-mouvement { --teinte-haute: rgba(110, 231, 183, 0.2); --teinte-basse: rgba(6, 78, 59, 0.6); }
+.visuel-activite-icone { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(11, 15, 25, 0.35); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.visuel-activite .tag { position: absolute; top: 8px; left: 8px; }
+.carte-activite-corps { display: flex; flex-direction: column; gap: 6px; padding: 10px 2px 0; min-width: 0; flex: 1; }
+.carte-activite h3 { margin: 0; font-size: 15px; line-height: 1.25; cursor: pointer; }
+.carte-activite .extrait { margin: 0; font-size: 12.5px; color: var(--texte-2); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.activite-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--texte-3); }
+.activite-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.carte-activite .collab { margin-top: auto; padding-top: 4px; }
+@media (hover: hover) {
+  .carte-activite { transition: transform 0.38s var(--ressort); }
+  .carte-activite:hover { transform: translateY(-4px); }
+  .carte-activite:hover .visuel-activite { border-color: rgba(255, 255, 255, 0.22); }
+}
+
+/* Fiche d'une activité */
+.detail-activite { display: grid; grid-template-columns: 132px 1fr; gap: 16px; align-items: start; }
+.detail-visuel-activite { aspect-ratio: 3 / 4; }
+.detail-sous-titre { margin: 4px 0 8px; font-size: 14px; color: var(--texte-2); line-height: 1.45; }
+.detail-activite .activite-meta { font-size: 12px; margin-bottom: 4px; }
+.liste-materiel { margin: 8px 0 0; padding-left: 18px; color: var(--texte-2); font-size: 14px; line-height: 1.6; }
+.etapes { margin: 8px 0 0; padding: 0; list-style: none; counter-reset: etape; display: grid; gap: 10px; }
+.etapes li { counter-increment: etape; position: relative; padding-left: 34px; font-size: 14px; line-height: 1.5; color: var(--texte-2); }
+.etapes li::before {
+  content: counter(etape); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-family: var(--police-chiffres); font-size: 11.5px; color: var(--texte);
+  background: rgba(255, 255, 255, 0.06); box-shadow: 0 0 0 1px var(--trait-fort);
+}
+.proposer.surbrillance { box-shadow: 0 0 0 1px rgba(232, 217, 181, 0.55), 0 0 30px -8px rgba(232, 217, 181, 0.45); transition: box-shadow 0.4s var(--ressort); border-radius: 16px; }
+@media (max-width: 360px) { .detail-activite { grid-template-columns: 1fr; } .detail-visuel-activite { aspect-ratio: 16 / 9; } }

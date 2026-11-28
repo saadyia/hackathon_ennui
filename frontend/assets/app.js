@@ -40,7 +40,7 @@ const ICONES_CATEGORIE = {
   culture: "landmark", ecrans: "clapperboard",
   soirees: "disc-3", cinema: "clapperboard", expo: "landmark", scene: "drama", nature: "trees", rencontres: "messages-square",
   livres: "book-open", series: "tv", jeux: "gamepad-2", cuisine: "chef-hat", creatif: "palette", lecture: "book-open",
-  cafe: "coffee", sport: "bike",
+  cafe: "coffee", sport: "bike", mouvement: "activity",
 };
 const NOMS_CONSOLES = { pc: "PC", mac: "Mac", switch: "Switch", playstation: "PlayStation", xbox: "Xbox", mobile: "Mobile" };
 const TYPES = {
@@ -49,10 +49,12 @@ const TYPES = {
   livre: { nom: "Livre", icone: "book-open", vu: "Déjà lu", collectif: "Club de lecture" },
   jeu: { nom: "Jeu vidéo", icone: "gamepad-2", vu: "Déjà joué", collectif: "Session de jeu" },
   sortie: { nom: "Sortie", icone: "ticket", vu: "", collectif: "Sortie à plusieurs" },
+  activite: { nom: "Activité", icone: "shapes", vu: "", collectif: "Activité à plusieurs" },
 };
 const ONGLETS = [
   { id: "pour-vous", nom: "Pour vous", icone: "sparkles" },
   { id: "ecrans", nom: "Chez soi", icone: "sofa" },
+  { id: "hors-ecran", nom: "Hors écran", icone: "shapes" },
   { id: "sorties", nom: "Sorties", icone: "ticket" },
   { id: "profil", nom: "Profil", icone: "user" },
 ];
@@ -60,7 +62,8 @@ const ONGLETS = [
 // ------------------------------------------------------------------ //
 // État, comptes et persistance                                         //
 // ------------------------------------------------------------------ //
-const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [], consoles: [], modeJeu: "tous", themes: [] });
+const PREFS_INITIALES = () => ({ ville: null, rayon: 15, budget: "tous", categories: [], genres: [], plateformes: [], consoles: [], modeJeu: "tous", themes: [],
+  materiel: "tout", modeActivite: "tous" });
 // Anciennes envies -> nouvelles (Films & Séries, Lecture, Jeux vidéo, Sorties culturelles, Soirées & Concerts, Balades & Nature)
 const MIGRATION_ENVIES = { series: "ecrans", livres: "lecture", cinema: "culture", expo: "culture", scene: "culture" };
 const ETAT_INITIAL = () => ({
@@ -76,6 +79,7 @@ const ETAT_INITIAL = () => ({
   energie: null,        // questionnaire : "cocon" | "mixte" | "dehors"
   onglet: "pour-vous",
   ecrans: "tout",
+  horsEcran: "creatif",  // sous-onglet de « Hors écran » : creatif | cuisine | mouvement
 });
 let etat = ETAT_INITIAL();
 let CONFIG = null;
@@ -111,6 +115,7 @@ function restaurer() {
   if (local) etat = { ...ETAT_INITIAL(), ...local, prefs: { ...PREFS_INITIALES(), ...(local.prefs || {}) } };
   etat.prefs.categories = [...new Set(etat.prefs.categories.map((c) => MIGRATION_ENVIES[c] || c))];
   if (!["tout", "ecrans", "livre", "jeu"].includes(etat.ecrans)) etat.ecrans = "tout";
+  if (!["creatif", "cuisine", "mouvement"].includes(etat.horsEcran)) etat.horsEcran = "creatif";
   etat.decouverte = versDecouverte(cran());
   if (etat.prefs.modeJeu === "coop") etat.prefs.modeJeu = "multi";  // Co-op fusionné dans Multijoueur
   if (!Array.isArray(etat.envies)) etat.envies = [];
@@ -293,7 +298,7 @@ function ligneCollab(o, { compacte = false } = {}) {
   if (!plan) {
     return `<div class="collab ${compacte ? "compacte" : ""}">
         ${compacte ? "" : `<span class="collab-texte tres-muet">Personne encore. Lance le premier plan.</span>`}
-        <button class="bouton-ligne ${o.type === "jeu" && estMulti(o) ? "bouton-accent" : ""}" data-action="ouvrir-plans" data-id="${id}">${icone(o.type === "jeu" ? "gamepad-2" : "plus", 14)}${compacte ? (o.type === "livre" ? "Club de lecture" : o.type === "jeu" ? "Lancer une session" : "Organiser") : "Proposer un créneau"}</button>
+        <button class="bouton-ligne ${o.type === "jeu" && estMulti(o) ? "bouton-accent" : ""}" data-action="ouvrir-plans" data-id="${id}">${icone(o.type === "jeu" ? "gamepad-2" : "plus", 14)}${compacte ? (o.type === "livre" ? "Club de lecture" : o.type === "jeu" ? "Lancer une session" : o.type === "activite" ? "Proposer à un ami" : "Organiser") : "Proposer un créneau"}</button>
       </div>`;
   }
   const quand = libelleInstant(new Date(plan.debut));
@@ -775,7 +780,7 @@ function statutAgenda() {
 }
 
 function entete(surtitre, titre, { avantTitre = "" } = {}) {
-  const tirage = ["pour-vous", "ecrans", "sorties"].includes(etat.onglet);
+  const tirage = ["pour-vous", "ecrans", "hors-ecran", "sorties"].includes(etat.onglet);
   return `<header class="apparition">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
         <span class="marque">${LOGO}</span>
@@ -931,7 +936,7 @@ function carteSession(p) {
   return `<article class="carte-session verre" data-carte="${esc(p.oeuvre_id)}">
       <button class="vignette" data-action="ouvrir-plans" data-id="${esc(p.oeuvre_id)}" data-titre="${esc(p.oeuvre_titre)}" data-type="${esc(p.oeuvre_type)}">${vignette}</button>
       <div class="carte-session-corps">
-        <span class="surtitre">${esc(TYPES[p.oeuvre_type]?.collectif || "Sortie à plusieurs")}${pastilleNouveau(nouveaux.has(p.id))}</span>
+        <span class="surtitre">${esc(collectifDe({ type: p.oeuvre_type, categorie: p.categorie }) || "Sortie à plusieurs")}${pastilleNouveau(nouveaux.has(p.id))}</span>
         <h3>${esc(p.oeuvre_titre)}</h3>
         <div class="petit"><span class="chiffre">${esc(libelleInstant(new Date(p.debut)))}</span></div>
         <div class="collab-avec">${pileMembres(p)}<span class="tres-muet petit">${esc(avecQui(p))}</span></div>
@@ -1035,7 +1040,7 @@ function rendreZone() {
   const zone = $("#zone-chez-soi");
   if (!zone) return rendre();
   const tmp = document.createElement("div");
-  tmp.innerHTML = zoneChezSoi();
+  tmp.innerHTML = etat.onglet === "hors-ecran" ? zoneHorsEcran() : zoneChezSoi();
   const nouvelle = tmp.firstElementChild;
   nouvelle.style.minHeight = `${zone.offsetHeight}px`;
   zone.replaceWith(nouvelle);
@@ -1094,7 +1099,7 @@ function ecranProfil() {
       ${etat.envies.length ? rangee(etat.envies.map((e) => `<article class="carte-envie" data-carte="${esc(e.id)}">
           <button class="envie-visuel ${e.type === "sortie" || e.type === "jeu" ? "paysage" : ""}" data-action="ouvrir-plans" data-id="${esc(e.id)}"
             data-titre="${esc(e.titre)}" data-type="${esc(e.type)}" aria-label="${esc(e.titre)}">
-            ${e.affiche ? `<img src="${esc(e.affiche)}" alt="" loading="lazy" onerror="this.remove()">` : icone(TYPES[e.type]?.icone || "bookmark", 22)}
+            ${e.affiche ? `<img src="${esc(e.affiche)}" alt="" loading="lazy" onerror="this.remove()">` : icone(e.icone || TYPES[e.type]?.icone || "bookmark", 22)}
           </button>
           <span class="type-oeuvre">${esc(TYPES[e.type]?.nom || "")}</span>
           <h3>${esc(e.titre)}</h3>
@@ -1140,7 +1145,78 @@ function ecranProfil() {
     </p>`;
 }
 
-const ECRANS = { "pour-vous": ecranPourVous, ecrans: ecranEcrans, sorties: ecranSorties, profil: ecranProfil };
+// ------------------------------------------------------------------ //
+// Onglet « Hors écran » : activités créatives, cuisine, mouvement      //
+// ------------------------------------------------------------------ //
+const SEGMENTS_HORS_ECRAN = [["creatif", "Créatif"], ["cuisine", "Cuisine"], ["mouvement", "Mouvement"]];
+const MATERIELS = [["tout", "Tout"], ["sans", "Sans matériel"], ["basique", "Matériel basique"]];
+const MODES_ACTIVITE = [["tous", "Tous"], ["solo", "Solo"], ["groupe", "À plusieurs"]];
+const LIBELLE_MATERIEL = { sans: "Sans matériel", basique: "Matériel basique", equipe: "Équipé" };
+const COLLECTIF_ACTIVITE = { creatif: "Atelier ensemble", cuisine: "Session cuisine", mouvement: "Séance à plusieurs" };
+const dureeActivite = (min) => min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${String(min % 60).padStart(2, "0")}` : ""}`;
+const modesActivite = (o) => o.modes.length > 1 ? "Solo ou à plusieurs" : o.modes[0] === "solo" ? "Solo" : "À plusieurs";
+const collectifDe = (o) => o.type === "activite" ? COLLECTIF_ACTIVITE[o.categorie] || TYPES.activite.collectif : TYPES[o.type]?.collectif;
+
+function visuelActivite(o, classe = "") {
+  return `<div class="visuel-activite activite-${esc(o.categorie)} ${classe}" data-action="ouvrir-plans" data-id="${esc(o.id)}">
+      <span class="visuel-activite-icone">${icone(o.icone || ICONES_CATEGORIE[o.categorie] || "shapes", 34)}</span>
+      ${tagDecouverte(o)}${boutonSauver(o)}
+    </div>`;
+}
+
+function carteActivite(o, i = 0) {
+  return `<article class="carte-activite apparition" data-carte="${esc(o.id)}" style="animation-delay:${i * 25}ms">
+      ${visuelActivite(o)}
+      <div class="carte-activite-corps">
+        <h3 data-action="ouvrir-plans" data-id="${esc(o.id)}">${esc(o.titre)}</h3>
+        <p class="extrait">${esc(o.sous_titre)}</p>
+        <div class="activite-meta">
+          <span>${icone("timer", 13)}<span class="chiffre">${esc(dureeActivite(o.duree_min))}</span></span>
+          <span>${icone(o.materiel === "sans" ? "hand" : "package", 13)}${esc(LIBELLE_MATERIEL[o.materiel])}</span>
+          <span>${icone(o.modes.includes("groupe") ? "users" : "user", 13)}${esc(modesActivite(o))}</span>
+        </div>
+        ${ligneCollab(o, { compacte: true })}
+      </div>
+    </article>`;
+}
+
+function filtresHorsEcran() {
+  return `<div class="filtres">
+      <span class="surtitre">Matériel</span>
+      <div class="puces">${MATERIELS.map(([v, n]) => `<button class="puce puce-s" data-action="materiel" data-valeur="${v}"
+        aria-pressed="${etat.prefs.materiel === v}">${v === "tout" ? "" : icone(v === "sans" ? "hand" : "package", 14)}${n}</button>`).join("")}</div>
+      <span class="surtitre" style="margin-top:14px">Mode</span>
+      <div class="puces">${MODES_ACTIVITE.map(([v, n]) => `<button class="puce puce-s" data-action="mode-activite" data-valeur="${v}"
+        aria-pressed="${etat.prefs.modeActivite === v}">${v === "tous" ? "" : icone(v === "solo" ? "user" : "users", 14)}${n}</button>`).join("")}</div>
+    </div>`;
+}
+
+/** Zone remplacée en fondu au changement de sous-onglet (même mécanisme que Chez soi, même identifiant). */
+function zoneHorsEcran() {
+  const d = donnees;
+  const liste = d.grille || [];
+  return `<div id="zone-chez-soi">
+      ${filtresHorsEcran()}
+      <div id="contenu" class="${d.chargement ? "chargement" : ""}" style="margin-top:22px">
+        ${liste.length ? `<div class="grille-activites">${liste.map(carteActivite).join("")}</div>`
+          : d.chargement ? `<div class="grille-activites">${'<div class="squelette" style="height:250px;border-radius:16px"></div>'.repeat(4)}</div>`
+            : videEcrans()}
+      </div>
+    </div>`;
+}
+
+function ecranHorsEcran() {
+  const actif = SEGMENTS_HORS_ECRAN.findIndex(([v]) => v === etat.horsEcran);
+  return `${entete(SEGMENTS_HORS_ECRAN[actif][1], "Loin des écrans")}
+    <div class="segment segment-3 segment-pilule" role="tablist" aria-label="Hors écran" style="--index:${actif}">
+      <span class="segment-indicateur" aria-hidden="true"></span>
+      ${SEGMENTS_HORS_ECRAN.map(([v, n]) => `<button role="tab" data-action="segment-hors" data-valeur="${v}" aria-pressed="${etat.horsEcran === v}">${n}</button>`).join("")}
+    </div>
+    ${instrument()}
+    ${zoneHorsEcran()}`;
+}
+
+const ECRANS = { "pour-vous": ecranPourVous, ecrans: ecranEcrans, "hors-ecran": ecranHorsEcran, sorties: ecranSorties, profil: ecranProfil };
 
 // ------------------------------------------------------------------ //
 // Feuille collaborative (créneaux, participants, messages)             //
@@ -1194,7 +1270,31 @@ function formulairePublication() {
 }
 
 /** En-tête de la fiche : visuel, informations, résumé, action « Déjà vu / lu / joué ». */
+function detailActivite(o) {
+  return `<div class="detail detail-activite">
+      ${visuelActivite(o, "detail-visuel-activite")}
+      <div class="detail-texte">
+        ${o.selectionne ? `<span class="tag tag-selection">${icone("sparkles", 12)}Sélectionné pour vous</span>` : ""}
+        <span class="surtitre">${esc(o.categorie_libelle || "Hors écran")}</span>
+        <h2 class="titre-detail">${esc(o.titre)}</h2>
+        <p class="detail-sous-titre">${esc(o.sous_titre)}</p>
+        <div class="activite-meta">
+          <span>${icone("timer", 13)}<span class="chiffre">${esc(dureeActivite(o.duree_min))}</span></span>
+          <span>${icone(o.materiel === "sans" ? "hand" : "package", 13)}${esc(LIBELLE_MATERIEL[o.materiel])}</span>
+          <span>${icone(o.modes.includes("groupe") ? "users" : "user", 13)}${esc(modesActivite(o))}</span>
+        </div>
+        <div class="detail-actions">${boutonSauver(o, { texte: true })}
+          <button class="bouton-ligne bouton-accent" data-action="proposer-ami">${icone("user-plus", 14)}Proposer à un ami</button></div>
+      </div>
+    </div>
+    <section class="detail-synopsis"><span class="surtitre">Il te faut</span>
+      <ul class="liste-materiel">${o.il_faut.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></section>
+    <section class="detail-synopsis"><span class="surtitre">Pour te lancer</span>
+      <ol class="etapes">${o.etapes.map((e) => `<li>${esc(e)}</li>`).join("")}</ol></section>`;
+}
+
 function detailOeuvre(o) {
+  if (o.type === "activite") return detailActivite(o);
   const sortie = o.type === "sortie";
   const img = o.affiche ? `<img src="${esc(o.affiche)}" alt="" decoding="async" onerror="this.remove()">` : "";
   const note = o.note ? `${String(o.note).replace(".", ",")} / ${o.type === "livre" ? 5 : 10}` : "";
@@ -1289,19 +1389,19 @@ function rendreFeuille() {
       <button class="bouton-icone feuille-fermer" data-action="fermer-feuille" aria-label="Fermer">${icone("x", 16)}</button>
       <div class="feuille-corps">
         ${detailOeuvre(o)}
-        <div class="titre-section" style="margin:8px 0 0"><h3 class="titre-2">${esc(TYPES[o.type]?.collectif || "Sortie à plusieurs")}</h3></div>
+        <div class="titre-section" style="margin:8px 0 0"><h3 class="titre-2">${esc(collectifDe(o) || "Sortie à plusieurs")}</h3></div>
         ${plansHtml}
         <form class="proposer" id="form-plan">
           <span class="surtitre">Proposer un créneau</span>
           <label class="petit muet">Quand
             <input class="champ" type="datetime-local" name="debut" required value="${esc(valeurLocale(creneauParDefaut(o)))}" min="${esc(valeurLocale(new Date()))}">
           </label>
-          <label class="petit muet">${estSortie ? "Point de rendez-vous" : o.type === "livre" ? "Lieu ou lien visio" : o.type === "jeu" ? "Lien Discord ou lieu" : "Lien de la watch-party"}
+          <label class="petit muet">${estSortie || o.type === "activite" ? "Point de rendez-vous" : o.type === "livre" ? "Lieu ou lien visio" : o.type === "jeu" ? "Lien Discord ou lieu" : "Lien de la watch-party"}
             <input class="champ" name="rendez_vous" maxlength="200"
-              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : o.type === "livre" ? "Café, bibliothèque, lien visio…" : o.type === "jeu" ? "Serveur Discord, chez qui, salle du campus…" : "Lien Discord, Teleparty… (https://)"}">
+              placeholder="${estSortie ? "Devant la gare, le campus, l'entrée…" : o.type === "activite" ? ({ cuisine: "Chez qui ? Quelle cuisine ?", mouvement: "Parc, salle, point de départ…", creatif: "Chez qui, café, salle du campus…" }[o.categorie]) : o.type === "livre" ? "Café, bibliothèque, lien visio…" : o.type === "jeu" ? "Serveur Discord, chez qui, salle du campus…" : "Lien Discord, Teleparty… (https://)"}">
           </label>
           <label class="petit muet">Un mot (facultatif)
-            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : o.type === "livre" ? "On lit les 100 premières pages pour la prochaine fois ?" : o.type === "jeu" ? "On lance une partie à 21h ? Il reste deux places." : "On lance l'épisode à 21h ?"}">
+            <input class="champ" name="message" maxlength="280" placeholder="${estSortie ? "On y va ensemble ?" : o.type === "activite" ? `${o.titre} ensemble ? J'apporte ce qu'il faut.` : o.type === "livre" ? "On lit les 100 premières pages pour la prochaine fois ?" : o.type === "jeu" ? "On lance une partie à 21h ? Il reste deux places." : "On lance l'épisode à 21h ?"}">
           </label>
           <button class="bouton-principal" type="submit">${icone("plus", 18)}Proposer ce créneau</button>
         </form>
@@ -1490,7 +1590,7 @@ async function choisirPourMoi() {
     const titre = $("#tirage-titre");
     const montrer = (o) => {
       vignette.innerHTML = o.affiche ? `<img src="${esc(o.affiche)}" alt="" onerror="this.remove()">`
-        : icone(ICONES_CATEGORIE[o.categorie] || TYPES[o.type]?.icone || "sparkles", 28);
+        : icone(o.icone || ICONES_CATEGORIE[o.categorie] || TYPES[o.type]?.icone || "sparkles", 28);
       titre.textContent = o.titre;
     };
     const melange = [...pool].sort(() => Math.random() - 0.5).filter((o) => o.id !== gagnant.id).slice(0, 7);
@@ -1548,7 +1648,7 @@ async function charger({ partiel = false, zone = false } = {}) {
   controleur?.abort();
   controleur = new AbortController();
   const signal = controleur.signal;
-  cleQuota = `${etat.onglet}:${etat.ecrans}:${nbPepites()}`;
+  cleQuota = `${etat.onglet}:${etat.onglet === "hors-ecran" ? etat.horsEcran : etat.ecrans}:${nbPepites()}`;
   donnees = { ...donnees, chargement: true };
   if (zone) $("#zone-chez-soi")?.classList.add("chargement");
   else partiel ? $("#contenu")?.classList.add("chargement") : rendre();
@@ -1567,6 +1667,10 @@ async function charger({ partiel = false, zone = false } = {}) {
       const types = { tout: ["film", "serie", "livre", "jeu"], ecrans: ["film", "serie"], livre: ["livre"], jeu: ["jeu"] }[etat.ecrans];
       donnees = { grille: await api("/api/recommandations",
         types.length === 1 ? corps(types[0], 20) : corps("tout", 20, types), signal) };
+    } else if (etat.onglet === "hors-ecran") {
+      const q = new URLSearchParams({ categorie: etat.horsEcran, materiel: etat.prefs.materiel || "tout",
+        mode: etat.prefs.modeActivite || "tous", decouverte: String(etat.decouverte) });
+      donnees = { grille: await api(`/api/activites?${q}`, undefined, signal) };
     } else if (etat.onglet === "sorties") {
       const grille = await api("/api/recommandations", corps("sortie", etat.vueSorties === "carte" ? 40 : 20), signal);
       donnees = { grille, couverture: await couvertureSiVide(grille, signal) };
@@ -1576,7 +1680,7 @@ async function charger({ partiel = false, zone = false } = {}) {
     donnees = { erreur: true };
     toast("Le serveur ne répond pas.");
   }
-  if (zone && etat.onglet === "ecrans") rendreZone();
+  if (zone && (etat.onglet === "ecrans" || etat.onglet === "hors-ecran")) rendreZone();
   else partiel ? rendreContenu() : rendre();
 }
 
@@ -1586,7 +1690,7 @@ async function chargerMesPlans() {
 }
 
 const chargerSiQuotaChange = debounce(() => {
-  if (`${etat.onglet}:${etat.ecrans}:${nbPepites()}` !== cleQuota) charger({ partiel: true });
+  if (`${etat.onglet}:${etat.onglet === "hors-ecran" ? etat.horsEcran : etat.ecrans}:${nbPepites()}` !== cleQuota) charger({ partiel: true });
 }, 60);
 const chargerApresRayon = debounce(() => charger({ partiel: true }), 150);
 /** Curseur natif du périmètre : valeur en direct (JetBrains Mono), remplissage, rechargement si l'appli est ouverte. */
@@ -1718,6 +1822,37 @@ const actions = {
     aide.textContent = PALIERS[i].aide;
     sauvegarder();
     charger({ partiel: true });
+  },
+  "segment-hors"(b) {
+    if (etat.horsEcran === b.dataset.valeur) return;
+    etat.horsEcran = b.dataset.valeur;
+    const groupe = b.closest(".segment-pilule");
+    groupe.style.setProperty("--index", SEGMENTS_HORS_ECRAN.findIndex(([v]) => v === etat.horsEcran));
+    groupe.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    const zone = $("#zone-chez-soi");
+    if (zone) { zone.style.minHeight = `${zone.offsetHeight}px`; zone.classList.add("chargement"); }
+    $("#ecran").querySelector(".surtitre-entete")?.replaceChildren(document.createTextNode(SEGMENTS_HORS_ECRAN.find(([v]) => v === etat.horsEcran)[1]));
+    sauvegarder();
+    donnees = {};
+    charger({ zone: true });
+  },
+  materiel(b) {
+    if (etat.prefs.materiel === b.dataset.valeur) return;
+    etat.prefs.materiel = b.dataset.valeur;
+    choisirDansGroupe(b); sauvegarder(); charger({ partiel: true });
+  },
+  "mode-activite"(b) {
+    if (etat.prefs.modeActivite === b.dataset.valeur) return;
+    etat.prefs.modeActivite = b.dataset.valeur;
+    choisirDansGroupe(b); sauvegarder(); charger({ partiel: true });
+  },
+  "proposer-ami"() {
+    const form = $("#form-plan");
+    if (!form) return;
+    form.scrollIntoView({ behavior: MOUVEMENT ? "smooth" : "auto", block: "center" });
+    setTimeout(() => form.querySelector('[name="rendez_vous"]')?.focus({ preventScroll: true }), MOUVEMENT ? 400 : 0);
+    form.classList.add("surbrillance");
+    setTimeout(() => form.classList.remove("surbrillance"), 1600);
   },
   "mode-jeu"(b) {
     if (etat.prefs.modeJeu === b.dataset.valeur) return;
@@ -1883,7 +2018,7 @@ const actions = {
     const actif = !estSauvegarde(id);
     etat.envies = actif
       ? [{ id, titre: o.titre, type: o.type, affiche: o.affiche || null, annee: o.annee || null, auteur: o.auteur || null,
-           studio: o.studio || null, categorie: o.categorie || null, ville: o.ville || null, genres: (o.genres || []).slice(0, 2) },
+           studio: o.studio || null, categorie: o.categorie || null, icone: o.icone || null, ville: o.ville || null, genres: (o.genres || []).slice(0, 2) },
          ...etat.envies].slice(0, 60)
       : etat.envies.filter((e) => e.id !== id);
     sauvegarder();

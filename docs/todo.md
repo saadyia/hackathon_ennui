@@ -9,6 +9,7 @@
 - [ ] Choisir et répéter le parcours de démo, avec 2 ou 3 comptes
 
 ## Fait
+- [x] Onglet « Hors écran » (Créatif, Cuisine, Mouvement) : 35 activités, filtres Matériel / Mode, Confort ↔ Découverte, fiches avec étapes, Proposer à un ami, Mes envies, Choisir à ma place
 - [x] Comptes avec mot de passe (inscription / connexion, PBKDF2 salé, anti-essais) à la place de la reprise ouverte et du PIN ; curseur du périmètre natif et réparé sur mobile
 - [x] « Choisir à ma place » sur tout le pool (sans répétition, effet 500 ms) ; session conservée en cas de panne serveur ; « Reprendre un profil existant » (code ou liste)
 - [x] Temps réel : /api/sync (12 s, réveil au retour), pastille « Nouveau », avatars des participants ; billetterie des sorties (Entrée libre, Sur réservation, Complet, lien Réserver)

@@ -30,12 +30,12 @@ from pydantic import BaseModel, Field, field_validator
 
 try:  # lancé comme paquet (uvicorn backend.main:app)
     from . import database
-    from .moteur import BUDGETS, HORIZONS, Moteur
+    from .moteur import BUDGETS, HORIZONS, Moteur, classer_activites
     from .plateformes import PLATEFORMES
     from .scheduler import Synchroniseur
 except ImportError:  # lancé depuis backend/ (uvicorn main:app)
     import database
-    from moteur import BUDGETS, HORIZONS, Moteur
+    from moteur import BUDGETS, HORIZONS, Moteur, classer_activites
     from plateformes import PLATEFORMES
     from scheduler import Synchroniseur
 
@@ -346,9 +346,32 @@ def couverture(lat: float, lon: float):
     return {"ville": ville, "lat": coords[0], "lon": coords[1], "distance_km": round(dist(coords), 1)}
 
 
+# ------------------------------------------------------------------ #
+# Onglet « Hors écran » : catalogue d'activités (chargé une fois)      #
+# ------------------------------------------------------------------ #
+ACTIVITES = json.loads((RACINE / "data" / "activites.json").read_text(encoding="utf-8"))["activites"]
+ACTIVITES_PAR_ID = {a["id"]: a for a in ACTIVITES}
+CATEGORIES_ACTIVITES = {"creatif": "Créatif", "cuisine": "Cuisine", "mouvement": "Mouvement"}
+
+
+@app.get("/api/activites")
+def activites(categorie: Literal["creatif", "cuisine", "mouvement"] = "creatif",
+              materiel: Literal["tout", "sans", "basique"] = "tout",
+              mode: Literal["tous", "solo", "groupe"] = "tous",
+              decouverte: float = Query(0.3, ge=0, le=1),
+              x_utilisateur: Optional[str] = Header(None)):
+    """Activités de l'onglet, filtrées et classées (Confort ↔ Découverte), avec les plans à venir de chacune."""
+    liste = classer_activites(ACTIVITES, categorie, materiel, mode, decouverte, jour=datetime.now(PARIS).date().isoformat())
+    plans = database.plans_par_oeuvre([a["id"] for a in liste], x_utilisateur)
+    return [{**a, "categorie_libelle": CATEGORIES_ACTIVITES[a["categorie"]], "plans": plans.get(a["id"], [])} for a in liste]
+
+
 @app.get("/api/oeuvre")
 def oeuvre(id: str = Query(..., max_length=80)):
-    """Une œuvre ou une sortie par son identifiant (fiche de « Mes envies », de « Mes plans »)."""
+    """Une œuvre, une sortie ou une activité par son identifiant (fiche de « Mes envies », de « Mes plans »)."""
+    if id in ACTIVITES_PAR_ID:
+        a = ACTIVITES_PAR_ID[id]
+        return {**a, "categorie_libelle": CATEGORIES_ACTIVITES[a["categorie"]]}
     m = Catalogue.moteur
     i = m.index_par_id.get(id)
     if i is None:
@@ -572,7 +595,7 @@ def plans(oeuvre_id: str, x_utilisateur: Optional[str] = Header(None)):
 def creer_plan(p: DemandePlan, x_utilisateur: Optional[str] = Header(None)):
     u = utilisateur_requis(x_utilisateur)
     m = Catalogue.moteur
-    if p.oeuvre_id not in m.index_par_id:
+    if p.oeuvre_id not in m.index_par_id and p.oeuvre_id not in ACTIVITES_PAR_ID:
         raise HTTPException(status_code=404, detail="Œuvre inconnue")
     debut = lire_date(p.debut)
     maintenant = datetime.now(timezone.utc)
@@ -580,7 +603,7 @@ def creer_plan(p: DemandePlan, x_utilisateur: Optional[str] = Header(None)):
         raise HTTPException(status_code=422, detail="Ce créneau est déjà passé")
     if debut > maintenant + timedelta(days=60):
         raise HTTPException(status_code=422, detail="Créneau trop lointain (60 jours maximum)")
-    noeud = m.noeuds[m.index_par_id[p.oeuvre_id]]
+    noeud = ACTIVITES_PAR_ID.get(p.oeuvre_id) or m.noeuds[m.index_par_id[p.oeuvre_id]]
     plan_id = database.creer_plan(u["id"], noeud, debut.isoformat(), p.rendez_vous.strip(), p.message.strip())
     return {"id": plan_id, "plans": database.plans_detail(p.oeuvre_id, u["id"])}
 
@@ -612,7 +635,7 @@ def avec_visuel(plans: List[dict]) -> List[dict]:
     out = []
     for p in plans:
         i = m.index_par_id.get(p["oeuvre_id"])
-        noeud = m.noeuds[i] if i is not None else {}
+        noeud = m.noeuds[i] if i is not None else ACTIVITES_PAR_ID.get(p["oeuvre_id"], {})
         out.append({**p, "affiche": noeud.get("affiche"), "categorie": noeud.get("categorie"), "ville": noeud.get("ville")})
     return out
 

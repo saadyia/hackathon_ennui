@@ -21,6 +21,12 @@ Hors ligne : préfixe parmi les villes couvertes.
 ## `GET /api/couverture?lat=&lon=`
 Ville couverte la plus proche : `{"ville", "lat", "lon", "distance_km"}`. Utilisé quand une recherche de sorties est vide.
 
+## `GET /api/activites?categorie=&materiel=&mode=&decouverte=`
+Onglet « Hors écran ». `categorie` : `creatif` | `cuisine` | `mouvement` ; `materiel` : `tout` | `sans` (sans matériel) |
+`basique` (sans + basique) ; `mode` : `tous` | `solo` | `groupe` ; `decouverte` : 0 à 1. Activités classées
+(`moteur.classer_activites`), avec `plans` à venir et, en découverte, `origine` / `etiquette` (`pepite`, `hors-piste`).
+Identifiants `activite:<slug>` : acceptés par `/api/oeuvre`, `/api/plans` (« Proposer à un ami ») et « Mes envies ».
+
 ## `GET /api/oeuvre?id=<identifiant>`
 Fiche complète d'un seul nœud (même format qu'une recommandation). 404 si l'œuvre n'est plus au catalogue (sortie passée).
 Sert à rouvrir un élément de « Mes envies » ou de « Mes plans » qui n'est pas dans la liste affichée.

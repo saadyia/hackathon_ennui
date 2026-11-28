@@ -71,6 +71,11 @@ frontend/
 - Périmètre : `<input type="range" id="rayon">` natif (`majRayon`, `--pct` pour le remplissage, `touch-action: pan-y`,
   valeur en JetBrains Mono). `.barre-action` ne capte pas le toucher hors de son bouton (elle recouvrait le curseur).
 - « Choisir à ma place » : `candidatsTirage()` = tout le pool affiché, `dernierTirage` évite la répétition, effet ~500 ms.
+- Hors écran : `ecranHorsEcran()` (pilule `segment-hors`, `etat.horsEcran`), `zoneHorsEcran()` (même identifiant
+  `#zone-chez-soi` que Chez soi : `rendreZone()` choisit la zone de l'onglet), `carteActivite()`, `visuelActivite()`
+  (teintes `.activite-<categorie>`), `detailActivite()` (Il te faut, étapes), filtres `materiel` / `mode-activite`
+  (`etat.prefs.materiel`, `etat.prefs.modeActivite`), action `proposer-ami` (défile vers le formulaire de créneau),
+  `collectifDe()` (Atelier ensemble, Session cuisine, Séance à plusieurs). Barre du bas : 5 onglets.
 - États vides : `.etat-vide` + bouton « Réinitialiser les filtres » (budget, temps, mode, envies, horizon « Dans le mois »).
 - Sorties : bascule Liste / Carte (`etat.vueSorties`) ; `monterCarte()` (Leaflet, cercle du périmètre, repères, clic = fiche).
   CartoDB Dark Matter exige désormais une clé (filigrane « API KEY REQUIRED ») : tuiles OpenStreetMap + `.tuiles-sombres`.

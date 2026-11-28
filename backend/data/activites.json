@@ -1,0 +1,889 @@
+{
+ "activites": [
+  {
+   "id": "activite:crochet",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Crochet & tricot",
+   "sous_titre": "Premier bonnet ou snood · Maille serrée et augmentations",
+   "duree_min": 120,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.35,
+   "icone": "spline",
+   "il_faut": [
+    "Un crochet n° 5 à 6",
+    "Une pelote de laine épaisse",
+    "Une aiguille à laine"
+   ],
+   "etapes": [
+    "Monte une chaînette de la largeur voulue, sans serrer.",
+    "Enchaîne des rangs de mailles serrées en comptant les mailles à chaque rang.",
+    "Vise un carré de 10 cm avant d'attaquer l'objet : c'est ton échantillon.",
+    "Ferme et rentre les fils à l'aiguille."
+   ]
+  },
+  {
+   "id": "activite:dessin",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Dessin & croquis",
+   "sous_titre": "Carnet d'observation · Dix croquis rapides de ton quartier",
+   "duree_min": 45,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.15,
+   "icone": "pen-tool",
+   "il_faut": [
+    "Un carnet",
+    "Un crayon ou un feutre fin"
+   ],
+   "etapes": [
+    "Choisis un lieu avec du passage : café, place, bibliothèque.",
+    "Fais dix croquis de deux minutes chacun, sans gommer.",
+    "Termine par un dessin plus posé de vingt minutes.",
+    "Date la page : le carnet devient un journal."
+   ]
+  },
+  {
+   "id": "activite:aquarelle",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Aquarelle",
+   "sous_titre": "Ciel et paysage en lavis · Mouillé sur mouillé",
+   "duree_min": 60,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.3,
+   "icone": "paintbrush",
+   "il_faut": [
+    "Une boîte d'aquarelle",
+    "Un pinceau rond",
+    "Du papier 300 g",
+    "Deux pots d'eau"
+   ],
+   "etapes": [
+    "Scotche la feuille sur une planche pour qu'elle ne gondole pas.",
+    "Mouille le haut du papier et dépose un bleu dilué : le ciel se forme seul.",
+    "Laisse sécher, puis pose les plans du paysage du plus clair au plus foncé.",
+    "Finis par quelques détails nets au pinceau presque sec."
+   ]
+  },
+  {
+   "id": "activite:argile",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Argile autodurcissante",
+   "sous_titre": "Façonner un vide-poche · Modelage au colombin",
+   "duree_min": 90,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.55,
+   "icone": "hand",
+   "il_faut": [
+    "500 g d'argile autodurcissante",
+    "Un bol d'eau",
+    "Une éponge",
+    "Du papier de verre fin"
+   ],
+   "etapes": [
+    "Aplatis une galette de 1 cm pour le fond.",
+    "Roule des colombins et monte-les en spirale en lissant les jonctions au doigt mouillé.",
+    "Laisse sécher 24 à 48 h loin du radiateur.",
+    "Ponce, puis peins ou vernis si tu veux."
+   ]
+  },
+  {
+   "id": "activite:broderie",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Broderie & customisation textile",
+   "sous_titre": "Motif brodé sur un vieux t-shirt · Point arrière et point de tige",
+   "duree_min": 75,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.45,
+   "icone": "scissors",
+   "il_faut": [
+    "Un vêtement à customiser",
+    "Du fil à broder",
+    "Une aiguille",
+    "Un tambour à broder (facultatif)"
+   ],
+   "etapes": [
+    "Dessine le motif au crayon ou au feutre effaçable.",
+    "Tends le tissu dans le tambour.",
+    "Trace les contours au point arrière, puis remplis au point de tige.",
+    "Fais un nœud au dos et lave à froid."
+   ]
+  },
+  {
+   "id": "activite:linogravure",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Linogravure",
+   "sous_titre": "Graver un tampon et imprimer tes cartes",
+   "duree_min": 120,
+   "materiel": "equipe",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.85,
+   "icone": "stamp",
+   "il_faut": [
+    "Une plaque de lino ou de gomme",
+    "Des gouges",
+    "Une encre et un rouleau",
+    "Du papier"
+   ],
+   "etapes": [
+    "Dessine le motif à l'envers sur la plaque.",
+    "Creuse tout ce qui doit rester blanc, toujours en éloignant la gouge de ta main.",
+    "Encre au rouleau en couche fine.",
+    "Presse le papier à la cuillère, puis décolle doucement."
+   ]
+  },
+  {
+   "id": "activite:origami",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Origami",
+   "sous_titre": "Grue, boîte et étoile · Trois pliages en une soirée",
+   "duree_min": 40,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.4,
+   "icone": "shapes",
+   "il_faut": [
+    "Du papier carré (ou une feuille A4 recoupée)"
+   ],
+   "etapes": [
+    "Commence par la boîte masu : huit plis, aucune colle.",
+    "Enchaîne avec la grue, le grand classique.",
+    "Termine par une étoile modulaire à plusieurs.",
+    "Marque chaque pli à l'ongle : la précision fait tout."
+   ]
+  },
+  {
+   "id": "activite:collage",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Collage & carnet créatif",
+   "sous_titre": "Composer une page avec des magazines · Découpe, texture, typographie",
+   "duree_min": 60,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.3,
+   "icone": "notebook",
+   "il_faut": [
+    "Vieux magazines et flyers",
+    "Ciseaux",
+    "Colle en bâton",
+    "Un carnet"
+   ],
+   "etapes": [
+    "Choisis un thème ou une couleur pour la page.",
+    "Découpe vite et beaucoup, sans réfléchir.",
+    "Assemble d'abord sans coller, puis fixe.",
+    "Ajoute un mot écrit à la main pour signer la page."
+   ]
+  },
+  {
+   "id": "activite:calligraphie",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Calligraphie",
+   "sous_titre": "Alphabet au feutre pinceau · Pleins et déliés",
+   "duree_min": 45,
+   "materiel": "basique",
+   "modes": [
+    "solo"
+   ],
+   "insolite": 0.6,
+   "icone": "pen-line",
+   "il_faut": [
+    "Un feutre pinceau",
+    "Du papier lisse",
+    "Une règle et un crayon"
+   ],
+   "etapes": [
+    "Trace des lignes guides au crayon.",
+    "Entraîne-toi sur les traits de base : appuie en descendant, relâche en montant.",
+    "Écris l'alphabet minuscule lettre par lettre.",
+    "Finis par un mot que tu aimes, plusieurs fois."
+   ]
+  },
+  {
+   "id": "activite:bijoux",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Création de bijoux",
+   "sous_titre": "Bracelet en perles et boucles d'oreilles · Montage et fermoirs",
+   "duree_min": 60,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.45,
+   "icone": "gem",
+   "il_faut": [
+    "Des perles",
+    "Du fil élastique ou câblé",
+    "Des fermoirs",
+    "Une pince plate"
+   ],
+   "etapes": [
+    "Dispose les perles sur un tissu pour tester l'ordre.",
+    "Enfile, en gardant 5 cm de fil de chaque côté.",
+    "Fixe le fermoir avec une perle à écraser.",
+    "Fais une deuxième pièce assortie pour offrir."
+   ]
+  },
+  {
+   "id": "activite:balade-photo",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Balade photo à thème",
+   "sous_titre": "Une couleur, un sujet · Douze photos, pas une de plus",
+   "duree_min": 90,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.35,
+   "icone": "camera",
+   "il_faut": [
+    "Ton téléphone"
+   ],
+   "etapes": [
+    "Tire un thème : rouge, reflets, mains, typographie des rues.",
+    "Marche une heure en ne cherchant que ça.",
+    "Limite-toi à douze photos : chaque prise compte.",
+    "Le soir, garde les trois meilleures."
+   ]
+  },
+  {
+   "id": "activite:beatmaking",
+   "type": "activite",
+   "categorie": "creatif",
+   "titre": "Beatmaking & création sonore",
+   "sous_titre": "Composer une boucle avec des sons du quotidien",
+   "duree_min": 90,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.75,
+   "icone": "audio-lines",
+   "il_faut": [
+    "Un ordinateur ou un téléphone",
+    "Une application de musique gratuite",
+    "Des écouteurs"
+   ],
+   "etapes": [
+    "Enregistre cinq sons autour de toi : porte, tasse, clés, pas, voix.",
+    "Coupe-les en échantillons courts.",
+    "Pose une batterie simple sur quatre mesures.",
+    "Ajoute une basse et exporte ta boucle de 30 secondes."
+   ]
+  },
+  {
+   "id": "activite:cookies",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Cookies & brownies",
+   "sous_titre": "Cookies moelleux au chocolat · Cuisson courte, cœur fondant",
+   "duree_min": 45,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.05,
+   "icone": "cookie",
+   "il_faut": [
+    "Beurre, sucre, œuf, farine",
+    "Chocolat",
+    "Un four"
+   ],
+   "etapes": [
+    "Mélange beurre mou et sucres jusqu'à texture crémeuse.",
+    "Ajoute l'œuf, puis la farine et le chocolat en morceaux.",
+    "Forme des boules et repose-les 30 min au frais.",
+    "Cuis 9 à 10 min : ils durcissent en refroidissant."
+   ]
+  },
+  {
+   "id": "activite:crepes",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Crêpes & pancakes",
+   "sous_titre": "Pâte sans grumeaux · Sucré et salé pour toute la tablée",
+   "duree_min": 40,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.05,
+   "icone": "egg-fried",
+   "il_faut": [
+    "Farine, œufs, lait",
+    "Une poêle"
+   ],
+   "etapes": [
+    "Creuse un puits dans la farine, casse les œufs au centre.",
+    "Verse le lait petit à petit en fouettant.",
+    "Laisse reposer 30 min.",
+    "Poêle bien chaude, une louche, on retourne quand les bords dorent."
+   ]
+  },
+  {
+   "id": "activite:pizza",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Pizza maison",
+   "sous_titre": "Pâte levée et cuisson à four très chaud",
+   "duree_min": 120,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.15,
+   "icone": "pizza",
+   "il_faut": [
+    "Farine, levure, eau, sel, huile d'olive",
+    "Sauce tomate et garnitures",
+    "Un four"
+   ],
+   "etapes": [
+    "Pétris la pâte 10 min, puis laisse lever 1 h sous un torchon.",
+    "Étale à la main du centre vers les bords.",
+    "Garnis sans surcharger.",
+    "Four au maximum, sur la plaque préchauffée, 8 à 10 min."
+   ]
+  },
+  {
+   "id": "activite:pates-fraiches",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Pâtes fraîches ou gnocchis",
+   "sous_titre": "Tagliatelles au rouleau · Farine et œufs, rien d'autre",
+   "duree_min": 90,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.5,
+   "icone": "wheat",
+   "il_faut": [
+    "Farine, œufs",
+    "Un rouleau à pâtisserie",
+    "Un grand couteau"
+   ],
+   "etapes": [
+    "Compte 100 g de farine par œuf.",
+    "Pétris jusqu'à une boule lisse, puis repos 30 min.",
+    "Étale le plus finement possible, farine, roule et coupe en lanières.",
+    "Cuis 2 à 3 min dans l'eau bouillante salée."
+   ]
+  },
+  {
+   "id": "activite:focaccia",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Focaccia maison",
+   "sous_titre": "Pétrissage et herbes fraîches · Croûte dorée, mie alvéolée",
+   "duree_min": 180,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.45,
+   "icone": "croissant",
+   "il_faut": [
+    "Farine, eau, levure, sel",
+    "Huile d'olive",
+    "Romarin ou thym"
+   ],
+   "etapes": [
+    "Mélange une pâte très hydratée : elle colle, c'est normal.",
+    "Fais quatre séries de rabats à 30 min d'intervalle.",
+    "Étale dans un plat huilé et creuse des trous aux doigts.",
+    "Herbes, gros sel, huile, puis 20 à 25 min à 220 °C."
+   ]
+  },
+  {
+   "id": "activite:cinnamon-rolls",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Cinnamon rolls & brioche",
+   "sous_titre": "Pâte briochée roulée à la cannelle · Glaçage léger",
+   "duree_min": 180,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.4,
+   "icone": "cake-slice",
+   "il_faut": [
+    "Farine, lait, beurre, sucre, levure",
+    "Cannelle"
+   ],
+   "etapes": [
+    "Pétris une pâte briochée et laisse-la doubler de volume.",
+    "Étale en rectangle, beurre mou, sucre et cannelle.",
+    "Roule serré et coupe en tranches de 4 cm.",
+    "Seconde pousse 45 min, puis 20 min à 180 °C."
+   ]
+  },
+  {
+   "id": "activite:ramen",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Ramen ou curry maison",
+   "sous_titre": "Bouillon parfumé en une heure · Garnitures au choix",
+   "duree_min": 75,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.55,
+   "icone": "soup",
+   "il_faut": [
+    "Bouillon, sauce soja, gingembre, ail",
+    "Nouilles",
+    "Œufs, légumes"
+   ],
+   "etapes": [
+    "Fais revenir ail et gingembre, ajoute le bouillon et la sauce soja.",
+    "Laisse frémir 30 min pour concentrer les goûts.",
+    "Cuis des œufs mollets 6 min 30 et les nouilles à part.",
+    "Assemble dans le bol : nouilles, bouillon, garnitures."
+   ]
+  },
+  {
+   "id": "activite:gyoza",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Gyoza ou rouleaux de printemps",
+   "sous_titre": "Plier des raviolis à la chaîne · Atelier à plusieurs",
+   "duree_min": 90,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.8,
+   "icone": "utensils",
+   "il_faut": [
+    "Feuilles à gyoza ou galettes de riz",
+    "Farce : chou, viande ou tofu, ciboule",
+    "Une poêle avec couvercle"
+   ],
+   "etapes": [
+    "Hache finement la farce et assaisonne.",
+    "Une cuillère par feuille, mouille le bord et plisse d'un seul côté.",
+    "Dore à la poêle, puis ajoute un fond d'eau et couvre 5 min.",
+    "Sauce : soja, vinaigre de riz, huile pimentée."
+   ]
+  },
+  {
+   "id": "activite:tarte-saison",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Tarte de saison",
+   "sous_titre": "Pâte brisée maison · Fruits du marché",
+   "duree_min": 90,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.3,
+   "icone": "cherry",
+   "il_faut": [
+    "Farine, beurre, sucre",
+    "Fruits de saison",
+    "Un moule et un four"
+   ],
+   "etapes": [
+    "Sable farine et beurre froid du bout des doigts, ajoute un peu d'eau.",
+    "Repos 30 min, puis fonce le moule.",
+    "Dispose les fruits en rosace.",
+    "40 min à 180 °C, jusqu'à ce que les bords dorent."
+   ]
+  },
+  {
+   "id": "activite:vide-frigo",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Défi cuisine vide-frigo",
+   "sous_titre": "Un plat complet avec ce qui reste · Zéro courses",
+   "duree_min": 40,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.6,
+   "icone": "refrigerator",
+   "il_faut": [
+    "Ce qu'il y a dans ton frigo et tes placards"
+   ],
+   "etapes": [
+    "Sors tout sur la table et repère une base : riz, pâtes, œufs, pain.",
+    "Choisis un style : poêlée, gratin, omelette, soupe.",
+    "Ajoute du croquant et une sauce maison.",
+    "À plusieurs : chacun apporte un ingrédient surprise."
+   ]
+  },
+  {
+   "id": "activite:chocolat-mocktails",
+   "type": "activite",
+   "categorie": "cuisine",
+   "titre": "Chocolat chaud épicé & mocktails",
+   "sous_titre": "Boissons maison pour une soirée sans alcool",
+   "duree_min": 30,
+   "materiel": "basique",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.35,
+   "icone": "coffee",
+   "il_faut": [
+    "Chocolat noir, lait, épices",
+    "Agrumes, sirops, eau gazeuse, menthe"
+   ],
+   "etapes": [
+    "Chocolat : fais fondre 50 g dans 25 cl de lait, cannelle et une pointe de piment.",
+    "Mocktail : écrase menthe et citron vert, sirop, glace, eau gazeuse.",
+    "Invente une recette maison et donne-lui un nom.",
+    "Sers dans de beaux verres : la présentation compte."
+   ]
+  },
+  {
+   "id": "activite:course",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Course à pied",
+   "sous_titre": "Premier 5 km en alternant marche et course",
+   "duree_min": 35,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.1,
+   "icone": "footprints",
+   "il_faut": [
+    "Des chaussures de sport"
+   ],
+   "etapes": [
+    "Échauffe-toi 5 min en marchant vite.",
+    "Alterne 1 min de course et 1 min de marche, huit fois.",
+    "Cours à une allure où tu peux encore parler.",
+    "Termine par 5 min de marche et quelques étirements."
+   ]
+  },
+  {
+   "id": "activite:velo",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Sortie vélo",
+   "sous_titre": "Boucle de 20 km hors de la ville · Pause au bord de l'eau",
+   "duree_min": 120,
+   "materiel": "equipe",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.35,
+   "icone": "bike",
+   "il_faut": [
+    "Un vélo (ou un vélo en libre-service)",
+    "Un casque",
+    "De l'eau"
+   ],
+   "etapes": [
+    "Repère une boucle sur une carte : voies vertes et bords de rivière.",
+    "Vérifie pneus et freins avant de partir.",
+    "Garde un rythme régulier, pause à mi-parcours.",
+    "À plusieurs : on attend le plus lent aux intersections."
+   ]
+  },
+  {
+   "id": "activite:marche",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Marche exploratoire",
+   "sous_titre": "Un quartier inconnu · Se perdre volontairement",
+   "duree_min": 90,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.4,
+   "icone": "map",
+   "il_faut": [
+    "De bonnes chaussures",
+    "Ton téléphone (en mode avion si possible)"
+   ],
+   "etapes": [
+    "Prends un bus ou un tram jusqu'à un arrêt où tu n'es jamais allé.",
+    "Tourne à droite, puis à gauche, en alternance.",
+    "Note trois lieux à revenir voir.",
+    "Rentre à pied jusqu'à un repère connu."
+   ]
+  },
+  {
+   "id": "activite:yoga",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Yoga doux ou dynamique",
+   "sous_titre": "Salutation au soleil · Vingt minutes au réveil",
+   "duree_min": 25,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.3,
+   "icone": "flower-2",
+   "il_faut": [
+    "Un tapis ou une serviette"
+   ],
+   "etapes": [
+    "Commence par cinq respirations lentes en position assise.",
+    "Enchaîne cinq salutations au soleil, au rythme du souffle.",
+    "Tiens trois postures d'équilibre 30 secondes chacune.",
+    "Finis allongé, deux minutes, sans bouger."
+   ]
+  },
+  {
+   "id": "activite:mobilite",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Étirements & mobilité",
+   "sous_titre": "Délier le dos en 20 min · Spécial journées assis",
+   "duree_min": 20,
+   "materiel": "sans",
+   "modes": [
+    "solo"
+   ],
+   "insolite": 0.2,
+   "icone": "person-standing",
+   "il_faut": [
+    "Un tapis ou un sol propre"
+   ],
+   "etapes": [
+    "Rotations des épaules et du cou, dix de chaque côté.",
+    "Chat-vache à quatre pattes, dix respirations.",
+    "Fente basse et étirement des hanches, une minute par côté.",
+    "Torsion allongée, puis bras au-dessus de la tête."
+   ]
+  },
+  {
+   "id": "activite:meditation",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Méditation & respiration",
+   "sous_titre": "Cohérence cardiaque · Cinq minutes pour décrocher",
+   "duree_min": 10,
+   "materiel": "sans",
+   "modes": [
+    "solo"
+   ],
+   "insolite": 0.45,
+   "icone": "wind",
+   "il_faut": [
+    "Un endroit calme"
+   ],
+   "etapes": [
+    "Assieds-toi, dos droit, épaules relâchées.",
+    "Inspire 5 secondes, expire 5 secondes, pendant 5 minutes.",
+    "Ramène l'attention au souffle à chaque distraction.",
+    "Note comment tu te sens avant et après."
+   ]
+  },
+  {
+   "id": "activite:renforcement",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Renforcement sans matériel",
+   "sous_titre": "Circuit de 25 min · Pompes, squats, gainage",
+   "duree_min": 25,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.15,
+   "icone": "dumbbell",
+   "il_faut": [
+    "Rien, juste un peu de place"
+   ],
+   "etapes": [
+    "Échauffement : 3 min de montées de genoux et de rotations.",
+    "Circuit : 12 squats, 8 pompes, 30 s de gainage, 10 fentes.",
+    "Fais 4 tours avec 1 min de pause.",
+    "À plusieurs : un minuteur et chacun choisit un exercice."
+   ]
+  },
+  {
+   "id": "activite:pilates",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Pilates au sol",
+   "sous_titre": "Sangle abdominale et posture · Mouvements lents et précis",
+   "duree_min": 30,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.5,
+   "icone": "activity",
+   "il_faut": [
+    "Un tapis"
+   ],
+   "etapes": [
+    "Allongé, place le bassin en position neutre et respire dans les côtes.",
+    "Enchaîne le hundred, le roll-up et les cercles de jambe.",
+    "Contrôle chaque mouvement : la lenteur fait le travail.",
+    "Termine par l'étirement de la colonne."
+   ]
+  },
+  {
+   "id": "activite:escalade",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Escalade de bloc",
+   "sous_titre": "Première séance en salle · Lire une voie et grimper avec les jambes",
+   "duree_min": 120,
+   "materiel": "equipe",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.8,
+   "icone": "mountain",
+   "il_faut": [
+    "Une salle de bloc (chaussons prêtés sur place)",
+    "Une tenue souple"
+   ],
+   "etapes": [
+    "Échauffe doigts, épaules et poignets avant de grimper.",
+    "Commence par les blocs les plus faciles pour comprendre le code couleur.",
+    "Pousse sur les jambes, bras tendus : les bras se fatiguent vite.",
+    "Apprends à tomber : genoux souples, on roule sur le dos."
+   ]
+  },
+  {
+   "id": "activite:natation",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Natation",
+   "sous_titre": "Séance de 30 min en piscine · Crawl et dos crawlé",
+   "duree_min": 60,
+   "materiel": "equipe",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.4,
+   "icone": "waves",
+   "il_faut": [
+    "Maillot, bonnet, lunettes",
+    "Une piscine"
+   ],
+   "etapes": [
+    "Échauffement : 4 longueurs en nage libre, tranquille.",
+    "6 fois 2 longueurs de crawl, 30 s de pause.",
+    "4 longueurs de dos pour récupérer.",
+    "Termine par des battements avec une planche."
+   ]
+  },
+  {
+   "id": "activite:danse",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Danse",
+   "sous_titre": "Apprendre une chorégraphie courte · Dans ta chambre ou à plusieurs",
+   "duree_min": 45,
+   "materiel": "sans",
+   "modes": [
+    "solo",
+    "groupe"
+   ],
+   "insolite": 0.55,
+   "icone": "disc-3",
+   "il_faut": [
+    "Un peu d'espace",
+    "Un tutoriel vidéo ou une musique"
+   ],
+   "etapes": [
+    "Choisis une chorégraphie de 30 à 60 secondes.",
+    "Découpe-la en blocs de huit temps.",
+    "Apprends un bloc, enchaîne avec le suivant, ralentis si besoin.",
+    "Filme-toi une fois à la fin : c'est très motivant."
+   ]
+  },
+  {
+   "id": "activite:badminton",
+   "type": "activite",
+   "categorie": "mouvement",
+   "titre": "Badminton & sport collectif",
+   "sous_titre": "Match entre amis au parc ou au gymnase",
+   "duree_min": 90,
+   "materiel": "basique",
+   "modes": [
+    "groupe"
+   ],
+   "insolite": 0.3,
+   "icone": "volleyball",
+   "il_faut": [
+    "Raquettes et volant, ballon, ou frisbee",
+    "Un parc ou un créneau de gymnase"
+   ],
+   "etapes": [
+    "Réserve un créneau au service des sports de ta fac ou choisis un parc.",
+    "Échauffement en passes douces, 10 min.",
+    "Matchs courts en rotation : tout le monde joue.",
+    "Finis par un goûter : c'est la meilleure partie."
+   ]
+  }
+ ]
+}
